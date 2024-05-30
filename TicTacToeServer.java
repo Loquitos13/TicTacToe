@@ -112,9 +112,11 @@ public class TicTacToeServer {
                 String playerName = in.readLine();
                 playerNames[playerIndex] = playerName;
 
+                out.println("Você é o jogador " + (playerIndex + 1) + " (" + (playerIndex == 0 ? 'X' : 'O') + ")");
+                out.println(getBoardState());
+
                 if (clients.size() == 2) {
                     broadcast("Jogadores conectados: " + playerNames[0] + " (X) vs " + playerNames[1] + " (O)");
-                    broadcast(getBoardState());
                     broadcast("Jogador 1 (X) é a sua vez");
                 }
 
@@ -140,6 +142,9 @@ public class TicTacToeServer {
                                 out.println("Movimento inválido. Tente novamente.");
                             }
                         }
+                    }  else {
+                        // Se o cliente desconectar
+                        break;
                     }
                 }
             } catch (IOException e) {
@@ -155,7 +160,9 @@ public class TicTacToeServer {
 
         private void broadcast(String message) {
             for (ClientHandler client : clients) {
-                client.out.println(message);
+                if (client != null && client.out != null) {
+                    client.out.println(message);
+                }
             }
         }
 
