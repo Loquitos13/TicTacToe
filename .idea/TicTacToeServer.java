@@ -104,6 +104,7 @@ public class TicTacToeServer {
 
         @Override
         public void run() {
+
             try {
                 out = new PrintWriter(socket.getOutputStream(), true);
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -112,14 +113,20 @@ public class TicTacToeServer {
                 String playerName = in.readLine();
                 playerNames[playerIndex] = playerName;
 
-                out.println("Você é o jogador " + (playerIndex + 1) + " (" + (playerIndex == 0 ? 'X' : 'O') + ")");
+                out.println(playerNames[0] + " (" + (playerIndex == 0 ? 'X' : 'O') + ")");
                 out.println(getBoardState());
-
+                boolean jogador = false;
                 if (clients.size() == 2) {
                     broadcast("Jogadores conectados: " + playerNames[0] + " (X) vs " + playerNames[1] + " (O)");
-                    broadcast(playerNames[0] + " (X) é a sua vez");
-                }
 
+                    if (jogador == false) {
+
+                        broadcast(playerNames[0] + " (X) é a tua vez!");
+                        playerIndex = 0;
+                        jogador = true;
+                    }
+
+                }
                 while (true) {
                     String input = in.readLine();
                     if (input != null) {
@@ -127,6 +134,17 @@ public class TicTacToeServer {
                         if (tokens.length == 2) {
                             int row = Integer.parseInt(tokens[0]);
                             int col = Integer.parseInt(tokens[1]);
+                            if (jogador == false) {
+
+                                broadcast(playerNames[0] + " (X) é a tua vez!");
+                                playerIndex = 0;
+                                jogador = true;
+                            } else if (jogador == true) {
+
+                                broadcast(playerNames[1] + " (O) é a tua vez!");
+                                playerIndex = 1;
+                                jogador = false;
+                            }
                             if (makeMove(playerIndex, row, col)) {
                                 broadcast(getBoardState());
                                 if (checkWin()) {
@@ -142,7 +160,7 @@ public class TicTacToeServer {
                                 out.println("Movimento inválido. Tente novamente.");
                             }
                         }
-                    }  else {
+                    } else {
                         // Se o cliente desconectar
                         break;
                     }
@@ -169,7 +187,7 @@ public class TicTacToeServer {
         private void resetGame() {
             initializeBoard();
             broadcast(getBoardState());
-            broadcast("Novo jogo iniciado! "+ playerNames[0] " (X) é a sua vez");
+            broadcast("Novo jogo iniciado! " + playerNames[0] + " (X) é a sua vez");
         }
     }
 }

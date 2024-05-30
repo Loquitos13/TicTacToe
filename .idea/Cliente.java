@@ -31,7 +31,7 @@ public class Cliente {
 
             // Envia movimentos ao servidor
             while (true) {
-                System.out.print("Insira seu movimento (linha e coluna, separados por espaço): ");
+                System.out.print("Insira seu movimento (linha e coluna, separados por espaço): \n");
                 String move = scanner.nextLine();
                 out.println(move);
             }
