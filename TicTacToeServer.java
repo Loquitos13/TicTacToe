@@ -117,7 +117,7 @@ public class TicTacToeServer {
 
                 if (clients.size() == 2) {
                     broadcast("Jogadores conectados: " + playerNames[0] + " (X) vs " + playerNames[1] + " (O)");
-                    broadcast("Jogador 1 (X) é a sua vez");
+                    broadcast(playerNames[0] + " (X) é a sua vez");
                 }
 
                 while (true) {
@@ -169,7 +169,7 @@ public class TicTacToeServer {
         private void resetGame() {
             initializeBoard();
             broadcast(getBoardState());
-            broadcast("Novo jogo iniciado! Jogador 1 (X) é a sua vez");
+            broadcast("Novo jogo iniciado! "+ playerNames[0] " (X) é a sua vez");
         }
     }
 }
