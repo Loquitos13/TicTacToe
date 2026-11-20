@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiz — Formador</title>
+<link rel="stylesheet" href="common.css">
+<style>
+  nav { display: flex; gap: 6px; align-items: center; padding: 10px 16px; background: rgba(0,0,0,.25); position: sticky; top: 0; z-index: 20; flex-wrap: wrap; }
+  nav .logo { font-weight: 700; font-size: 1.4em; margin-right: 14px; } nav .logo span { color: #ffd93d; }
+  nav button { background: transparent; color: #fff; padding: 8px 14px; border-radius: 10px; font-weight: 500; }
+  nav button.on { background: #fff; color: var(--ink); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 20px 16px 60px; }
+  .card h2 { margin-top: 0; }
+  label { font-weight: 500; }
+  input[type=text], input[type=password], input[type=number], input[type=url], select, textarea { padding: 10px 12px; border: 2px solid #e5e0ef; border-radius: 10px; background: #fff; color: var(--ink); }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--d); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .item { display: flex; gap: 12px; align-items: center; padding: 10px; border-radius: 12px; background: #f6f3fb; }
+  .item .avatar { border-color: #fff; }
+  .switch { display: flex; gap: 10px; align-items: center; padding: 6px 0; cursor: pointer; }
+  .switch input { width: 20px; height: 20px; accent-color: var(--d); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 220px; overflow: auto; padding: 4px; }
+  .chip { display: flex; gap: 6px; align-items: center; background: #f1edf8; border-radius: 999px; padding: 4px 10px 4px 4px; font-size: .9em; cursor: pointer; }
+  .chip input { accent-color: var(--d); }
+
+  /* ----- Palco (projetor) ----- */
+  #stage { min-height: calc(100vh - 60px); display: flex; flex-direction: column; padding: 18px 24px 100px; }
+  .stage-top { display: flex; justify-content: space-between; align-items: center; font-size: 1.1em; opacity: .9; padding-right: 50px; }
+  .controls { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(20,10,40,.85); backdrop-filter: blur(8px); padding: 12px 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; z-index: 30; }
+  .controls .info { flex: 1; opacity: .85; min-width: 160px; }
+  .lobby { display: grid; grid-template-columns: minmax(280px, 420px) 1fr; gap: 30px; flex: 1; align-items: start; margin-top: 10px; }
+  @media (max-width: 860px) { .lobby { grid-template-columns: 1fr; } }
+  .qrbox { background: #fff; color: var(--ink); border-radius: 24px; padding: 22px; text-align: center; }
+  .qrbox img { width: 100%; max-width: 340px; aspect-ratio: 1; }
+  .qrbox .url { font-size: 1.3em; font-weight: 700; word-break: break-all; margin-top: 8px; }
+  .joined { display: flex; flex-wrap: wrap; gap: 18px; align-content: flex-start; }
+  .joined .p { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 110px; text-align: center; font-weight: 600; line-height: 1.1; }
+  .joined .p.off { opacity: .35; }
+  .count-big { font-size: 3.2em; font-weight: 700; }
+  .question-title { background: #fff; color: var(--ink); border-radius: 24px; padding: 26px 30px; font-size: clamp(1.6em, 3.4vw, 3em); font-weight: 600; text-align: center; margin: 14px 0; line-height: 1.2; }
+  .qimage { max-height: 32vh; max-width: 70%; border-radius: 16px; display: block; margin: 0 auto 14px; }
+  .qmid { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 10px 0 18px; }
+  .ring { width: 130px; height: 130px; position: relative; flex: none; }
+  .ring svg { transform: rotate(-90deg); width: 100%; height: 100%; }
+  .ring .n { position: absolute; inset: 0; display: grid; place-items: center; font-size: 2.8em; font-weight: 700; }
+  .ring.hurry .n { color: #ffd93d; animation: pulse .5s infinite; }
+  .answered-box { text-align: center; } .answered-box b { font-size: 3em; display: block; line-height: 1; }
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .opt { border-radius: 20px; padding: 20px 22px; font-size: clamp(1.1em, 2vw, 1.7em); font-weight: 600; display: flex; align-items: center; gap: 16px; position: relative; overflow: hidden; transition: opacity .4s, transform .4s; min-height: 90px; }
+  .opt .letter { font-size: 1.1em; }
+  .opt .txt { flex: 1; position: relative; z-index: 1; }
+  .opt .cnt { font-size: 1.4em; font-weight: 700; position: relative; z-index: 1; }
+  .opt .fill { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,.22); width: 0; transition: width 1s cubic-bezier(.2,.9,.3,1); }
+  .opt.dim { opacity: .35; transform: scale(.97); }
+  .opt.right { box-shadow: 0 0 0 6px #fff, 0 0 40px rgba(255,255,255,.7); animation: popIn .6s both; }
+  .opt .tick { font-size: 1.6em; position: relative; z-index: 1; }
+  .opt .who { display: flex; flex-wrap: wrap; gap: 4px; position: relative; z-index: 1; }
+  .opt.has-who { flex-wrap: wrap; }
+  .opt.has-who .who { flex-basis: 100%; }
+  .modes { display: grid; gap: 8px; }
+  .mode { display: flex; gap: 10px; align-items: flex-start; border: 2px solid #e5e0ef; border-radius: 14px; padding: 12px; cursor: pointer; }
+  .mode:has(input:checked) { border-color: var(--d); background: #f5f0ff; }
+  .mode input { margin-top: 4px; accent-color: var(--d); width: 18px; height: 18px; }
+  .mode b { display: block; font-size: 1.05em; } .mode small { color: var(--muted); }
+  .live-pill { display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,.25); padding: 12px 20px; border-radius: 999px; font-size: 1.3em; font-weight: 600; flex: none; }
+  .live-pill .dot { width: 14px; height: 14px; border-radius: 50%; background: #ff4d6d; animation: pulse 1s infinite; box-shadow: 0 0 12px #ff4d6d; }
+  .progress-wrap { flex: 1; max-width: 520px; text-align: center; }
+  .progress { height: 16px; border-radius: 99px; background: rgba(255,255,255,.2); overflow: hidden; }
+  .progress div { height: 100%; background: linear-gradient(90deg, #6bcb77, #ffd93d); border-radius: 99px; transition: width .5s cubic-bezier(.2,.9,.3,1.2); }
+  .all-done { margin-top: 10px; font-size: 1.4em; font-weight: 700; animation: popIn .5s both; }
+  .ready-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .ready-label { font-size: 1.6em; font-weight: 600; opacity: .9; }
+  .ready-wrap .question-title { width: 100%; }
+  .ready-n { width: 160px; height: 160px; border-radius: 50%; background: #ffd93d; color: var(--ink); display: grid; place-items: center; font-size: 5em; font-weight: 700; box-shadow: 0 0 0 14px rgba(255,217,61,.25); }
+  .timeup { position: fixed; inset: 0; display: grid; place-items: center; font-size: clamp(3em, 9vw, 7em); font-weight: 700; background: rgba(43,16,85,.85); z-index: 40; animation: timeup 1.8s ease forwards; pointer-events: none; }
+  @keyframes timeup { 0% { opacity: 0; transform: scale(1.4); } 15% { opacity: 1; transform: scale(1); } 75% { opacity: 1; } 100% { opacity: 0; } }
+  .big-msg { text-align: center; font-size: 3em; font-weight: 700; margin: 10px 0; }
+  .board { max-width: 900px; width: 100%; margin: 10px auto; display: flex; flex-direction: column; gap: 12px; }
+  .board .r { display: flex; align-items: center; gap: 16px; background: #fff; color: var(--ink); border-radius: 18px; padding: 10px 18px; font-size: 1.4em; font-weight: 600; }
+  .board .pos { width: 46px; text-align: center; font-weight: 700; font-size: 1.2em; }
+  .board .pts { margin-left: auto; font-weight: 700; }
+  .board .plus { color: var(--ok); font-size: .7em; margin-left: 10px; }
+  @keyframes grow { from { transform: scaleY(0); } }
+  .podium5 { flex: 1; display: flex; justify-content: center; align-items: flex-end; gap: 14px; margin-top: 6px; }
+  .pcol { display: flex; flex-direction: column; align-items: center; width: min(19vw, 200px); }
+  .pcol .dancer { animation: dropIn .7s cubic-bezier(.3,1.6,.5,1) both; animation-delay: calc(var(--d) + .35s); margin-bottom: -4px; }
+  .pcol .pstep { width: 100%; border-radius: 16px 16px 0 0; color: var(--ink); display: flex; flex-direction: column; align-items: center; padding-top: 8px; transform-origin: bottom; animation: grow .6s cubic-bezier(.2,.9,.3,1.1) both; animation-delay: var(--d); box-shadow: inset 0 -10px 0 rgba(0,0,0,.08); overflow: hidden; }
+  .pcol .place { font-size: 2em; font-weight: 700; line-height: 1; }
+  .pcol .pname { font-weight: 700; font-size: 1.05em; text-align: center; padding: 2px 6px; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pcol .pscore { font-size: .95em; opacity: .75; font-weight: 600; }
+  .pts-bubble { background: #fff; color: var(--ok); font-weight: 700; padding: 4px 12px; border-radius: 999px; margin-bottom: 4px; animation: popIn .5s both; animation-delay: calc(var(--d) + .9s); }
+  .podium5.final .pts-bubble { color: var(--ink); background: #ffd93d; font-size: 1.15em; }
+  .podium5.final .dancer { --s: 1.15; }
+  .podium5.final .pname { font-size: 1.25em; }
+  @keyframes dropIn { from { opacity: 0; transform: translateY(-260px); } to { opacity: 1; transform: none; } }
+  @media (max-height: 720px) { .pcol .dancer { --s: .8; } .podium5.final .dancer { --s: .9; } }
+
+  /* ----- Resultados ----- */
+  .tbl-wrap { overflow: auto; max-height: 75vh; border-radius: 12px; border: 1px solid #eee; }
+  table.res { border-collapse: separate; border-spacing: 0; font-size: .92em; min-width: 100%; }
+  table.res th, table.res td { padding: 8px 10px; border-bottom: 1px solid #eee; border-right: 1px solid #f3f0f8; text-align: center; white-space: nowrap; background: #fff; }
+  table.res thead th { position: sticky; top: 0; background: #f6f3fb; z-index: 2; }
+  table.res thead tr:nth-child(2) th { top: 37px; }
+  table.res th:first-child, table.res td:first-child { position: sticky; left: 0; text-align: left; z-index: 1; }
+  table.res thead th:first-child { z-index: 3; }
+  td.ok { background: #dcfce7 !important; color: #166534; font-weight: 600; }
+  td.bad { background: #fee2e2 !important; color: #991b1b; font-weight: 600; }
+  td.none { color: #999; }
+  .qdetail { border: 1px solid #eee; border-radius: 12px; padding: 14px; margin: 12px 0; break-inside: avoid; }
+  .qdetail h4 { margin: 0 0 6px; }
+  .qdetail .ans-row { display: flex; gap: 8px; align-items: center; padding: 3px 0; }
+  .tag { padding: 2px 8px; border-radius: 6px; font-size: .85em; font-weight: 600; }
+  .tag.ok { background: #dcfce7; color: #166534; } .tag.bad { background: #fee2e2; color: #991b1b; } .tag.none { background: #eee; color: #666; }
+  .qedit { border: 2px solid #eee; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .qedit .opt-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
+  .qedit .opt-row input[type=text] { flex: 1; }
+  .qedit .opt-row .letter { color: #fff; }
+  @media print {
+    body { background: #fff !important; color: #000; } body::before, body::after, nav, .noprint, .mute-btn { display: none !important; }
+    .card { box-shadow: none; padding: 0; } .tbl-wrap { max-height: none; overflow: visible; border: 0; }
+    table.res th, table.res td { position: static !important; }
+    .wrap { padding: 0; max-width: none; }
+  }
+</style>
+</head>
+<body>
+<div id="login" class="wrap" style="max-width:420px;margin-top:12vh">
+  <div class="card center pop-in">
+    <div style="font-size:60px">🎓</div>
+    <h2>Quiz — Formador</h2>
+    <form id="loginForm" class="list">
+      <input type="password" id="pw" placeholder="Palavra-passe" autofocus>
+      <button class="btn primary">Entrar</button>
+    </form>
+  </div>
+</div>
+
+<div id="main" class="hidden">
+  <nav>
+    <div class="logo">🎯 <span>Quiz</span></div>
+    <button data-tab="game" class="on">🎮 Jogo</button>
+    <button data-tab="students">👥 Alunos</button>
+    <button data-tab="quizzes">📝 Questionários</button>
+    <button data-tab="results">📊 Resultados</button>
+  </nav>
+  <section id="tab-game"></section>
+  <section id="tab-students" class="wrap hidden"></section>
+  <section id="tab-quizzes" class="wrap hidden"></section>
+  <section id="tab-results" class="wrap hidden"></section>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="common.js"></script>
+<script src="sound.js"></script>
+<script>
+let PW = sessionStorage.getItem('aq_pw') || '';
+let socket = null, S = null; // estado do servidor
+let students = [], quizzes = [], courses = [], joinUrl = '';
+const courseName = id => (courses.find(c => c.id === id) || {}).name || '—';
+const reloadCQ = async () => { [courses, quizzes] = await Promise.all([api('GET', '/api/courses'), api('GET', '/api/quizzes')]); };
+let tab = 'game';
+
+const api = async (method, url, body) => {
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'x-host-password': PW }, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { sessionStorage.removeItem('aq_pw'); location.reload(); }
+  if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
+  return r.json();
+};
+
+$('#loginForm').onsubmit = async e => {
+  e.preventDefault();
+  const pw = $('#pw').value;
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) }).then(r => r.json());
+  if (!r.ok) { $('#login .card').classList.remove('shake'); void $('#login .card').offsetWidth; $('#login .card').classList.add('shake'); return toast('Palavra-passe errada'); }
+  PW = pw; sessionStorage.setItem('aq_pw', pw); start();
+};
+if (PW) start();
+
+async function start() {
+  $('#login').classList.add('hidden'); $('#main').classList.remove('hidden');
+  muteButton();
+  [students, quizzes, courses] = await Promise.all([api('GET', '/api/students'), api('GET', '/api/quizzes'), api('GET', '/api/courses')]);
+  const info = await api('GET', '/api/joininfo');
+  joinUrl = localStorage.getItem('aq_joinurl') || info.suggestions[0];
+  window._joinSuggestions = info.suggestions;
+  socket = io({ auth: { role: 'host', password: PW } });
+  socket.on('auth_error', () => { sessionStorage.removeItem('aq_pw'); location.reload(); });
+  socket.on('state', st => { const prev = S; S = st.session; onState(prev); });
+  socket.on('toast', m => toast(m));
+  $$('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+  document.addEventListener('keydown', e => {
+    if (tab !== 'game' || !S || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+    if (e.key === ' ' || e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); next(); }
+  });
+}
+
+function showTab(t) {
+  tab = t;
+  $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  ['game', 'students', 'quizzes', 'results'].forEach(x => $('#tab-' + x).classList.toggle('hidden', x !== t));
+  if (t === 'students') renderStudents();
+  if (t === 'quizzes') renderQuizzes();
+  if (t === 'results') renderResultsList();
+  if (t === 'game') renderGame(true);
+}
+
+/* =================== JOGO =================== */
+let lastPhaseKey = '', tickTimer = null;
+function next() { Sound.init(); socket.emit('host:next'); }
+const timed = () => S && S.settings.mode === 'timed';
+const connectedN = () => S.players.filter(p => p.connected).length;
+
+function onState(prev) {
+  const key = S ? S.phase + ':' + S.qIndex : 'none';
+  const changed = key !== lastPhaseKey;
+  lastPhaseKey = key;
+  if (changed) phaseSound(prev);
+  if (tab === 'game') renderGame(changed);
+}
+
+function phaseSound(prev) {
+  clearInterval(tickTimer);
+  if (!S) return Sound.stopMusic();
+  const ph = S.phase;
+  if (ph === 'lobby') Sound.music('lobby');
+  if (ph === 'ready') { Sound.stopMusic(); [0, 1000, 2000].forEach(t => setTimeout(() => S && S.phase === 'ready' && Sound.play('tock'), t)); }
+  if (ph === 'question') {
+    Sound.play('whoosh'); Sound.music('think');
+    if (timed()) {
+      const end = Date.now() + S.remainingMs;
+      tickTimer = setInterval(() => { const r = Math.ceil((end - Date.now()) / 1000); if (r <= 5 && r > 0) Sound.play(r <= 3 ? 'tock' : 'tick'); }, 1000);
+    }
+  }
+  if (ph === 'closed') { Sound.stopMusic(); Sound.play('gong'); }
+  if (ph === 'reveal') { Sound.stopMusic(); Sound.play('correct'); }
+  if (ph === 'leaderboard') { Sound.stopMusic(); Sound.play('drumroll', 1); setTimeout(() => S && S.phase === 'leaderboard' && Sound.music('party'), 1100); }
+  if (ph === 'end') {
+    Sound.stopMusic();
+    if (!S.settings.finalPodium) { Sound.play('fanfare'); Confetti.burst(200); return; }
+    Sound.play('drumroll', FINAL_FIRST_AT - .2);
+    setTimeout(() => { if (S && S.phase === 'end') { Sound.play('fanfare'); Confetti.burst(300); setTimeout(() => S && S.phase === 'end' && Sound.music('party'), 2200); } }, FINAL_FIRST_AT * 1000);
+  }
+}
+
+function renderGame(full) {
+  const el = $('#tab-game');
+  if (!S) return renderSetup(el);
+  if (!full) return updateLive();
+  const ph = S.phase;
+  let html = `<div id="stage"><div class="stage-top"><span>${S.courseName ? '🎓 ' + esc(S.courseName) + ' · ' : ''}📝 ${esc(S.quizTitle)}</span>
+    <span>${timed() ? '⏱ Por tempo' : '🎮 Manual'} · ${ph === 'lobby' ? 'Sala aberta' : ph === 'end' ? 'Final' : `Pergunta ${S.qIndex + 1} / ${S.total}`}</span></div>`;
+  if (ph === 'lobby') html += lobbyHtml();
+  if (ph === 'ready') html += readyHtml();
+  if (ph === 'question') html += questionHtml();
+  if (ph === 'closed') { html += resultsHtml(false); closedShown.add(S.qIndex); }
+  if (ph === 'reveal') html += resultsHtml(true);
+  if (ph === 'leaderboard') html += `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Top 5</div>` + podiumHtml(S.ranking.slice(0, 5), false);
+  if (ph === 'end') html += endHtml();
+  html += `</div>` + controlsHtml();
+  el.innerHTML = html;
+  bindGame();
+  if (ph === 'question' && timed()) runRing();
+  if (ph === 'ready') runReady();
+  const tu = $('.timeup'); if (tu) tu.addEventListener('animationend', () => tu.classList.add('hidden'));
+  if (ph === 'closed' || ph === 'reveal') requestAnimationFrame(() => setTimeout(() => $$('.opt .fill').forEach(f => f.style.width = f.dataset.w), 60));
+}
+
+function lobbyHtml() {
+  return `<div class="lobby">
+    <div class="qrbox slide-up">
+      <div style="font-size:1.3em;font-weight:600">Entra com o telemóvel 📱</div>
+      <img src="/api/qr?url=${encodeURIComponent(joinUrl)}" alt="QR code">
+      <div class="url">${esc(joinUrl.replace(/^https?:\/\//, ''))}</div>
+      <details class="noprint" style="margin-top:10px;text-align:left"><summary class="muted" style="cursor:pointer">Mudar endereço</summary>
+        <div class="list" style="margin-top:8px">
+          <select id="urlSel">${window._joinSuggestions.map(u => `<option ${u === joinUrl ? 'selected' : ''}>${esc(u)}</option>`).join('')}<option value="">Outro…</option></select>
+          <input type="url" id="urlIn" value="${esc(joinUrl)}" placeholder="https://o-teu-endereco-publico">
+          <button class="btn small primary" id="urlSave">Usar este endereço</button>
+        </div></details>
+    </div>
+    <div>
+      <div class="row"><div class="count-big" id="joinCount">${connectedN()}</div><div style="font-size:1.3em">de ${S.roster.length} alunos<br>já entraram</div></div>
+      <div class="joined" id="joined" style="margin-top:20px">${joinedHtml()}</div>
+    </div></div>`;
+}
+function joinedHtml() {
+  const joined = new Map(S.players.map(p => [p.studentId, p]));
+  return S.roster.map(s => {
+    const p = joined.get(s.id);
+    return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}">${avatar(s, 'lg')}<span>${esc(s.name)}</span></div>`;
+  }).join('');
+}
+
+function readyHtml() {
+  return `<div class="ready-wrap"><div class="ready-label slide-up">Pergunta ${S.qIndex + 1} de ${S.total} · prepara-te!</div>
+    <div class="question-title pop-in" style="margin:20px 0">${esc(S.question.text)}</div>
+    <div class="ready-n" id="readyN">3</div></div>`;
+}
+let readyRaf;
+function runReady() {
+  cancelAnimationFrame(readyRaf);
+  const end = performance.now() + S.remainingMs; let last = null;
+  const f = () => {
+    const el = $('#readyN'); if (!el) return;
+    const n = Math.max(1, Math.ceil((end - performance.now()) / 1000));
+    if (n !== last) { last = n; el.textContent = n; el.classList.remove('pop-in'); void el.offsetWidth; el.classList.add('pop-in'); }
+    if (end > performance.now()) readyRaf = requestAnimationFrame(f);
+  };
+  f();
+}
+
+function questionHtml() {
+  const q = S.question, n = S.answeredIds.length, of = connectedN();
+  const left = timed()
+    ? `<div class="ring" id="ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" stroke="rgba(255,255,255,.2)" stroke-width="10" fill="none"/>
+       <circle id="ringC" cx="50" cy="50" r="44" stroke="#ffd93d" stroke-width="10" fill="none" stroke-linecap="round" stroke-dasharray="276.5" stroke-dashoffset="0"/></svg>
+       <div class="n" id="ringN">${Math.ceil(S.remainingMs / 1000)}</div></div>`
+    : `<div class="live-pill"><span class="dot"></span> Pergunta aberta</div>`;
+  return `<div class="question-title slide-up">${esc(q.text)}</div>
+    ${q.image ? `<img class="qimage" src="${esc(q.image)}">` : ''}
+    <div class="qmid">${left}
+      <div class="progress-wrap"><div class="progress"><div id="ansBar" style="width:${of ? n / of * 100 : 0}%"></div></div>
+        <div id="allDone" class="all-done ${of && n >= of ? '' : 'hidden'}">✅ Todos responderam!</div></div>
+      <div class="answered-box"><b id="ansN">${n}</b>respostas<br><small id="ansOf">de ${of}</small></div>
+    </div>
+    <div class="opts">${q.options.map((o, i) => `<div class="opt opt-${i} pop-in" style="animation-delay:${i * 90}ms"><span class="letter">${LETTERS[i]}</span><span class="txt">${esc(o)}</span></div>`).join('')}</div>`;
+}
+
+// withAnswer=false → sondagem (só quantos escolheram cada opção); true → destaca a correta
+const closedShown = new Set();
+function resultsHtml(withAnswer) {
+  const q = S.question, total = S.answeredIds.length, max = Math.max(1, ...S.counts);
+  const byId = new Map(S.roster.map(s => [s.id, s]));
+  const pct = c => total ? Math.round(c / total * 100) : 0;
+  return `${withAnswer ? '' : `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">📊 Sondagem <small style="font-size:.5em;opacity:.8">· respostas fechadas</small></div>`}
+    ${!withAnswer && timed() && !closedShown.has(S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
+    <div class="question-title" style="font-size:clamp(1.3em,2.6vw,2.2em);margin-top:6px">${esc(q.text)}</div>
+    <div class="opts" style="margin-top:10px">${q.options.map((o, i) => {
+      const right = q.correct.includes(i);
+      return `<div class="opt opt-${i} ${withAnswer ? (right ? 'right' : 'dim') : 'slide-up'} ${S.settings.showWho ? 'has-who' : ''}" style="animation-delay:${withAnswer ? 0 : i * 100}ms">
+        <div class="fill" data-w="${(S.counts[i] / max) * 100}%"></div>
+        <span class="letter">${LETTERS[i]}</span><span class="txt">${esc(o)}</span>
+        ${withAnswer && right ? '<span class="tick">✔</span>' : ''}<span class="cnt">${S.counts[i]} <small style="font-size:.55em;opacity:.85">${pct(S.counts[i])}%</small></span>
+        ${S.settings.showWho ? `<div class="who">${S.whoByOption[i].map(id => avatar(byId.get(id) || { name: '?' }, 'sm')).join('')}</div>` : ''}
+      </div>`;
+    }).join('')}</div>
+    <p class="center" style="font-size:1.3em;margin-top:22px">${withAnswer ? `✅ ${q.correct.reduce((a, i) => a + S.counts[i], 0)} acertaram · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
+}
+
+// ----- Pódio com bonecos a dançar -----
+const FINAL_FIRST_AT = 4.2; // segundos até aparecer o 1º lugar no pódio final
+function podiumHtml(top, final) {
+  const order = [3, 1, 0, 2, 4]; // 4º 2º 1º 3º 5º
+  const heights = final ? [210, 165, 130, 95, 70] : [170, 140, 118, 100, 88];
+  const colors = ['#ffd93d', '#e5e7eb', '#f4a261', '#7dd3fc', '#c4b5fd'];
+  const moves = ['jump', 'disco', 'wave', 'sway', 'robot'];
+  const gap = final ? 0.9 : 0.25;
+  // aparecem do 5º para o 1º
+  const delayOf = i => final ? (i === 0 ? FINAL_FIRST_AT : (top.length - 1 - i) * gap + 0.3) : (top.length - 1 - i) * gap + 0.2;
+  return `<div class="podium5 ${final ? 'final' : ''}">${order.filter(i => top[i]).map(i => {
+    const p = top[i], d = delayOf(i), plus = S.lastPoints[p.studentId];
+    return `<div class="pcol" style="--d:${d}s">
+      <div class="pts-bubble">${final ? p.score + ' pts' : plus ? '+' + plus : '+0'}</div>
+      ${dancer(p, moves[i], colors[i], i === 0)}
+      <div class="pstep" style="height:${heights[i]}px;background:${colors[i]}"><span class="place">${i + 1}º</span>
+        <span class="pname">${esc(p.name)}</span>${final ? '' : `<span class="pscore">${p.score} pts</span>`}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function endHtml() {
+  if (!S.settings.finalPodium) return `<div class="big-msg slide-up">🎉 Fim do quiz!</div><p class="center" style="font-size:1.4em">Obrigado a todos pela participação! 💜</p>`;
+  return `<div class="big-msg slide-up" style="font-size:2.6em;margin:0">🎉 Fim do quiz! 🏆</div>` + podiumHtml(S.ranking.slice(0, 5), true);
+}
+
+function controlsHtml() {
+  const ph = S.phase, last = S.qIndex + 1 >= S.total;
+  const label = {
+    lobby: '▶ Começar quiz', ready: '⏩ Abrir já', question: timed() ? '⏹ Terminar tempo' : '⏹ Fechar respostas', closed: '✅ Mostrar resposta correta',
+    reveal: S.settings.rankEach ? '🏆 Ranking' : (last ? '🏁 Resultados finais' : '➡ Próxima pergunta'),
+    leaderboard: last ? '🏁 Resultados finais' : '➡ Próxima pergunta',
+  }[ph];
+  const allIn = ph === 'question' && connectedN() && S.answeredIds.length >= connectedN();
+  return `<div class="controls noprint">
+    <div class="info"><span id="ctlInfo">${ph === 'end' ? 'Sessão terminada — as respostas estão guardadas.' : `${connectedN()} ligados · espaço/→ avança`}</span></div>
+    <label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>
+    <label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>
+    <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
+    <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
+    ${ph !== 'end' ? `<button class="btn small danger" id="btnEnd">Terminar</button>` : ''}
+    ${ph === 'end' ? `<button class="btn primary" id="btnGrid">📊 Ver grelha de resultados</button><button class="btn small ghost" id="btnClose">Fechar sessão</button>` : `<button class="btn primary ${allIn ? 'pulse' : ''}" id="btnNext">${label}</button>`}
+  </div>`;
+}
+
+function bindGame() {
+  const on = (id, fn) => { const e = $('#' + id); if (e) e.onclick = fn; };
+  on('btnNext', next);
+  on('btnEnd', () => confirm('Terminar o quiz agora? As perguntas que faltam ficam como "não feitas".') && socket.emit('host:end'));
+  on('btnClose', () => confirm('Fechar a sessão? (os resultados ficam guardados em Resultados)') && socket.emit('host:close'));
+  on('btnGrid', () => { showTab('results'); openResult(S.id); });
+  on('btnFs', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+  on('btnPlayers', playersDialog);
+  $('#setWho').onchange = e => socket.emit('host:settings', { showWho: e.target.checked });
+  $('#setRank').onchange = e => socket.emit('host:settings', { rankEach: e.target.checked });
+  const sel = $('#urlSel');
+  if (sel) {
+    sel.onchange = () => { if (sel.value) $('#urlIn').value = sel.value; else $('#urlIn').focus(); };
+    $('#urlSave').onclick = () => { joinUrl = $('#urlIn').value.trim().replace(/\/$/, ''); localStorage.setItem('aq_joinurl', joinUrl); renderGame(true); };
+  }
+}
+
+let ringRaf;
+function runRing() {
+  cancelAnimationFrame(ringRaf);
+  const end = performance.now() + S.remainingMs, total = S.question.time * 1000;
+  const f = () => {
+    const c = $('#ringC'), n = $('#ringN'); if (!c) return;
+    const r = Math.max(0, end - performance.now());
+    c.style.strokeDashoffset = 276.5 * (1 - r / total);
+    n.textContent = Math.ceil(r / 1000);
+    $('#ring').classList.toggle('hurry', r < 5500);
+    if (r > 0) ringRaf = requestAnimationFrame(f);
+  };
+  f();
+}
+
+// atualizações sem redesenhar tudo (ex.: alguém respondeu / entrou)
+function updateLive() {
+  if (S.phase === 'lobby') {
+    const on = new Set(S.players.filter(p => p.connected).map(p => p.studentId));
+    $('#joinCount') && ($('#joinCount').textContent = on.size);
+    $$('#joined .p').forEach(d => {
+      const isOn = on.has(d.dataset.id);
+      if (isOn && d.classList.contains('off')) { d.classList.remove('off'); d.classList.remove('pop-in'); void d.offsetWidth; d.classList.add('pop-in'); Sound.play('pop'); }
+      if (!isOn) d.classList.add('off');
+    });
+  }
+  if (S.phase === 'question') {
+    const n = $('#ansN'), cnt = S.answeredIds.length, of = connectedN();
+    if (n && n.textContent != cnt) { n.textContent = cnt; n.classList.remove('pop-in'); void n.offsetWidth; n.classList.add('pop-in'); Sound.play('pop'); }
+    const o = $('#ansOf'); if (o) o.textContent = 'de ' + of;
+    const bar = $('#ansBar'); if (bar) bar.style.width = (of ? Math.min(100, cnt / of * 100) : 0) + '%';
+    const done = $('#allDone'); if (done) { const was = !done.classList.contains('hidden'); const now = of && cnt >= of; done.classList.toggle('hidden', !now); if (now && !was) Sound.play('correct'); }
+  }
+  // redesenha só a barra de controlos (mantém as animações do palco)
+  const old = $('.controls');
+  if (old) { const tmp = document.createElement('div'); tmp.innerHTML = controlsHtml(); old.replaceWith(tmp.firstElementChild); bindGame(); }
+  if ((S.phase === 'closed' || S.phase === 'reveal') && $('.opt.has-who') == null !== !S.settings.showWho) {
+    // mudou a opção "quem respondeu": redesenha os resultados sem animação
+    const st = $('#stage'); const top = st.firstElementChild.outerHTML; st.innerHTML = top + resultsHtml(S.phase === 'reveal');
+    $$('.opt .fill').forEach(f => { f.style.transition = 'none'; f.style.width = f.dataset.w; });
+  }
+}
+
+function playersDialog() {
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:grid;place-items:center;padding:16px';
+  const joined = new Map(S.players.map(p => [p.studentId, p]));
+  d.innerHTML = `<div class="card" style="width:min(560px,100%);max-height:85vh;overflow:auto"><h2>Alunos na sessão</h2>
+    <p class="muted">Se um aluno escolheu o nome errado ou mudou de telemóvel, liberta o nome para ele voltar a entrar. As respostas já dadas mantêm-se.</p>
+    <div class="list">${S.roster.map(s => { const p = joined.get(s.id); return `<div class="item">${avatar(s)}<div class="grow"><b>${esc(s.name)}</b><br>
+      <small class="muted">${!p ? 'Ainda não entrou' : p.connected ? '🟢 Ligado' : '⚪ Desligado'}${p ? ' · ' + p.score + ' pts' : ''}</small></div>
+      ${p ? `<button class="btn small" data-rel="${s.id}">Libertar nome</button>` : ''}</div>`; }).join('')}</div>
+    <p style="text-align:right"><button class="btn primary" id="closeDlg">Fechar</button></p></div>`;
+  document.body.appendChild(d);
+  d.onclick = e => { if (e.target === d || e.target.id === 'closeDlg') d.remove(); };
+  $$('[data-rel]', d).forEach(b => b.onclick = () => { socket.emit('host:release', b.dataset.rel); b.textContent = 'Libertado ✓'; b.disabled = true; });
+}
+
+function renderSetup(el) {
+  const qz = quizzes.filter(q => q.questions.length);
+  const withQ = courses.filter(c => qz.some(q => q.courseId === c.id));
+  let selCourse = null; try { selCourse = localStorage.getItem('aq_course'); } catch {}
+  if (!withQ.find(c => c.id === selCourse)) selCourse = withQ[0] && withQ[0].id;
+  el.innerHTML = `<div class="wrap"><div class="grid2">
+    <div class="card slide-up">
+      <h2>🚀 Nova sessão</h2>
+      ${!qz.length ? '<p>Cria primeiro um questionário no separador <b>Questionários</b>.</p>' : ''}
+      <div class="list">
+        <label>Curso</label>
+        <select id="sCourse">${withQ.map(c => `<option value="${c.id}" ${c.id === selCourse ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
+        <label>Questionário</label>
+        <select id="sQuiz"></select>
+        <label>Como avançam as perguntas? <small class="muted">(aplica-se a todo o quiz)</small></label>
+        <div class="modes">
+          <label class="mode"><input type="radio" name="sMode" value="manual" checked><span><b>🎮 Manual</b><small>Tu abres cada pergunta e decides quando fechar. Depois mostras a sondagem, a resposta correta e o ranking ao teu ritmo.</small></span></label>
+          <label class="mode"><input type="radio" name="sMode" value="timed"><span><b>⏱ Por tempo (automático)</b><small>Cada pergunta tem tempo limite. Quando chega a 0 (ou todos respondem) deixa de aceitar respostas e passa sozinha para a sondagem. Depois avanças tu para a resposta correta.</small></span></label>
+        </div>
+        <div class="row" id="timeRow" style="display:none"><label>⏱ Tempo por pergunta</label>
+          <select id="sTime"><option value="0">O definido em cada pergunta</option>${[10, 15, 20, 30, 45, 60, 90, 120].map(t => `<option value="${t}">${t} segundos (todas)</option>`).join('')}</select></div>
+        <label class="switch"><input type="checkbox" id="sRank" checked> Mostrar ranking (pódio Top 5 com bonecos a dançar) depois de cada pergunta</label>
+        <label class="switch"><input type="checkbox" id="sFinal" checked> Pódio final animado</label>
+        <label class="switch"><input type="checkbox" id="sWho"> Mostrar no ecrã quem respondeu o quê (fotos em cada opção)</label>
+        <label class="switch"><input type="checkbox" id="sSpeed" checked> Pontos extra por responder depressa</label>
+        <label class="switch"><input type="checkbox" id="sShuffle"> Baralhar a ordem das perguntas</label>
+        <p class="muted" style="margin:4px 0">Independentemente destas opções, a grelha final regista sempre quem respondeu o quê.</p>
+        <button class="btn primary" id="sGo" ${!qz.length || !students.length ? 'disabled' : ''}>Abrir sala 🎉</button>
+      </div>
+    </div>
+    <div class="card slide-up" style="animation-delay:.1s">
+      <h2>👥 Turma (${students.length})</h2>
+      ${!students.length ? '<p>Ainda não há alunos. Adiciona-os no separador <b>Alunos</b>.</p>' : `
+      <div class="row" style="margin-bottom:8px"><button class="btn small" id="allOn">Todos</button><button class="btn small" id="allOff">Nenhum</button><span class="muted">Desmarca quem não participa nesta sessão.</span></div>
+      <div class="chips">${students.map(s => `<label class="chip"><input type="checkbox" class="sStu" value="${s.id}" checked>${avatar(s, 'sm')}${esc(s.name)}</label>`).join('')}</div>`}
+    </div></div></div>`;
+  const go = $('#sGo');
+  const fillQuiz = () => {
+    const cid = $('#sCourse').value; try { localStorage.setItem('aq_course', cid); } catch {}
+    $('#sQuiz').innerHTML = qz.filter(q => q.courseId === cid).map(q => `<option value="${q.id}">${esc(q.title)} (${q.questions.length} perguntas)</option>`).join('');
+  };
+  $('#sCourse').onchange = fillQuiz; fillQuiz();
+  $$('[name=sMode]').forEach(r => r.onchange = () => $('#timeRow').style.display = $('[name=sMode]:checked').value === 'timed' ? '' : 'none');
+  if ($('#allOn')) { $('#allOn').onclick = () => $$('.sStu').forEach(c => c.checked = true); $('#allOff').onclick = () => $$('.sStu').forEach(c => c.checked = false); }
+  go.onclick = () => {
+    const ids = $$('.sStu').filter(c => c.checked).map(c => c.value);
+    if (!ids.length) return toast('Escolhe pelo menos um aluno');
+    Sound.init();
+    socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, rankEach: $('#sRank').checked, finalPodium: $('#sFinal').checked, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked } });
+  };
+}
+
+/* =================== ALUNOS =================== */
+function renderStudents() {
+  const el = $('#tab-students');
+  el.innerHTML = `<div class="grid2">
+    <div class="card">
+      <h2>➕ Adicionar aluno</h2>
+      <form id="addStu" class="list">
+        <div class="row"><div id="prev">${avatar({ name: '?' }, 'lg')}</div>
+          <label class="btn small">📷 Foto<input type="file" accept="image/*" id="stuPhoto" hidden></label></div>
+        <input type="text" id="stuName" placeholder="Nome do aluno" required>
+        <button class="btn primary">Adicionar</button>
+      </form>
+      <hr style="border:0;border-top:1px solid #eee;margin:20px 0">
+      <h3 style="margin:0 0 6px">📁 Adicionar vários de uma vez</h3>
+      <p class="muted" style="margin-top:0">Escolhe várias fotos — o nome de cada ficheiro passa a ser o nome do aluno (ex.: <i>Ana Silva.jpg</i>). Podes corrigir os nomes antes de guardar.</p>
+      <label class="btn small">Escolher fotos<input type="file" accept="image/*" multiple id="bulk" hidden></label>
+      <div id="bulkList" class="list" style="margin-top:10px"></div>
+      <h3 style="margin:20px 0 6px">📋 Ou colar lista de nomes</h3>
+      <textarea id="names" rows="4" style="width:100%" placeholder="Um nome por linha (podes juntar as fotos depois)"></textarea>
+      <button class="btn small" id="addNames" style="margin-top:6px">Adicionar nomes</button>
+    </div>
+    <div class="card">
+      <h2>👥 Turma (${students.length})</h2>
+      <div class="list" id="stuList">${students.map(s => `<div class="item" data-id="${s.id}">${avatar(s)}
+        <input type="text" value="${esc(s.name)}" class="grow stuEdit" style="min-width:0">
+        <label class="btn small" title="Mudar foto">📷<input type="file" accept="image/*" class="stuNewPhoto" hidden></label>
+        <button class="btn small danger stuDel" title="Remover">✕</button></div>`).join('') || '<p class="muted">Sem alunos ainda.</p>'}</div>
+    </div></div>`;
+  let photo = null;
+  $('#stuPhoto').onchange = async e => { const f = e.target.files[0]; if (!f) return; photo = await resizeImage(f); $('#prev').innerHTML = `<img class="avatar lg" src="${photo}">`; };
+  $('#addStu').onsubmit = async e => {
+    e.preventDefault();
+    const added = await api('POST', '/api/students', { name: $('#stuName').value, photo });
+    students = await api('GET', '/api/students'); toast('Adicionado: ' + added[0].name); renderStudents(); $('#stuName').focus();
+  };
+  $('#addNames').onclick = async () => {
+    const list = $('#names').value.split('\n').map(s => s.trim()).filter(Boolean).map(name => ({ name }));
+    if (!list.length) return;
+    await api('POST', '/api/students', list); students = await api('GET', '/api/students'); renderStudents();
+  };
+  $('#bulk').onchange = async e => {
+    const files = [...e.target.files]; const items = [];
+    for (const f of files) items.push({ name: f.name.replace(/\.[^.]+$/, '').replace(/[_\-]+/g, ' ').trim(), photo: await resizeImage(f) });
+    $('#bulkList').innerHTML = items.map((it, i) => `<div class="item"><img class="avatar" src="${it.photo}"><input type="text" class="grow bulkName" data-i="${i}" value="${esc(it.name)}"></div>`).join('') +
+      `<button class="btn primary" id="bulkSave">Guardar ${items.length} alunos</button>`;
+    $('#bulkSave').onclick = async () => {
+      $$('.bulkName').forEach(inp => items[inp.dataset.i].name = inp.value);
+      await api('POST', '/api/students', items); students = await api('GET', '/api/students'); toast(items.length + ' alunos adicionados'); renderStudents();
+    };
+  };
+  $$('#stuList .item').forEach(row => {
+    const id = row.dataset.id;
+    $('.stuEdit', row).onchange = async e => { await api('PUT', '/api/students/' + id, { name: e.target.value }); students = await api('GET', '/api/students'); toast('Guardado'); };
+    $('.stuNewPhoto', row).onchange = async e => { const f = e.target.files[0]; if (!f) return; await api('PUT', '/api/students/' + id, { photo: await resizeImage(f) }); students = await api('GET', '/api/students'); renderStudents(); };
+    $('.stuDel', row).onclick = async () => { if (!confirm('Remover este aluno?')) return; await api('DELETE', '/api/students/' + id); students = await api('GET', '/api/students'); renderStudents(); };
+  });
+}
+
+/* =================== QUESTIONÁRIOS =================== */
+let editing = null;
+function renderQuizzes() {
+  const el = $('#tab-quizzes');
+  if (editing) return renderEditor(el);
+  el.innerHTML = `<div class="card"><div class="row"><h2 class="grow" style="margin:0">🎓 Cursos e questionários</h2>
+    <form id="newCourse" class="row"><input type="text" id="courseName" placeholder="Nome do novo curso" required><button class="btn primary">+ Novo curso</button></form></div>
+    ${!courses.length ? '<p class="muted">Cria primeiro um curso (ex.: "Técnico de Vendas", "Excel Avançado"). Depois adicionas os questionários desse curso.</p>' : ''}</div>
+    ${courses.map(c => { const qs = quizzes.filter(q => q.courseId === c.id); return `<div class="card slide-up" style="margin-top:16px">
+      <div class="row"><h3 class="grow" style="margin:0;font-size:1.3em">🎓 ${esc(c.name)} <small class="muted" style="font-weight:400">· ${qs.length} questionário${qs.length === 1 ? '' : 's'}</small></h3>
+        <button class="btn small primary" data-newq="${c.id}">+ Questionário</button>
+        <label class="btn small">Importar JSON<input type="file" accept=".json" data-imp="${c.id}" hidden></label>
+        <button class="btn small" data-ren="${c.id}">✏️ Renomear</button><button class="btn small danger" data-cdel="${c.id}" title="Apagar curso">✕</button></div>
+      <div class="list" style="margin-top:12px">${qs.map(q => `<div class="item"><div class="grow"><b>${esc(q.title)}</b><br><small class="muted">${q.questions.length} perguntas</small></div>
+        <button class="btn small" data-edit="${q.id}">Editar</button><button class="btn small" data-dup="${q.id}">Duplicar</button>
+        <button class="btn small" data-exp="${q.id}">Exportar</button><button class="btn small danger" data-del="${q.id}">✕</button></div>`).join('') || '<p class="muted" style="margin:0">Ainda sem questionários neste curso.</p>'}</div></div>`; }).join('')}`;
+  const after = async () => { await reloadCQ(); renderQuizzes(); };
+  $('#newCourse').onsubmit = async e => { e.preventDefault(); await api('POST', '/api/courses', { name: $('#courseName').value }); toast('Curso criado'); after(); };
+  $$('[data-ren]').forEach(b => b.onclick = async () => { const n = prompt('Novo nome do curso:', courseName(b.dataset.ren)); if (n && n.trim()) { await api('PUT', '/api/courses/' + b.dataset.ren, { name: n }); after(); } });
+  $$('[data-cdel]').forEach(b => b.onclick = async () => { if (!confirm('Apagar o curso "' + courseName(b.dataset.cdel) + '"?')) return; try { await api('DELETE', '/api/courses/' + b.dataset.cdel); after(); } catch (e) { toast(e.message, 4500); } });
+  $$('[data-newq]').forEach(b => b.onclick = () => { editing = { courseId: b.dataset.newq, title: 'Novo questionário', questions: [blankQ()] }; renderQuizzes(); });
+  $$('[data-edit]').forEach(b => b.onclick = () => { editing = JSON.parse(JSON.stringify(quizzes.find(q => q.id === b.dataset.edit))); renderQuizzes(); });
+  $$('[data-dup]').forEach(b => b.onclick = async () => { const q = JSON.parse(JSON.stringify(quizzes.find(q => q.id === b.dataset.dup))); delete q.id; q.title += ' (cópia)'; q.questions.forEach(x => delete x.id); await api('POST', '/api/quizzes', q); after(); });
+  $$('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('Apagar este questionário?')) return; await api('DELETE', '/api/quizzes/' + b.dataset.del); after(); });
+  $$('[data-exp]').forEach(b => b.onclick = () => { const q = quizzes.find(q => q.id === b.dataset.exp); download(q.title + '.json', JSON.stringify(q, null, 2), 'application/json'); });
+  $$('[data-imp]').forEach(inp => inp.onchange = async e => { try { const q = JSON.parse(await e.target.files[0].text()); delete q.id; q.courseId = inp.dataset.imp; await api('POST', '/api/quizzes', q); toast('Importado'); after(); } catch (err) { toast('Ficheiro inválido'); } });
+}
+const blankQ = () => ({ text: '', options: ['', '', '', ''], correct: [0], time: 20 });
+
+function renderEditor(el) {
+  const q = editing;
+  el.innerHTML = `<div class="card">
+    <div class="row"><label class="muted">🎓 Curso</label><select id="qCourse">${courses.map(c => `<option value="${c.id}" ${c.id === q.courseId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+    <div class="row" style="margin-top:10px"><input type="text" id="qTitle" class="grow" value="${esc(q.title)}" style="font-size:1.3em;font-weight:600">
+      <button class="btn ghost" id="cancelEd" style="color:var(--ink);background:#eee">Cancelar</button><button class="btn primary" id="saveEd">💾 Guardar</button></div>
+    <details style="margin:14px 0"><summary style="cursor:pointer;font-weight:600">⚡ Importar perguntas de texto (rápido)</summary>
+      <p class="muted">Uma pergunta por bloco, separados por linha em branco. Primeira linha = pergunta; linhas seguintes = opções; marca a correta com <b>*</b> no início. Opcional: <code>[30s]</code> no fim da pergunta para o tempo.</p>
+      <textarea id="bulkQ" rows="8" style="width:100%" placeholder="Qual é a capital de Portugal? [20s]&#10;Porto&#10;*Lisboa&#10;Coimbra&#10;Faro&#10;&#10;O sol é uma estrela.&#10;*Verdadeiro&#10;Falso"></textarea>
+      <button class="btn small" id="parseQ">Adicionar estas perguntas</button></details>
+    <div id="qList">${q.questions.map((x, i) => qEditHtml(x, i)).join('')}</div>
+    <button class="btn" id="addQ">+ Adicionar pergunta</button>
+  </div>`;
+  const sync = () => {
+    q.title = $('#qTitle').value; q.courseId = $('#qCourse').value;
+    $$('.qedit').forEach((box, i) => {
+      const x = q.questions[i];
+      x.text = $('.qText', box).value; x.time = +$('.qTime', box).value || 20;
+      x.options = $$('.qOpt', box).map(o => o.value);
+      x.correct = $$('.qCor', box).map((c, k) => c.checked ? k : -1).filter(k => k >= 0);
+    });
+  };
+  $('#cancelEd').onclick = () => { editing = null; renderQuizzes(); };
+  $('#addQ').onclick = () => { sync(); q.questions.push(blankQ()); renderQuizzes(); $$('.qText').pop().focus(); };
+  $('#parseQ').onclick = () => {
+    sync();
+    const blocks = $('#bulkQ').value.split(/\n\s*\n/).map(b => b.split('\n').map(l => l.trim()).filter(Boolean)).filter(b => b.length >= 3);
+    for (const b of blocks) {
+      let text = b[0], time = 20; const m = /\[(\d+)\s*s?\]\s*$/.exec(text); if (m) { time = +m[1]; text = text.replace(m[0], '').trim(); }
+      const opts = b.slice(1).slice(0, 6); const correct = opts.map((o, i) => o.startsWith('*') ? i : -1).filter(i => i >= 0);
+      q.questions.push({ text, time, options: opts.map(o => o.replace(/^\*\s*/, '')), correct: correct.length ? correct : [0] });
+    }
+    q.questions = q.questions.filter(x => x.text || x.options.some(Boolean));
+    toast(blocks.length + ' perguntas adicionadas'); renderQuizzes();
+  };
+  $('#saveEd').onclick = async () => {
+    sync();
+    for (const [i, x] of q.questions.entries()) {
+      const filled = x.options.filter(o => o.trim());
+      if (!x.text.trim()) return toast(`Pergunta ${i + 1}: falta o texto`);
+      if (filled.length < 2) return toast(`Pergunta ${i + 1}: precisa de pelo menos 2 opções`);
+      if (!x.correct.length || x.correct.some(k => !x.options[k] || !x.options[k].trim())) return toast(`Pergunta ${i + 1}: marca a resposta correta`);
+    }
+    // remove opções vazias e reajusta índices das corretas
+    q.questions.forEach(x => { const map = []; const opts = []; x.options.forEach((o, k) => { if (o.trim()) { map[k] = opts.length; opts.push(o); } }); x.correct = x.correct.map(k => map[k]); x.options = opts; });
+    const saved = await api('POST', '/api/quizzes', q); await reloadCQ(); editing = null; toast('Guardado: ' + saved.title); renderQuizzes();
+  };
+  $$('.qedit').forEach((box, i) => {
+    $('.qDel', box).onclick = () => { sync(); q.questions.splice(i, 1); renderQuizzes(); };
+    $('.qUp', box).onclick = () => { sync(); if (i > 0) { [q.questions[i - 1], q.questions[i]] = [q.questions[i], q.questions[i - 1]]; renderQuizzes(); } };
+    $('.qAddOpt', box).onclick = () => { sync(); if (q.questions[i].options.length < 6) q.questions[i].options.push(''); renderQuizzes(); };
+    $('.qTF', box).onclick = () => { sync(); Object.assign(q.questions[i], { options: ['Verdadeiro', 'Falso'], correct: [0] }); renderQuizzes(); };
+    $('.qImg', box).onchange = async e => { const f = e.target.files[0]; if (!f) return; sync(); q.questions[i].image = await resizeImage(f, 900, false); renderQuizzes(); };
+    const rm = $('.qImgDel', box); if (rm) rm.onclick = () => { sync(); q.questions[i].image = null; renderQuizzes(); };
+    $$('.qOptDel', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; const k = +b.dataset.k; if (x.options.length <= 2) return; x.options.splice(k, 1); x.correct = x.correct.filter(c => c !== k).map(c => c > k ? c - 1 : c); if (!x.correct.length) x.correct = [0]; renderQuizzes(); });
+  });
+}
+function qEditHtml(x, i) {
+  return `<div class="qedit"><div class="row"><b>Pergunta ${i + 1}</b><span class="grow"></span>
+    <label class="muted">⏱ <input type="number" class="qTime" value="${x.time}" min="5" max="300" style="width:80px"> s</label>
+    <button class="btn small qUp" title="Subir">↑</button><button class="btn small danger qDel" title="Apagar">✕</button></div>
+    <textarea class="qText" rows="2" style="width:100%;margin-top:8px" placeholder="Escreve a pergunta…">${esc(x.text)}</textarea>
+    ${x.image ? `<div class="row"><img src="${esc(x.image)}" style="max-height:100px;border-radius:8px"><button class="btn small qImgDel">Remover imagem</button></div>` : ''}
+    ${x.options.map((o, k) => `<div class="opt-row"><span class="letter" style="background:var(--${'abcdef'[k]})">${LETTERS[k]}</span><input type="text" class="qOpt" value="${esc(o)}" placeholder="Opção ${LETTERS[k]}">
+      <label class="switch" title="Resposta correta"><input type="checkbox" class="qCor" ${x.correct.includes(k) ? 'checked' : ''}> correta</label>
+      <button class="btn small qOptDel" data-k="${k}" title="Remover opção">−</button></div>`).join('')}
+    <div class="row" style="margin-top:6px"><button class="btn small qAddOpt">+ Opção</button><button class="btn small qTF">Verdadeiro/Falso</button>
+    <label class="btn small">🖼 Imagem<input type="file" accept="image/*" class="qImg" hidden></label></div></div>`;
+}
+function download(name, content, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* =================== RESULTADOS =================== */
+let resultsFilter = null;
+async function renderResultsList() {
+  const el = $('#tab-results');
+  const all = await api('GET', '/api/results');
+  const cnames = [...new Set(all.map(r => r.courseName || ''))].sort((a, b) => a.localeCompare(b, 'pt'));
+  const f = resultsFilter;
+  const list = f == null ? all : all.filter(r => (r.courseName || '') === f);
+  el.innerHTML = `<div class="card"><div class="row"><h2 class="grow" style="margin:0">📊 Sessões realizadas</h2>
+    <label class="muted">Curso</label><select id="rFilter"><option value="__all">Todos os cursos</option>${cnames.map(n => `<option value="${esc(n)}" ${n === f ? 'selected' : ''}>${esc(n || 'Sem curso')}</option>`).join('')}</select></div>
+    <div class="list" style="margin-top:14px">${list.map(r => `<div class="item"><div class="grow"><b>${r.courseName ? `<span class="muted" style="font-weight:500">🎓 ${esc(r.courseName)} ·</span> ` : ''}${esc(r.quizTitle)}</b><br>
+    <small class="muted">${new Date(r.startedAt).toLocaleString('pt-PT')} · ${r.players} participantes · ${r.questions} perguntas ${r.endedAt ? '' : '· <b>em curso / não terminada</b>'}</small></div>
+    <button class="btn small primary" data-open="${r.id}">Ver grelha</button><button class="btn small danger" data-rm="${r.id}">✕</button></div>`).join('') || '<p class="muted">Ainda não há sessões.</p>'}</div></div>`;
+  $('#rFilter').onchange = e => { resultsFilter = e.target.value === '__all' ? null : e.target.value; renderResultsList(); };
+  $$('[data-open]').forEach(b => b.onclick = () => openResult(b.dataset.open));
+  $$('[data-rm]').forEach(b => b.onclick = async () => { if (!confirm('Apagar definitivamente os resultados desta sessão?')) return; try { await api('DELETE', '/api/results/' + b.dataset.rm); } catch (e) { toast(e.message); } renderResultsList(); });
+}
+
+async function openResult(id) {
+  const r = await api('GET', '/api/results/' + id);
+  const el = $('#tab-results');
+  const people = new Map(); r.roster.forEach(s => people.set(s.id, s)); r.players.forEach(p => people.set(p.studentId, { id: p.studentId, name: p.name, photo: p.photo }));
+  const list = [...people.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt'));
+  const joined = new Set(r.players.map(p => p.studentId));
+  const score = Object.fromEntries(r.players.map(p => [p.studentId, p.score]));
+  const asked = new Set(r.asked); const nAsked = r.asked.length;
+  const stats = list.map(p => { let ok = 0; r.questions.forEach((q, i) => { const a = (r.answers[i] || {})[p.id]; if (a && a.correct) ok++; }); return ok; });
+  const cell = (p, q, i) => {
+    if (!asked.has(i)) return `<td class="none">—</td>`;
+    const a = (r.answers[i] || {})[p.id];
+    if (!a) return `<td class="none">${joined.has(p.id) ? 'sem resp.' : 'ausente'}</td>`;
+    return `<td class="${a.correct ? 'ok' : 'bad'}" title="${esc(q.options[a.option])} · ${(a.timeMs / 1000).toFixed(1)}s">${LETTERS[a.option]} ${a.correct ? '✓' : '✗'}</td>`;
+  };
+  const avg = list.length && nAsked ? Math.round(stats.reduce((a, b) => a + b, 0) / (list.length * nAsked) * 100) : 0;
+  el.innerHTML = `<div class="card">
+    <div class="row noprint"><button class="btn small" id="back">← Voltar</button><span class="grow"></span>
+      <a class="btn small" href="/api/results/${r.id}/csv?type=grelha&pw=${encodeURIComponent(PW)}">⬇ Excel (grelha)</a>
+      <a class="btn small" href="/api/results/${r.id}/csv?type=detalhado&pw=${encodeURIComponent(PW)}">⬇ Excel (detalhado)</a>
+      <button class="btn small primary" onclick="print()">🖨 Imprimir / PDF</button></div>
+    ${r.courseName ? `<div class="muted" style="margin-top:14px;font-weight:600">🎓 ${esc(r.courseName)}</div>` : ''}
+    <h2 style="margin:${r.courseName ? 2 : 14}px 0 4px">${esc(r.quizTitle)}</h2>
+    <p class="muted" style="margin-top:0">${new Date(r.startedAt).toLocaleString('pt-PT')} · ${list.length} alunos · ${nAsked} de ${r.questions.length} perguntas feitas · média de acerto ${avg}% ${r.endedAt ? '' : '· <b>sessão em curso</b>'}</p>
+    <h3>Grelha: quem respondeu o quê</h3>
+    <div class="tbl-wrap"><table class="res"><thead>
+      <tr><th>Aluno</th>${r.questions.map((q, i) => `<th title="${esc(q.text)}">P${i + 1}</th>`).join('')}<th>Certas</th><th>%</th><th>Pontos</th></tr>
+      <tr><th>Resposta correta</th>${r.questions.map(q => `<th style="color:var(--ok)">${q.correct.map(k => LETTERS[k]).join('/')}</th>`).join('')}<th></th><th></th><th></th></tr></thead>
+      <tbody>${list.map((p, j) => `<tr><td>${esc(p.name)}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
+        <td><b>${stats[j]}</b>/${nAsked}</td><td>${nAsked ? Math.round(stats[j] / nAsked * 100) : 0}%</td><td>${score[p.id] ?? 0}</td></tr>`).join('')}</tbody></table></div>
+    <h3 style="margin-top:28px">Detalhe por pergunta</h3>
+    ${r.questions.map((q, i) => {
+      const ans = r.answers[i] || {};
+      return `<div class="qdetail"><h4>P${i + 1}. ${esc(q.text)} ${asked.has(i) ? '' : '<span class="tag none">não feita</span>'}</h4>
+        <div class="muted" style="margin-bottom:6px">${q.options.map((o, k) => `${LETTERS[k]}) ${esc(o)}`).join(' · ')}</div>
+        <div style="margin-bottom:8px"><span class="tag ok">Resposta correta: ${q.correct.map(k => `${LETTERS[k]}) ${esc(q.options[k])}`).join(' | ')}</span></div>
+        ${asked.has(i) ? list.map(p => { const a = ans[p.id]; return `<div class="ans-row">${avatar(p, 'sm')}<span style="min-width:200px">${esc(p.name)}</span>
+          ${a ? `<span class="tag ${a.correct ? 'ok' : 'bad'}">${LETTERS[a.option]}) ${esc(q.options[a.option])} ${a.correct ? '✓' : '✗'}</span><small class="muted">${(a.timeMs / 1000).toFixed(1)} s</small>` : `<span class="tag none">${joined.has(p.id) ? 'Sem resposta' : 'Ausente'}</span>`}</div>`; }).join('') : ''}
+      </div>`;
+    }).join('')}
+  </div>`;
+  $('#back').onclick = renderResultsList;
+}
+</script>
+</body>
+</html>

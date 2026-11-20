@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#2b1055">
+<title>Quiz</title>
+<link rel="stylesheet" href="common.css">
+<style>
+  body { -webkit-tap-highlight-color: transparent; user-select: none; }
+  main { max-width: 640px; margin: 0 auto; padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); min-height: 100dvh; display: flex; flex-direction: column; }
+  h1 { font-size: 2em; margin: .3em 0; }
+  .logo { font-weight: 700; font-size: 1.6em; letter-spacing: .5px; text-align: center; margin: 8px 0 4px; }
+  .logo span { color: #ffd93d; }
+  .screen { flex: 1; display: flex; flex-direction: column; }
+  .middle { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; }
+  .big-emoji { font-size: 84px; }
+  .search { width: 100%; padding: 14px 16px; border-radius: 14px; border: 0; font-size: 1.05em; margin: 10px 0 14px; }
+  .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+  .person { background: rgba(255,255,255,.14); border-radius: 16px; padding: 14px 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: #fff; font-weight: 600; text-align: center; line-height: 1.15; transition: transform .15s, background .15s; }
+  .person:active { transform: scale(.95); }
+  .person:hover { background: rgba(255,255,255,.24); }
+  .person.taken { opacity: .45; }
+  .person small { font-weight: 400; opacity: .8; }
+  .bar { display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,.2); padding: 8px 12px; border-radius: 16px; margin-right: 52px; }
+  .bar .name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .score { background: #ffd93d; color: var(--ink); padding: 4px 12px; border-radius: 999px; font-weight: 700; }
+  .qmeta { display: flex; justify-content: space-between; margin: 14px 0 6px; opacity: .85; }
+  .qtext { background: #fff; color: var(--ink); border-radius: 16px; padding: 16px; font-size: 1.25em; font-weight: 600; text-align: center; }
+  .qimg { max-width: 100%; max-height: 28vh; border-radius: 12px; margin: 10px auto 0; display: block; }
+  .timebar { height: 10px; background: rgba(255,255,255,.2); border-radius: 99px; overflow: hidden; margin: 12px 0; }
+  .timebar div { height: 100%; background: #ffd93d; width: 100%; transform-origin: left; }
+  .answers { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; flex: 1; align-content: stretch; }
+  .answers.n2 { grid-template-columns: 1fr; }
+  .ans { color: #fff; border-radius: 18px; padding: 16px 12px; font-size: 1.15em; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 110px; box-shadow: 0 6px 0 rgba(0,0,0,.25); transition: transform .1s; }
+  .ans:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.25); }
+  .ans .letter { font-size: 1.1em; }
+  .result { border-radius: 24px; padding: 28px 18px; width: 100%; }
+  .result.ok { background: var(--ok); }
+  .result.bad { background: var(--bad); }
+  .result.none { background: rgba(0,0,0,.25); }
+  .result h2 { font-size: 2.2em; margin: 6px 0; }
+  .correct-box { background: rgba(255,255,255,.95); color: var(--ink); padding: 12px 16px; border-radius: 14px; margin-top: 12px; font-weight: 600; }
+  .bounce { animation: bounce 1.4s ease-in-out infinite; }
+  @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-16px); } }
+  .ready-n { width: 120px; height: 120px; border-radius: 50%; background: #ffd93d; color: var(--ink); display: grid; place-items: center; font-size: 3.6em; font-weight: 700; box-shadow: 0 0 0 12px rgba(255,217,61,.25); }
+  .dancer { --s: .8; }
+  .dots::after { content: ''; animation: dots 1.5s steps(4) infinite; }
+  @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+</style>
+</head>
+<body>
+<main>
+  <div id="app" class="screen"></div>
+</main>
+<script src="/socket.io/socket.io.js"></script>
+<script src="common.js"></script>
+<script src="sound.js"></script>
+<script>
+muteButton();
+const app = $('#app');
+const socket = io({ auth: { role: 'player' } });
+let roster = null, state = null, pending = null, lastKey = '', search = '', timerRaf = null;
+const stored = () => { try { return JSON.parse(localStorage.getItem('aq_me') || 'null'); } catch { return null; } };
+const store = v => { try { v ? localStorage.setItem('aq_me', JSON.stringify(v)) : localStorage.removeItem('aq_me'); } catch {} };
+
+socket.on('connect', () => { state = null; });
+socket.on('roster', r => {
+  roster = r;
+  const me = stored();
+  if (r.session && me && me.sessionId === r.session.id && !state) return claim(me.studentId, me.token, true);
+  if (!state) render();
+});
+socket.on('state', s => { if (!s.session) { state = null; roster = null; render(); return; } state = s; render(); });
+socket.on('reload', () => { state = null; pending = null; store(null); });
+socket.on('released', () => { state = null; store(null); toast('Foste desligado deste nome pelo formador.'); render(); });
+
+function claim(studentId, token, silent) {
+  socket.emit('player:claim', { studentId, token }, res => {
+    if (res.error) { if (!silent) toast(res.error, 4000); else store(null); pending = null; render(); return; }
+    store({ sessionId: res.sessionId, studentId, token: res.token });
+    pending = null;
+  });
+}
+
+function render() {
+  cancelAnimationFrame(timerRaf);
+  if (state && state.session) return renderGame();
+  if (!roster || !roster.session) {
+    return set('wait', `<div class="logo">🎯 <span>Quiz</span></div>
+      <div class="middle"><div class="big-emoji wiggle">🎮</div><h1>Quase lá!</h1><p>À espera que o formador abra a sessão<span class="dots"></span></p></div>`);
+  }
+  if (pending) {
+    const p = roster.students.find(s => s.id === pending);
+    return set('confirm' + pending, `<div class="logo">🎯 <span>Quiz</span></div>
+      <div class="middle">${avatar(p, 'xl pop-in')}<h1>És tu, ${esc(p.name.split(' ')[0])}?</h1>
+      <div class="row" style="justify-content:center"><button class="btn ghost" id="no">Não</button><button class="btn primary" id="yes">Sim, sou eu! 🚀</button></div></div>`, () => {
+      $('#no').onclick = () => { pending = null; render(); };
+      $('#yes').onclick = () => { Sound.init(); Sound.play('pop'); claim(pending, null); };
+    });
+  }
+  const list = roster.students.filter(s => s.name.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').includes(search));
+  const key = 'pick' + JSON.stringify(roster.students.map(s => [s.id, s.taken])) + search;
+  set(key, `<div class="logo">🎯 <span>Quiz</span></div>
+    <p class="center" style="margin:4px 0 0">${roster.session.courseName ? esc(roster.session.courseName) + ' · ' : ''}${esc(roster.session.quizTitle)}</p>
+    <h1 class="center" style="font-size:1.6em">Quem és tu? 👇</h1>
+    <input class="search" id="q" placeholder="Procura o teu nome…" value="${esc(search)}" autocomplete="off">
+    <div class="people">${list.map((s, i) => `<button class="person ${s.taken ? 'taken' : ''} pop-in" style="animation-delay:${Math.min(i, 20) * 30}ms" data-id="${s.id}">
+      ${avatar(s, 'lg')}<span>${esc(s.name)}</span>${s.taken ? '<small>já entrou</small>' : ''}</button>`).join('') || '<p class="muted">Nenhum nome encontrado.</p>'}</div>`, () => {
+    const q = $('#q');
+    q.oninput = () => { search = q.value.toLowerCase().normalize('NFD').replace(/\p{M}/gu, ''); render(); q.focus(); q.setSelectionRange(q.value.length, q.value.length); };
+    $$('.person').forEach(b => b.onclick = () => { Sound.init(); pending = b.dataset.id; render(); });
+  });
+}
+
+// só redesenha quando algo muda (evita cintilar)
+function set(key, html, bind) {
+  if (key === lastKey) return;
+  lastKey = key; app.innerHTML = html; bind && bind();
+}
+
+function header() {
+  const m = state.me;
+  return `<div class="bar">${avatar(m, 'sm')}<span class="name">${esc(m.name)}</span><span class="score" id="score">${m.score} pts</span></div>`;
+}
+
+let prevPhase = '';
+function renderGame() {
+  renderGameInner();
+  const sc = $('#score'); if (sc) sc.textContent = state.me.score + ' pts';
+}
+function renderGameInner() {
+  const s = state.session, ph = s.phase;
+  const pk = ph + s.qIndex;
+  const changed = pk !== prevPhase; prevPhase = pk;
+  if (ph === 'lobby') {
+    return set('lobby' + state.me.studentId, header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Estás dentro! 🎉</h1><p>Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p></div>`);
+  }
+  const timedMode = s.settings.mode === 'timed';
+  const showRank = s.settings.rankEach;
+  if (ph === 'ready') {
+    set('ready' + s.qIndex, header() + qmeta() + `<div class="middle"><h1 class="slide-up">Prepara-te! 🧠</h1>
+      <div class="qtext pop-in" style="width:100%">${esc(state.question.text)}</div>
+      <div class="ready-n" id="rn">3</div></div>`);
+    const end = performance.now() + state.remainingMs;
+    const tick = () => { const el = $('#rn'); if (!el) return; el.textContent = Math.max(1, Math.ceil((end - performance.now()) / 1000)); if (end > performance.now()) timerRaf = requestAnimationFrame(tick); };
+    tick();
+    return;
+  }
+  if (ph === 'question') {
+    const q = state.question;
+    if (state.answered) {
+      return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">🤞</div><h1>Resposta enviada!</h1>
+        <div class="ans opt-${state.myOption}" style="min-height:auto;width:100%"><span class="letter">${LETTERS[state.myOption]}</span>${esc(q.options[state.myOption])}</div>
+        <p>Vamos ver se acertaste<span class="dots"></span></p></div>`);
+    }
+    set('q' + s.qIndex, header() + qmeta() + `<div class="qtext slide-up">${esc(q.text)}</div>${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
+      ${timedMode ? '<div class="timebar"><div id="tb"></div></div>' : '<p class="center" style="margin:10px 0;opacity:.85">👆 Escolhe a tua resposta</p>'}
+      <div class="answers ${q.options.length === 2 ? 'n2' : ''}">${q.options.map((o, i) => `<button class="ans opt-${i} pop-in" style="animation-delay:${i * 70}ms" data-i="${i}"><span class="letter">${LETTERS[i]}</span>${esc(o)}</button>`).join('')}</div>`, () => {
+      $$('.ans').forEach(b => b.onclick = () => {
+        const i = +b.dataset.i;
+        $$('.ans').forEach(x => x.disabled = true);
+        socket.emit('player:answer', i, res => {
+          if (res && res.error) { toast(res.error); $$('.ans').forEach(x => x.disabled = false); return; }
+          Sound.play('sent'); navigator.vibrate && navigator.vibrate(40);
+          state.answered = true; state.myOption = i; render();
+        });
+      });
+    });
+    if (!timedMode) return;
+    const end = performance.now() + state.remainingMs, total = q.time * 1000;
+    const tick = () => { const tb = $('#tb'); if (!tb) return; const r = Math.max(0, end - performance.now()); tb.style.transform = `scaleX(${r / total})`; if (r > 0) timerRaf = requestAnimationFrame(tick); };
+    tick();
+    return;
+  }
+  if (ph === 'closed') {
+    return set('closed' + s.qIndex + state.answered, header() + qmeta() + `<div class="middle"><div class="big-emoji wiggle">${timedMode ? '⏰' : '🔒'}</div><h1>${timedMode ? 'Tempo esgotado!' : 'Respostas fechadas!'}</h1>
+      <p>${state.answered ? 'A tua resposta foi registada ✅' : 'Não respondeste a tempo 😬'}<br>📊 Olha para o ecrã: vem aí a sondagem<span class="dots"></span></p></div>`);
+  }
+  if (ph === 'reveal' || ph === 'leaderboard') {
+    const q = state.question;
+    const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : 'bad';
+    const key = 'rev' + s.qIndex + ph;
+    const isNew = !lastKey.startsWith('rev' + s.qIndex);
+    set(key, header() + qmeta() + `<div class="middle"><div class="result ${cls} ${isNew ? (state.wasCorrect ? 'pop-in' : 'shake') : ''}">
+      <div class="big-emoji">${!state.answered ? '😴' : state.wasCorrect ? '🎉' : '😅'}</div>
+      <h2>${!state.answered ? 'Sem resposta' : state.wasCorrect ? 'Certo!' : 'Errado'}</h2>
+      ${state.wasCorrect ? `<div style="font-size:1.5em;font-weight:700">+${state.points} pontos</div>` : ''}
+      ${!state.wasCorrect ? `<div class="correct-box">Resposta correta:<br>${state.correct.map(i => `${LETTERS[i]}) ${esc(q.options[i])}`).join('<br>')}</div>` : ''}
+      </div>${ph === 'leaderboard' ? rankBox() : ''}</div>`);
+    if (isNew) { Sound.play(state.wasCorrect ? 'correct' : 'wrong'); if (state.wasCorrect) Confetti.burst(80); navigator.vibrate && navigator.vibrate(state.wasCorrect ? [40, 60, 40] : 200); }
+    return;
+  }
+  if (ph === 'end') {
+    const m = state.me;
+    const isNew = !lastKey.startsWith('end');
+    const podium = s.settings.finalPodium && m.position <= 5;
+    set('end', header() + `<div class="middle">${podium ? `<div class="pop-in">${dancer(m, ['jump', 'disco', 'wave', 'sway', 'robot'][m.position - 1], ['#ffd93d', '#e5e7eb', '#f4a261', '#7dd3fc', '#c4b5fd'][m.position - 1], m.position === 1)}</div>` : avatar(m, 'xl pop-in')}<h1>Terminou! 🏁</h1>
+      <div class="card" style="width:100%"><div style="font-size:2.4em;font-weight:700">${m.score} pts</div>
+      <div class="muted">${m.correct} de ${s.total} respostas certas</div>
+      ${s.settings.finalPodium || showRank ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>
+      <p>Obrigado por participares! 💜</p></div>`);
+    if (isNew) { Sound.play('fanfare'); Confetti.burst(200); }
+  }
+}
+function rankBox() {
+  const m = state.me;
+  return m.position <= 5
+    ? `<div class="pop-in" style="display:flex;align-items:center;gap:12px">${dancer(m, 'wave', '#ffd93d', m.position === 1)}<p style="font-size:1.3em;margin:0">Estás no <b>Top 5</b>!<br><b style="font-size:1.6em">${m.position}º</b> lugar 🎉</p></div>`
+    : `<p style="font-size:1.2em">Estás em <b>${m.position}º</b> lugar de ${m.of}</p>`;
+}
+function qmeta() { const s = state.session; return `<div class="qmeta"><span>Pergunta ${s.qIndex + 1} de ${s.total}</span><span>${esc(s.quizTitle)}</span></div>`; }
+render();
+</script>
+</body>
+</html>
