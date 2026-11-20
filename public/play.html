@@ -57,6 +57,8 @@
 <script src="common.js"></script>
 <script src="sound.js"></script>
 <script>
+// Volume baixo nos telemóveis: o formador não controla o som dos dispositivos dos alunos
+Sound.setVolume(0.2);
 muteButton();
 const app = $('#app');
 const socket = io({ auth: { role: 'player' } });
