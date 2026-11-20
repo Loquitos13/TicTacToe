@@ -237,14 +237,16 @@ function phaseSound(prev) {
   if (ph === 'closed') { Sound.stopMusic(0.8); Sound.play('softEnd'); }
   if (ph === 'reveal') { Sound.stopMusic(); Sound.play('revealCorrect'); }
   if (ph === 'leaderboard') {
-    Sound.stopMusic(); Sound.play('cheer');
-    setTimeout(() => { if (S && S.phase === 'leaderboard') { Confetti.burst(120); Sound.music('party'); } }, 1600);
+    // aplausos ao entrar o pódio; quando acabam começa a música de festa (em loop até à próxima pergunta)
+    Sound.stopMusic(); Sound.play('cheer', CHEER_S);
+    setTimeout(() => S && S.phase === 'leaderboard' && Confetti.burst(120), 1600);
+    setTimeout(() => S && S.phase === 'leaderboard' && Sound.music('party'), CHEER_S * 1000 + 150);
   }
   if (ph === 'end') {
     Sound.stopMusic();
     if (!S.settings.finalPodium) { Sound.play('fanfare'); Confetti.burst(200); return; }
     Sound.play('drumroll', FINAL_FIRST_AT - .2);
-    setTimeout(() => { if (S && S.phase === 'end') { Sound.play('fanfare'); Sound.play('cheer', 3.5); Confetti.burst(300); setTimeout(() => S && S.phase === 'end' && Sound.music('party'), 2200); } }, FINAL_FIRST_AT * 1000);
+    setTimeout(() => { if (S && S.phase === 'end') { Sound.play('fanfare'); Sound.play('cheer', CHEER_S + 0.6); Confetti.burst(300); setTimeout(() => S && S.phase === 'end' && Sound.music('party'), (CHEER_S + 0.6) * 1000 + 150); } }, FINAL_FIRST_AT * 1000);
   }
 }
 
@@ -374,6 +376,7 @@ function resultsHtml(withAnswer, animate = false) {
 }
 
 // ----- Pódio com bonecos a dançar -----
+const CHEER_S = 2.6; // duração dos aplausos do pódio (s)
 const FINAL_FIRST_AT = 4.2; // segundos até aparecer o 1º lugar no pódio final
 function podiumHtml(top, final) {
   const order = [3, 1, 0, 2, 4]; // 4º 2º 1º 3º 5º

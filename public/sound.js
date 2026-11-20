@@ -120,7 +120,8 @@ const Sound = (() => {
     if (!tracks[name]) return;
     current = name; step = 0; nextTime = ctx.currentTime + 0.05;
     musicGain.gain.cancelScheduledValues(ctx.currentTime);
-    musicGain.gain.setValueAtTime(0.5, ctx.currentTime);
+    musicGain.gain.setValueAtTime(0, ctx.currentTime);
+    musicGain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 0.6); // entra suave
     timerId = setInterval(scheduler, 25);
   }
   // pára a música com um fade-out curto (não corta de repente)

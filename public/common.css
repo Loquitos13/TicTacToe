@@ -122,4 +122,4 @@ input, select, textarea { font: inherit; }
 @keyframes d-robot { 0% { transform: translateX(0); } 25% { transform: translateX(-4px) rotate(-4deg); } 50% { transform: translateX(0); } 75% { transform: translateX(4px) rotate(4deg); } }
 @keyframes d-robot-l { 0% { transform: rotate(90deg); } 25% { transform: rotate(180deg); } 50% { transform: rotate(30deg); } 75% { transform: rotate(90deg); } }
 @keyframes d-robot-r { 0% { transform: rotate(-30deg); } 25% { transform: rotate(-90deg); } 50% { transform: rotate(-180deg); } 75% { transform: rotate(-90deg); } }
-@media (prefers-reduced-motion: reduce) { .dancer * { animation: none !important; } }
+/* os bonecos dançam sempre, enquanto o pódio estiver no ecrã */
