@@ -744,8 +744,8 @@ async function openResult(id) {
   const avg = list.length && nAsked ? Math.round(stats.reduce((a, b) => a + b, 0) / (list.length * nAsked) * 100) : 0;
   el.innerHTML = `<div class="card">
     <div class="row noprint"><button class="btn small" id="back">← Voltar</button><span class="grow"></span>
-      <a class="btn small" href="/api/results/${r.id}/csv?type=grelha&pw=${encodeURIComponent(PW)}">⬇ Excel (grelha)</a>
-      <a class="btn small" href="/api/results/${r.id}/csv?type=detalhado&pw=${encodeURIComponent(PW)}">⬇ Excel (detalhado)</a>
+      <button class="btn small" data-csv="grelha">⬇ Excel (grelha)</button>
+      <button class="btn small" data-csv="detalhado">⬇ Excel (detalhado)</button>
       <button class="btn small primary" onclick="print()">🖨 Imprimir / PDF</button></div>
     ${r.courseName ? `<div class="muted" style="margin-top:14px;font-weight:600">🎓 ${esc(r.courseName)}</div>` : ''}
     <h2 style="margin:${r.courseName ? 2 : 14}px 0 4px">${esc(r.quizTitle)}</h2>
@@ -768,6 +768,14 @@ async function openResult(id) {
     }).join('')}
   </div>`;
   $('#back').onclick = renderResultsList;
+  // descarrega com a palavra-passe no cabeçalho (nunca no endereço)
+  $$('[data-csv]').forEach(b => b.onclick = async () => {
+    const res = await fetch(`/api/results/${encodeURIComponent(r.id)}/csv?type=${b.dataset.csv}`, { headers: { 'x-host-password': PW } });
+    if (!res.ok) return toast('Não foi possível descarregar');
+    const name = (/filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '') || [])[1] || 'resultados.csv';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(await res.blob()); a.download = name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  });
 }
 </script>
 </body>

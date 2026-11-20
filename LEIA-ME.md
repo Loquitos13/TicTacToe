@@ -14,11 +14,17 @@ npm install
 ```bash
 npm start
 ```
-Para mudar a palavra-passe do formador (por omissão é `formador`):
+**Palavra-passe do formador:** não há nenhuma por omissão. No primeiro arranque é gerada uma aleatória (ex.: `9a6e-zq85-5mgs`), que aparece no terminal e fica guardada em `data/palavra-passe-formador.txt`.
+Para usares a tua (mínimo 8 caracteres):
 ```bash
-HOST_PASSWORD=aMinhaPass npm start
+HOST_PASSWORD=aMinhaPassSegura npm start
 ```
-No Windows (PowerShell): `$env:HOST_PASSWORD="aMinhaPass"; npm start`
+No Windows (PowerShell): `$env:HOST_PASSWORD="aMinhaPassSegura"; npm start`
+
+Segurança:
+- A palavra-passe nunca vai no endereço das páginas (só em cabeçalhos), por isso não fica no histórico do browser.
+- Cada tentativa errada demora 1,5 s a responder, para travar quem tente adivinhar.
+- Os alunos nunca recebem a resposta correta, a pontuação, o nº de certas nem a posição da pergunta em curso antes de mostrares a resposta correta.
 
 - **Formador:** http://localhost:3000/host.html
 - **Alunos:** o endereço que aparece no QR code

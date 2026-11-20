@@ -10,12 +10,39 @@ const QRCode = require('qrcode');
 const { Server } = require('socket.io');
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
-const HOST_PASSWORD = process.env.HOST_PASSWORD || 'formador';
 const DATA_DIR = path.join(__dirname, 'data');
 const UPLOADS = path.join(DATA_DIR, 'uploads');
 const RESULTS = path.join(DATA_DIR, 'results');
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
+// Palavra-passe do formador: HOST_PASSWORD, ou uma gerada aleatoriamente no 1º arranque
+// (guardada em data/palavra-passe-formador.txt). Nunca há uma palavra-passe por omissão conhecida.
+const PW_FILE = path.join(DATA_DIR, 'palavra-passe-formador.txt');
+let HOST_PASSWORD = (process.env.HOST_PASSWORD || '').trim();
+let PW_GENERATED = false;
+if (!HOST_PASSWORD) {
+  if (fs.existsSync(PW_FILE)) HOST_PASSWORD = fs.readFileSync(PW_FILE, 'utf8').trim();
+  if (!HOST_PASSWORD) {
+    const abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+    HOST_PASSWORD = [0, 1, 2].map(() => Array.from(crypto.randomBytes(4), b => abc[b % abc.length]).join('')).join('-');
+    fs.writeFileSync(PW_FILE, HOST_PASSWORD + '\n', { mode: 0o600 });
+    PW_GENERATED = true;
+  }
+}
+if (HOST_PASSWORD.length < 8) { console.error('HOST_PASSWORD tem de ter pelo menos 8 caracteres.'); process.exit(1); }
+
+// comparação em tempo constante
+function pwOk(given) {
+  const a = crypto.createHash('sha256').update(String(given ?? '')).digest();
+  const b = crypto.createHash('sha256').update(HOST_PASSWORD).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+// Tentativas erradas respondem com atraso (trava quem tenta adivinhar). Não há bloqueio,
+// para que um aluno nunca consiga impedir o formador de entrar.
+const FAIL_DELAY_MS = 1500;
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-[DATA_DIR, UPLOADS, RESULTS].forEach(d => fs.mkdirSync(d, { recursive: true }));
+[UPLOADS, RESULTS].forEach(d => fs.mkdirSync(d, { recursive: true }));
 
 const uid = (n = 8) => crypto.randomBytes(n).toString('hex').slice(0, n);
 
@@ -103,15 +130,20 @@ function playerView(p) {
   if (!session) return { session: null };
   const q = currentQ();
   const mine = q ? answersFor(session.qIndex)[p.studentId] : null;
-  const rank = ranking();
+  // Antes de a resposta correta ser mostrada, os números do aluno ignoram a pergunta atual;
+  // caso contrário a pontuação, o nº de certas ou a posição denunciariam se acertou.
+  const hideCurrent = ['ready', 'question', 'closed'].includes(session.phase);
+  const curAns = hideCurrent && q ? answersFor(session.qIndex) : {};
+  const scoreOf = x => x.score - ((curAns[x.studentId] || {}).points || 0);
+  const rank = Object.values(session.players).map(x => ({ studentId: x.studentId, name: x.name, s: scoreOf(x) }))
+    .sort((a, b) => b.s - a.s || a.name.localeCompare(b.name));
   const pos = rank.findIndex(r => r.studentId === p.studentId) + 1;
   const v = {
     session: { id: session.id, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase, qIndex: session.qIndex, total: session.questions.length, settings: session.settings },
     me: {
       studentId: p.studentId, name: p.name, photo: p.photo, position: pos, of: rank.length,
-      // durante a pergunta não revela os pontos ganhos (senão o aluno saberia se acertou)
-      score: p.score - (mine && ['question', 'closed'].includes(session.phase) ? mine.points : 0),
-      correct: Object.values(session.answers).filter(a => a[p.studentId] && a[p.studentId].correct).length,
+      score: scoreOf(p),
+      correct: Object.entries(session.answers).filter(([i, a]) => !(hideCurrent && +i === session.qIndex) && a[p.studentId] && a[p.studentId].correct).length,
     },
     answered: !!mine, myOption: mine ? mine.option : null,
   };
@@ -218,12 +250,17 @@ app.use('/uploads', express.static(UPLOADS, { maxAge: '1h' }));
 app.get('/', (req, res) => res.redirect('/play.html'));
 app.get('/formador', (req, res) => res.redirect('/host.html'));
 
+// Só aceita a palavra-passe no cabeçalho (nunca no endereço, para não ficar no histórico)
 function auth(req, res, next) {
-  if (req.get('x-host-password') === HOST_PASSWORD || req.query.pw === HOST_PASSWORD) return next();
-  res.status(401).json({ error: 'Palavra-passe do formador inválida' });
+  if (pwOk(req.get('x-host-password'))) return next();
+  setTimeout(() => res.status(401).json({ error: 'Palavra-passe do formador inválida' }), FAIL_DELAY_MS);
 }
 
-app.post('/api/login', (req, res) => res.json({ ok: req.body.password === HOST_PASSWORD }));
+app.post('/api/login', (req, res) => {
+  const ok = pwOk(req.body && req.body.password);
+  if (ok) return res.json({ ok });
+  setTimeout(() => res.json({ ok }), FAIL_DELAY_MS);
+});
 
 // Alunos
 app.get('/api/students', auth, (req, res) => res.json(db.students));
@@ -419,7 +456,7 @@ io.on('connection', socket => {
   const role = socket.handshake.auth && socket.handshake.auth.role;
 
   if (role === 'host') {
-    if (socket.handshake.auth.password !== HOST_PASSWORD) { socket.emit('auth_error'); return socket.disconnect(); }
+    if (!pwOk(socket.handshake.auth.password)) { setTimeout(() => { socket.emit('auth_error'); socket.disconnect(); }, FAIL_DELAY_MS); return; }
     socket.join('hosts');
     socket.emit('state', hostView());
 
@@ -488,7 +525,10 @@ io.on('connection', socket => {
   socket.emit('roster', rosterForPlayers());
   let me = null;
 
-  socket.on('player:claim', ({ studentId, token }, cb) => {
+  socket.on('player:claim', (data, cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    const { studentId, token } = (data && typeof data === 'object') ? data : {};
+    if (typeof studentId !== 'string' || (token != null && typeof token !== 'string')) return cb({ error: 'Pedido inválido.' });
     if (!session) return cb && cb({ error: 'Ainda não há sessão ativa.' });
     const st = session.roster.find(s => s.id === studentId);
     if (!st) return cb && cb({ error: 'Aluno não encontrado.' });
@@ -507,6 +547,7 @@ io.on('connection', socket => {
   });
 
   socket.on('player:answer', (option, cb) => {
+    if (typeof cb !== 'function') cb = () => {};
     if (!session || !me || session.players[me.studentId] !== me || me.socketId !== socket.id) return cb && cb({ error: 'Não identificado' });
     if (session.phase !== 'question') return cb && cb({ error: 'Tempo esgotado' });
     const q = currentQ();
@@ -533,7 +574,9 @@ io.on('connection', socket => {
 
 server.listen(PORT, () => {
   console.log('\n  🎉 Quiz a correr!');
-  console.log(`  Formador:  http://localhost:${PORT}/host.html   (palavra-passe: ${HOST_PASSWORD === 'formador' ? 'formador  ← muda com HOST_PASSWORD=...' : '***'})`);
+  console.log(`  Formador:  http://localhost:${PORT}/host.html`);
+  if (PW_GENERATED) console.log(`  🔑 Palavra-passe do formador gerada: ${HOST_PASSWORD}\n     (guardada em data/palavra-passe-formador.txt — podes definir a tua com HOST_PASSWORD=...)`);
+  else if (!process.env.HOST_PASSWORD) console.log('  🔑 Palavra-passe do formador: ver data/palavra-passe-formador.txt');
   console.log(`  Alunos:    http://localhost:${PORT}/`);
   lanIps().forEach(ip => console.log(`  Na rede:   http://${ip}:${PORT}/`));
   console.log('');
