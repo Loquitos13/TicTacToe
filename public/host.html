@@ -35,6 +35,8 @@
   @media (max-width: 860px) { .lobby { grid-template-columns: 1fr; } }
   .qrbox { background: #fff; color: var(--ink); border-radius: 24px; padding: 22px; text-align: center; }
   .qrbox img { width: 100%; max-width: 340px; aspect-ratio: 1; }
+  .code-label { margin-top: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; font-size: .8em; }
+  .code-big { font-size: 2.6em; font-weight: 700; letter-spacing: .18em; font-variant-numeric: tabular-nums; line-height: 1.1; }
   .qrbox .url { font-size: 1.3em; font-weight: 700; word-break: break-all; margin-top: 8px; }
   .joined { display: flex; flex-wrap: wrap; gap: 18px; align-content: flex-start; }
   .joined .p { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 110px; text-align: center; font-weight: 600; line-height: 1.1; }
@@ -276,12 +278,16 @@ function renderGame(full) {
   else if (ph === 'closed' || ph === 'reveal') $$('.opt .fill').forEach(f => { f.style.transition = 'none'; f.style.width = f.dataset.w; });
 }
 
+// o QR code leva o código único desta sessão
+const sessionUrl = () => joinUrl.replace(/\/$/, '') + '/?c=' + encodeURIComponent(S.code);
 function lobbyHtml() {
   return `<div class="lobby">
     <div class="qrbox slide-up">
       <div style="font-size:1.3em;font-weight:600">Entra com o telemóvel 📱</div>
-      <img src="/api/qr?url=${encodeURIComponent(joinUrl)}" alt="QR code">
+      <img src="/api/qr?url=${encodeURIComponent(sessionUrl())}" alt="QR code">
       <div class="url">${esc(joinUrl.replace(/^https?:\/\//, ''))}</div>
+      <div class="code-label">Código da sessão</div>
+      <div class="code-big">${esc(S.code)}</div>
       <details class="noprint" style="margin-top:10px;text-align:left"><summary class="muted" style="cursor:pointer">Mudar endereço</summary>
         <div class="list" style="margin-top:8px">
           <select id="urlSel">${window._joinSuggestions.map(u => `<option ${u === joinUrl ? 'selected' : ''}>${esc(u)}</option>`).join('')}<option value="">Outro…</option></select>
@@ -298,7 +304,7 @@ function joinedHtml() {
   const joined = new Map(S.players.map(p => [p.studentId, p]));
   return S.roster.map(s => {
     const p = joined.get(s.id);
-    return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}">${avatar(s, 'lg')}<span>${esc(s.name)}${s.guest ? '<br><small style="opacity:.75">(extra)</small>' : ''}</span></div>`;
+    return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}">${avatar(s, 'lg')}<span>${esc(s.name)}${s.homonym ? '<br><small style="color:#ffd93d">⚠ nome repetido</small>' : (s.extra || s.guest) ? '<br><small style="opacity:.75">(extra)</small>' : ''}</span></div>`;
   }).join('');
 }
 
@@ -494,14 +500,17 @@ function playersDialog() {
   d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:grid;place-items:center;padding:16px';
   const joined = new Map(S.players.map(p => [p.studentId, p]));
   d.innerHTML = `<div class="card" style="width:min(560px,100%);max-height:85vh;overflow:auto"><h2>Alunos na sessão</h2>
-    <p class="muted">Se um aluno escolheu o nome errado ou mudou de telemóvel, liberta o nome para ele voltar a entrar. As respostas já dadas mantêm-se.</p>
+    <p class="muted">Se um aluno mudou de telemóvel, carrega em <b>Libertar nome</b> e dá-lhe o código de reentrada que aparece: só com esse código ele volta ao seu lugar (com as respostas já dadas).</p>
     <div class="list">${S.roster.map(s => { const p = joined.get(s.id); return `<div class="item">${avatar(s)}<div class="grow"><b>${esc(s.name)}</b><br>
       <small class="muted">${!p ? 'Ainda não entrou' : p.connected ? '🟢 Ligado' : '⚪ Desligado'}${p ? ' · ' + p.score + ' pts' : ''}</small></div>
       ${p ? `<button class="btn small" data-rel="${s.id}">Libertar nome</button>` : ''}</div>`; }).join('')}</div>
     <p style="text-align:right"><button class="btn primary" id="closeDlg">Fechar</button></p></div>`;
   document.body.appendChild(d);
   d.onclick = e => { if (e.target === d || e.target.id === 'closeDlg') d.remove(); };
-  $$('[data-rel]', d).forEach(b => b.onclick = () => { socket.emit('host:release', b.dataset.rel); b.textContent = 'Libertado ✓'; b.disabled = true; });
+  $$('[data-rel]', d).forEach(b => b.onclick = () => socket.emit('host:release', b.dataset.rel, res => {
+    if (!res || res.error) return toast((res && res.error) || 'Erro');
+    b.outerHTML = `<div style="text-align:center"><small class="muted">Código de reentrada</small><br><b style="font-size:1.6em;letter-spacing:.15em">${esc(res.rejoin)}</b></div>`;
+  }));
 }
 
 function renderSetup(el) {
@@ -557,6 +566,10 @@ function renderSetup(el) {
 }
 
 /* =================== ALUNOS =================== */
+function skippedToast(added) {
+  const sk = (added[0] && added[0].skipped) || [];
+  toast(`${added.length} alunos adicionados` + (sk.length ? ` · ignorados por já existirem: ${sk.join(', ')} (acrescenta um apelido para distinguir)` : ''), sk.length ? 7000 : 2500);
+}
 function renderStudents() {
   const el = $('#tab-students');
   el.innerHTML = `<div class="grid2">
@@ -588,13 +601,16 @@ function renderStudents() {
   $('#stuPhoto').onchange = async e => { const f = e.target.files[0]; if (!f) return; photo = await resizeImage(f); $('#prev').innerHTML = `<img class="avatar lg" src="${photo}">`; };
   $('#addStu').onsubmit = async e => {
     e.preventDefault();
-    const added = await api('POST', '/api/students', { name: $('#stuName').value, photo });
-    students = await api('GET', '/api/students'); toast('Adicionado: ' + added[0].name); renderStudents(); $('#stuName').focus();
+    try {
+      const added = await api('POST', '/api/students', { name: $('#stuName').value, photo });
+      students = await api('GET', '/api/students'); toast('Adicionado: ' + added[0].name); renderStudents(); $('#stuName').focus();
+    } catch (err) { toast(err.message, 5000); }
   };
   $('#addNames').onclick = async () => {
     const list = $('#names').value.split('\n').map(s => s.trim()).filter(Boolean).map(name => ({ name }));
     if (!list.length) return;
-    await api('POST', '/api/students', list); students = await api('GET', '/api/students'); renderStudents();
+    try { const added = await api('POST', '/api/students', list); skippedToast(added); } catch (err) { toast(err.message, 5000); }
+    students = await api('GET', '/api/students'); renderStudents();
   };
   $('#bulk').onchange = async e => {
     const files = [...e.target.files]; const items = [];
@@ -603,12 +619,16 @@ function renderStudents() {
       `<button class="btn primary" id="bulkSave">Guardar ${items.length} alunos</button>`;
     $('#bulkSave').onclick = async () => {
       $$('.bulkName').forEach(inp => items[inp.dataset.i].name = inp.value);
-      await api('POST', '/api/students', items); students = await api('GET', '/api/students'); toast(items.length + ' alunos adicionados'); renderStudents();
+      try { const added = await api('POST', '/api/students', items); skippedToast(added); } catch (err) { toast(err.message, 5000); }
+      students = await api('GET', '/api/students'); renderStudents();
     };
   };
   $$('#stuList .item').forEach(row => {
     const id = row.dataset.id;
-    $('.stuEdit', row).onchange = async e => { await api('PUT', '/api/students/' + id, { name: e.target.value }); students = await api('GET', '/api/students'); toast('Guardado'); };
+    $('.stuEdit', row).onchange = async e => {
+      try { await api('PUT', '/api/students/' + id, { name: e.target.value }); toast('Guardado'); } catch (err) { toast(err.message, 5000); }
+      students = await api('GET', '/api/students'); renderStudents();
+    };
     $('.stuNewPhoto', row).onchange = async e => { const f = e.target.files[0]; if (!f) return; await api('PUT', '/api/students/' + id, { photo: await resizeImage(f) }); students = await api('GET', '/api/students'); renderStudents(); };
     $('.stuDel', row).onclick = async () => { if (!confirm('Remover este aluno?')) return; await api('DELETE', '/api/students/' + id); students = await api('GET', '/api/students'); renderStudents(); };
   });
@@ -762,7 +782,7 @@ async function openResult(id) {
     <div class="tbl-wrap"><table class="res"><thead>
       <tr><th>Aluno</th>${r.questions.map((q, i) => `<th title="${esc(q.text)}">P${i + 1}</th>`).join('')}<th>Certas</th><th>%</th><th>Pontos</th></tr>
       <tr><th>Resposta correta</th>${r.questions.map(q => `<th style="color:var(--ok)">${q.correct.map(k => LETTERS[k]).join('/')}</th>`).join('')}<th></th><th></th><th></th></tr></thead>
-      <tbody>${list.map((p, j) => `<tr><td>${esc(p.name)}${p.guest ? ' <small class="muted">(extra)</small>' : ''}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
+      <tbody>${list.map((p, j) => `<tr><td>${esc(p.name)}${p.homonym ? ' <small style="color:#b45309">⚠ nome repetido</small>' : (p.extra || p.guest) ? ' <small class="muted">(extra)</small>' : ''}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
         <td><b>${stats[j]}</b>/${nAsked}</td><td>${nAsked ? Math.round(stats[j] / nAsked * 100) : 0}%</td><td>${score[p.id] ?? 0}</td></tr>`).join('')}</tbody></table></div>
     <h3 style="margin-top:28px">Detalhe por pergunta</h3>
     ${r.questions.map((q, i) => {

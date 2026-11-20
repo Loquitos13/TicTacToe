@@ -43,10 +43,14 @@ Segurança:
 
 ## 4. Durante a sessão
 **🎮 Jogo**: escolhe o curso, o questionário e os alunos e clica em **Abrir sala**. Aparece o QR code.
-Os alunos leem o QR e **escrevem o nome** (não precisam de acentos nem maiúsculas: "joao goncalves" encontra "João Gonçalves").
-- Se o nome corresponder a um aluno da turma, entra logo (com a fotografia que adicionaste).
-- Se houver nomes parecidos (ex.: só "Ana"), aparecem apenas esses nomes para escolher.
-- Se o nome não estiver na turma, pode corrigir ou entrar como participante **extra** (aparece assim na grelha).
+Cada sala aberta tem um **código único** (ex.: `K7P4QX`), que vai dentro do QR code e aparece por baixo dele. Sem o código certo não se entra, e o código de uma sessão anterior deixa de funcionar.
+
+Os alunos leem o QR e **escrevem o nome completo** (não precisam de acentos nem maiúsculas: "joao goncalves" encontra "João Gonçalves").
+- **Cada telemóvel é um participante diferente. Nomes iguais nunca são juntados na mesma pessoa.**
+- Só há ligação ao aluno da turma (com a fotografia) quando o nome é igual ao nome completo registado e esse aluno ainda não entrou. Partes do nome (ex.: só "Ana") não contam.
+- Se esse nome já tiver entrado, ninguém é juntado nem bloqueado: a pessoa entra como participante separado, "Ana Silva (2)", com o aviso **⚠ nome repetido** no teu ecrã, na grelha e no Excel.
+- Se o nome não estiver na turma, pode corrigir ou entrar como participante **extra**.
+- Na lista de alunos não é possível ter dois alunos com o mesmo nome (acrescenta um apelido para distinguir).
 - A lista da turma e as fotografias nunca são mostradas a quem entra.
 
 Ao abrir a sala escolhes **como avançam as perguntas** (vale para o quiz inteiro):
@@ -66,7 +70,8 @@ Opções que podes ligar/desligar a qualquer momento:
 - **Quem respondeu**: aparecem as fotografias dos alunos em cada opção (vem desligado, porque é uma avaliação).
 - **Ranking por pergunta**: mostra (ou não) o pódio Top 5 depois de cada pergunta.
 
-Se um aluno se enganou no nome, pode carregar em **Não sou …** no ecrã de espera. Se mudou de telemóvel ou o nome já estava ocupado: **👥 Alunos** (na barra de baixo) → **Libertar nome**. As respostas já dadas mantêm-se.
+Se um aluno se enganou no nome, pode carregar em **Não sou …** no ecrã de espera (só antes de responder à primeira pergunta).
+Se um aluno mudou de telemóvel: **👥 Alunos** (na barra de baixo) → **Libertar nome**. Aparece um **código de reentrada** de 4 dígitos; o aluno escolhe "Mudei de telemóvel" e escreve-o. Só com esse código volta ao seu lugar (com as respostas já dadas), e cada código só serve uma vez.
 Se um aluno fechar o browser sem querer, volta a abrir o link e entra automaticamente com o mesmo nome.
 
 ## 5. Resultados

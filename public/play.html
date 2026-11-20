@@ -16,6 +16,8 @@
   .middle { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; }
   .big-emoji { font-size: 84px; }
   .search { width: 100%; padding: 14px 16px; border-radius: 14px; border: 0; font-size: 1.05em; margin: 10px 0 14px; }
+  .code-in { text-align: center; font-size: 1.8em; letter-spacing: .25em; text-transform: uppercase; font-weight: 700; }
+  .middle p { margin: 0; }
   .list-names { display: flex; flex-direction: column; gap: 10px; width: 100%; }
   .name-btn { width: 100%; font-size: 1.1em; }
   .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
@@ -63,9 +65,11 @@
 Sound.setVolume(0.2);
 muteButton();
 const app = $('#app');
-const socket = io({ auth: { role: 'player' } });
+// código da sessão: vem no QR code (?c=XXXXXX) ou é escrito à mão
+const CODE = (new URLSearchParams(location.search).get('c') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const socket = io({ auth: { role: 'player', code: CODE } });
 let roster = null, state = null, lastKey = '', timerRaf = null;
-let joinStep = { kind: 'form' }; // form | choices | notFound
+let joinStep = { kind: 'form' }; // form | notFound | taken | rejoin
 let typed = '';
 const stored = () => { try { return JSON.parse(localStorage.getItem('aq_me') || 'null'); } catch { return null; } };
 const store = v => { try { v ? localStorage.setItem('aq_me', JSON.stringify(v)) : localStorage.removeItem('aq_me'); } catch {} };
@@ -79,22 +83,23 @@ socket.on('roster', r => {
 });
 socket.on('state', s => { if (!s.session) { state = null; roster = null; render(); return; } state = s; render(); });
 socket.on('reload', () => { state = null; joinStep = { kind: 'form' }; store(null); });
-socket.on('released', () => { state = null; store(null); joinStep = { kind: 'form' }; toast('Foste desligado deste nome pelo formador.'); render(); });
+socket.on('released', () => { state = null; store(null); joinStep = { kind: 'form' }; toast('O formador libertou o teu lugar. Para voltar, usa o código de reentrada que ele te der.', 6000); render(); });
 
 function joined(res) {
-  if (res.error) { toast(res.error, 4500); joinStep = { kind: 'form' }; lastKey = ''; render(); return; }
+  if (res.error) { toast(res.error, 5000); lastKey = ''; render(); return; }
   store({ sessionId: res.sessionId, studentId: res.studentId, token: res.token });
+  joinStep = { kind: 'form' };
   Sound.play('pop');
 }
 // mesmo dispositivo: volta a entrar sozinho com o token guardado
 function reclaim(me) {
   socket.emit('player:claim', { studentId: me.studentId, token: me.token }, res => { if (res.error) { store(null); render(); } else joined(res); });
 }
-function join(guest) {
+function join(asNew) {
   Sound.init();
-  socket.emit('player:join', { name: typed, guest: !!guest }, res => {
-    if (res.choices) { joinStep = { kind: 'choices', list: res.choices }; return render(); }
+  socket.emit('player:join', { name: typed, asNew: !!asNew }, res => {
     if (res.notFound) { joinStep = { kind: 'notFound' }; return render(); }
+    if (res.taken) { joinStep = { kind: 'taken', name: res.name }; return render(); }
     joined(res);
   });
 }
@@ -102,30 +107,58 @@ function join(guest) {
 const logo = () => `<div class="logo">🎯 <span>Quiz</span></div>
   <p class="center" style="margin:4px 0 0;opacity:.9">${roster.session.courseName ? esc(roster.session.courseName) + ' · ' : ''}${esc(roster.session.quizTitle)}</p>`;
 
+function codeForm(msg) {
+  return set('code' + msg, `<div class="logo">🎯 <span>Quiz</span></div>
+    <form class="middle" id="codeForm" autocomplete="off"><div class="big-emoji">🔑</div>
+      <h1 style="font-size:1.5em">Código da sessão</h1>
+      <p>${msg}</p>
+      <input class="search code-in" id="cd" maxlength="6" placeholder="ex.: K7P4QX" autocapitalize="characters" enterkeyhint="go" required>
+      <button class="btn primary" style="width:100%;font-size:1.15em">Continuar</button></form>`, () => {
+    $('#codeForm').onsubmit = e => { e.preventDefault(); const c = $('#cd').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (c) location.search = '?c=' + c; };
+  });
+}
+
 function render() {
   cancelAnimationFrame(timerRaf);
   if (state && state.session) return renderGame();
-  if (!roster || !roster.session) {
+  if (!CODE) return codeForm('Lê o QR code no ecrã do formador ou escreve o código que aparece por baixo dele.');
+  if (!roster) return;
+  if (!roster.session) {
+    if (roster.badCode) return codeForm(`O código <b>${esc(CODE)}</b> não corresponde a nenhuma sessão aberta. Lê de novo o QR code ou confirma o código.`);
     return set('wait', `<div class="logo">🎯 <span>Quiz</span></div>
       <div class="middle"><div class="big-emoji wiggle">🎮</div><h1>Quase lá!</h1><p>À espera que o formador abra a sessão<span class="dots"></span></p></div>`);
   }
-  if (joinStep.kind === 'choices') {
-    return set('choices' + joinStep.list.map(c => c.id).join(), logo() + `<div class="middle">
-      <h1 style="font-size:1.5em">Qual destes és tu?</h1>
-      <div class="list-names">${joinStep.list.map(c => `<button class="btn name-btn" data-id="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</div>
-      <button class="btn ghost" id="back">← Escrever outra vez</button></div>`, () => {
-      $$('.name-btn').forEach(b => b.onclick = () => socket.emit('player:claim', { studentId: b.dataset.id }, joined));
-      $('#back').onclick = () => { joinStep = { kind: 'form' }; render(); };
-    });
-  }
   if (joinStep.kind === 'notFound') {
     return set('nf' + typed, logo() + `<div class="middle"><div class="big-emoji">🤔</div>
-      <h1 style="font-size:1.4em">Não encontrámos “${esc(typed)}” na turma</h1>
-      <p>Confirma se escreveste bem o nome e o apelido.</p>
+      <h1 style="font-size:1.4em">“${esc(typed)}” não está na lista da turma</h1>
+      <p>Escreve o <b>nome completo</b> tal como o formador o registou (nome e apelido).</p>
       <button class="btn primary" id="retry">✏️ Corrigir o nome</button>
-      <button class="btn ghost" id="guest">Entrar mesmo assim como “${esc(typed)}”</button></div>`, () => {
+      <button class="btn ghost" id="asNew">Entrar como participante extra</button></div>`, () => {
       $('#retry').onclick = () => { joinStep = { kind: 'form' }; render(); };
-      $('#guest').onclick = () => join(true);
+      $('#asNew').onclick = () => join(true);
+    });
+  }
+  if (joinStep.kind === 'taken') {
+    return set('tk' + typed, logo() + `<div class="middle"><div class="big-emoji">✋</div>
+      <h1 style="font-size:1.4em">Já entrou alguém com o nome “${esc(joinStep.name)}”</h1>
+      <p><b>Se és tu e mudaste de telemóvel</b>, pede ao formador um código de reentrada.</p>
+      <p><b>Se és outra pessoa com o mesmo nome</b>, entra como participante separado: o formador vê o aviso de nome repetido.</p>
+      <button class="btn primary" id="rj">🔢 Tenho um código de reentrada</button>
+      <button class="btn ghost" id="asNew">Sou outra pessoa com o mesmo nome</button>
+      <button class="btn ghost" id="retry">← Voltar</button></div>`, () => {
+      $('#rj').onclick = () => { joinStep = { kind: 'rejoin' }; render(); };
+      $('#asNew').onclick = () => join(true);
+      $('#retry').onclick = () => { joinStep = { kind: 'form' }; render(); };
+    });
+  }
+  if (joinStep.kind === 'rejoin') {
+    return set('rejoin', logo() + `<form class="middle" id="rjForm" autocomplete="off"><div class="big-emoji">🔢</div>
+      <h1 style="font-size:1.4em">Código de reentrada</h1><p>O formador vê-o no ecrã dele quando liberta o teu nome.</p>
+      <input class="search code-in" id="rjc" inputmode="numeric" maxlength="4" placeholder="0000" required>
+      <button class="btn primary" style="width:100%">Voltar ao meu lugar</button>
+      <button type="button" class="btn ghost" id="retry">← Voltar</button></form>`, () => {
+      $('#rjForm').onsubmit = e => { e.preventDefault(); socket.emit('player:rejoin', { rejoin: $('#rjc').value }, joined); };
+      $('#retry').onclick = () => { joinStep = { kind: 'form' }; render(); };
     });
   }
   set('form', logo() + `<form class="middle" id="joinForm" autocomplete="off">
@@ -133,10 +166,12 @@ function render() {
       <h1 style="font-size:1.6em">Como te chamas?</h1>
       <input class="search" id="nm" name="nome" placeholder="Nome e apelido" maxlength="60" autocapitalize="words" enterkeyhint="go" required value="${esc(typed)}">
       <button class="btn primary" style="width:100%;font-size:1.15em">Entrar 🚀</button>
+      <button type="button" class="btn ghost" id="rj" style="font-size:.9em">Mudei de telemóvel: tenho um código de reentrada</button>
     </form>`, () => {
     const nm = $('#nm');
     nm.oninput = () => typed = nm.value;
     $('#joinForm').onsubmit = e => { e.preventDefault(); typed = nm.value.trim(); if (typed) join(false); };
+    $('#rj').onclick = () => { joinStep = { kind: 'rejoin' }; render(); };
     setTimeout(() => nm.focus(), 50);
   });
 }
@@ -164,7 +199,10 @@ function renderGameInner() {
   if (ph === 'lobby') {
     return set('lobby' + state.me.studentId, header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1><p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
       <button class="btn ghost" id="notMe" style="margin-top:10px">Não sou ${esc(state.me.name)}</button></div>`, () => {
-      $('#notMe').onclick = () => { socket.emit('player:leave'); store(null); state = null; joinStep = { kind: 'form' }; typed = ''; render(); };
+      $('#notMe').onclick = () => socket.emit('player:leave', res => {
+        if (res && res.error) return toast(res.error, 4500);
+        store(null); state = null; joinStep = { kind: 'form' }; typed = ''; lastKey = ''; render();
+      });
     });
   }
   const timedMode = s.settings.mode === 'timed';

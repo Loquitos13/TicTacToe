@@ -90,6 +90,7 @@ function persistSession() {
     questions: session.questions,
     roster: session.roster,
     players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, joinedAt: p.joinedAt })),
+    code: session.code,
     answers: session.answers,
     asked: session.asked,
   };
@@ -114,7 +115,7 @@ function hostView() {
   const whoByOption = q ? q.options.map((_, i) => Object.entries(ans).filter(([, a]) => a.option === i).map(([sid]) => sid)) : [];
   return {
     session: {
-      id: session.id, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase, qIndex: session.qIndex,
+      id: session.id, code: session.code, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase, qIndex: session.qIndex,
       total: session.questions.length, settings: session.settings,
       question: q, remainingMs: session.deadline ? Math.max(0, session.deadline - Date.now()) : 0,
       counts, whoByOption, answeredIds: Object.keys(ans),
@@ -164,27 +165,28 @@ function broadcast() {
   io.to('hosts').emit('state', hostView());
   if (!session) { io.to('players').emit('state', { session: null }); return; }
   for (const p of Object.values(session.players)) if (p.socketId) io.to(p.socketId).emit('state', playerView(p));
-  // jogadores ainda sem identificação recebem só a fase
-  io.to('lobby').emit('roster', rosterForPlayers());
+  // quem ainda não entrou recebe só a informação da sessão (e só com o código certo)
+  for (const id of io.sockets.adapter.rooms.get('lobby') || []) {
+    const sk = io.sockets.sockets.get(id); if (sk) sk.emit('roster', rosterForPlayers(sk));
+  }
 }
 
-function rosterForPlayers() {
+function rosterForPlayers(sk) {
   if (!session) return { session: null };
+  if (!codeOk(sk && sk.data.code)) return { session: null, badCode: !!(sk && sk.data.code) };
   // só a informação da sessão: a lista da turma (nomes e fotos) não é enviada a quem entra
   return { session: { id: session.id, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase } };
 }
 
-// Procura na turma o nome escrito pelo aluno (sem acentos, maiúsculas ou espaços a mais).
-// "ana silva" encontra "Ana Maria Silva"; "ana" sozinho pode dar vários resultados.
+// Nomes comparados sem acentos, maiúsculas ou espaços a mais ("joao goncalves" = "João Gonçalves").
+// Só há correspondência com o nome COMPLETO; nunca por partes do nome.
 const norm = t => String(t || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
-function findStudents(typed) {
-  const n = norm(typed);
-  if (!n) return [];
-  const exact = session.roster.filter(s => norm(s.name) === n);
-  if (exact.length) return exact;
-  const words = n.split(' ');
-  return session.roster.filter(s => { const sw = norm(s.name).split(' '); return words.every(w => sw.some(x => x.startsWith(w))); });
-}
+
+// Código da sessão: 6 caracteres sem letras/números que se confundem (0/O, 1/I/L)
+const CODE_ABC = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function newCode() { return Array.from(crypto.randomBytes(6), b => CODE_ABC[b % CODE_ABC.length]).join(''); }
+const cleanCode = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+const codeOk = c => !!session && cleanCode(c) === session.code;
 
 const READY_MS = 3000; // compasso de espera "Prepara-te! 3-2-1" antes de cada pergunta
 
@@ -257,7 +259,8 @@ const app = express();
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOADS, { maxAge: '1h' }));
-app.get('/', (req, res) => res.redirect('/play.html'));
+// mantém o código da sessão (?c=...) ao redirecionar
+app.get('/', (req, res) => { const q = req.originalUrl.indexOf('?'); res.redirect('/play.html' + (q >= 0 ? req.originalUrl.slice(q) : '')); });
 app.get('/formador', (req, res) => res.redirect('/host.html'));
 
 // Só aceita a palavra-passe no cabeçalho (nunca no endereço, para não ficar no histórico)
@@ -284,20 +287,28 @@ function savePhoto(dataUrl) {
 }
 app.post('/api/students', auth, (req, res) => {
   const list = Array.isArray(req.body) ? req.body : [req.body];
-  const added = [];
+  const added = [], skipped = [];
   for (const s of list) {
-    const name = String(s.name || '').trim();
+    const name = String(s.name || '').trim().replace(/\s+/g, ' ');
     if (!name) continue;
+    // nomes iguais na turma não são permitidos: o aluno entra pelo nome, não pode haver dúvida
+    if (db.students.some(x => norm(x.name) === norm(name))) { skipped.push(name); continue; }
     const st = { id: uid(), name, photo: savePhoto(s.photo) };
     db.students.push(st); added.push(st);
   }
   db.students.sort((a, b) => a.name.localeCompare(b.name, 'pt'));
-  saveDb(); res.json(added);
+  saveDb();
+  if (!added.length && skipped.length) return res.status(409).json({ error: `Já existe um aluno chamado "${skipped[0]}". Acrescenta um apelido para distinguir.` });
+  res.json(added.map(a => ({ ...a, skipped })));
 });
 app.put('/api/students/:id', auth, (req, res) => {
   const st = db.students.find(s => s.id === req.params.id);
   if (!st) return res.status(404).end();
-  if (req.body.name) st.name = String(req.body.name).trim();
+  if (req.body.name) {
+    const name = String(req.body.name).trim().replace(/\s+/g, ' ');
+    if (db.students.some(x => x !== st && norm(x.name) === norm(name))) return res.status(409).json({ error: `Já existe um aluno chamado "${name}". Acrescenta um apelido para distinguir.` });
+    st.name = name;
+  }
   if (req.body.photo) st.photo = savePhoto(req.body.photo) || st.photo;
   if (req.body.removePhoto) st.photo = null;
   saveDb(); res.json(st);
@@ -387,7 +398,7 @@ function toCsv(rows) { return '﻿' + rows.map(r => r.map(csvCell).join(';')).jo
 function participants(r) {
   // todos os alunos da turma (incluindo quem não entrou) + quem entrou
   const map = new Map();
-  r.roster.forEach(s => map.set(s.id, { id: s.id, name: s.name + (s.guest ? ' (extra)' : '') }));
+  r.roster.forEach(s => map.set(s.id, { id: s.id, name: s.name + (s.homonym ? ' [nome repetido]' : (s.extra || s.guest) ? ' (extra)' : '') }));
   r.players.forEach(p => { if (!map.has(p.studentId)) map.set(p.studentId, { id: p.studentId, name: p.name }); });
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt'));
 }
@@ -485,6 +496,7 @@ io.on('connection', socket => {
       const roster = db.students.filter(s => !studentIds || studentIds.includes(s.id)).map(s => ({ ...s }));
       session = {
         id: new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '_' + uid(4),
+        code: newCode(), // código único da sessão (vai no QR code)
         quizId: quiz.id, quizTitle: quiz.title, courseId: quiz.courseId, courseName: (db.courses.find(c => c.id === quiz.courseId) || {}).name || '', startedAt: Date.now(),
         settings: { mode: 'manual', showWho: false, rankEach: true, finalPodium: true, speedPoints: true, ...settings },
         questions: qs, roster, phase: 'lobby', qIndex: -1, deadline: null,
@@ -519,74 +531,103 @@ io.on('connection', socket => {
       io.in('players').socketsJoin('lobby'); io.in('players').socketsLeave('players');
       broadcast();
     }));
-    socket.on('host:release', guard(studentId => {
-      if (!session || !session.players[studentId]) return;
+    socket.on('host:release', guard((studentId, cb) => {
+      if (typeof cb !== 'function') cb = () => {};
+      if (!session || !session.players[studentId]) return cb({ error: 'Aluno não encontrado' });
       const p = session.players[studentId];
       if (p.socketId) { const s = io.sockets.sockets.get(p.socketId); if (s) { s.emit('released'); s.leave('players'); s.join('lobby'); } }
-      // mantém respostas já dadas; apenas liberta o lugar para outro dispositivo
+      // mantém as respostas; só a pessoa a quem dás o código de reentrada pode voltar a este lugar
       p.token = null; p.socketId = null;
+      p.rejoin = String(crypto.randomInt(1000, 10000));
+      cb({ rejoin: p.rejoin });
       broadcast();
     }));
     return;
   }
 
   // ----- aluno -----
+  socket.data.code = cleanCode(socket.handshake.auth && socket.handshake.auth.code);
   socket.join('lobby');
-  socket.emit('roster', rosterForPlayers());
+  socket.emit('roster', rosterForPlayers(socket));
   let me = null;
 
-  function claim(studentId, token, cb) {
-    const st = session.roster.find(s => s.id === studentId);
-    if (!st) return cb({ error: 'Aluno não encontrado.' });
-    const existing = session.players[studentId];
-    if (existing && existing.token && existing.token !== token) return cb({ error: `${st.name} já entrou noutro dispositivo. Se és tu, pede ao formador para libertar o teu nome.` });
-    const p = existing || { studentId, name: st.name, photo: st.photo, score: 0, joinedAt: Date.now() };
-    p.token = token || existing?.token || uid(16);
+  // liga este dispositivo a um participante (novo token: só este telemóvel o pode usar)
+  function attach(p, cb) {
+    p.token = uid(16);
+    p.rejoin = null;
     if (p.socketId && p.socketId !== socket.id) { const old = io.sockets.sockets.get(p.socketId); if (old) old.emit('released'); }
     p.socketId = socket.id;
-    session.players[studentId] = p;
+    session.players[p.studentId] = p;
     me = p;
     socket.leave('lobby'); socket.join('players');
     persistSession();
-    cb({ ok: true, token: p.token, sessionId: session.id, studentId, name: p.name });
+    cb({ ok: true, token: p.token, sessionId: session.id, studentId: p.studentId, name: p.name });
     broadcast();
   }
+  const newPlayer = st => ({ studentId: st.id, name: st.name, photo: st.photo || null, score: 0, joinedAt: Date.now() });
 
-  // Reentrar (mesmo dispositivo, com o token guardado) ou escolher entre nomes parecidos
+  // Mesmo dispositivo a voltar (recarregou a página): só com o token que recebeu ao entrar
   socket.on('player:claim', (data, cb) => {
     if (typeof cb !== 'function') cb = () => {};
     const { studentId, token } = (data && typeof data === 'object') ? data : {};
-    if (typeof studentId !== 'string' || (token != null && typeof token !== 'string')) return cb({ error: 'Pedido inválido.' });
-    if (!session) return cb({ error: 'Ainda não há sessão ativa.' });
-    claim(studentId, token, cb);
+    if (!session || typeof studentId !== 'string' || typeof token !== 'string') return cb({ error: 'Pedido inválido.' });
+    const p = session.players[studentId];
+    if (!p || !p.token || p.token !== token) return cb({ error: 'Sessão expirada neste dispositivo.' });
+    if (p.socketId && p.socketId !== socket.id) { const old = io.sockets.sockets.get(p.socketId); if (old) old.emit('released'); }
+    p.socketId = socket.id; me = p;
+    socket.leave('lobby'); socket.join('players');
+    cb({ ok: true, token: p.token, sessionId: session.id, studentId: p.studentId, name: p.name });
+    broadcast();
   });
 
-  // Entrar escrevendo o nome
+  // Entrar escrevendo o nome.
+  // Regra: cada dispositivo é UM participante. Nomes iguais nunca são juntados na mesma pessoa.
   socket.on('player:join', (data, cb) => {
     if (typeof cb !== 'function') cb = () => {};
-    const { name, guest } = (data && typeof data === 'object') ? data : {};
+    const { name, asNew } = (data && typeof data === 'object') ? data : {};
+    if (!codeOk(socket.data.code)) return cb({ error: 'Código da sessão inválido ou sessão terminada. Lê de novo o QR code.' });
+    if (me && session.players[me.studentId] === me) return cb({ error: 'Já entraste neste dispositivo.' });
     if (typeof name !== 'string' || !name.trim() || name.length > 60) return cb({ error: 'Escreve o teu nome.' });
-    if (!session) return cb({ error: 'Ainda não há sessão ativa.' });
-    const found = findStudents(name);
-    if (found.length === 1) return claim(found[0].id, null, cb);
-    if (found.length > 1) {
-      // vários nomes parecidos: mostra só os nomes que coincidem (sem fotos) para escolher
-      return cb({ choices: found.slice(0, 8).map(s => ({ id: s.id, name: s.name })) });
+    const clean = name.trim().replace(/\s+/g, ' ').slice(0, 60), n = norm(clean);
+    if (!n) return cb({ error: 'Escreve o teu nome.' });
+    // alunos da turma (registados pelo formador) com exatamente este nome
+    const inClass = session.roster.filter(st => !st.extra && norm(st.name) === n);
+    const free = inClass.filter(st => !session.players[st.id]);
+    if (inClass.length === 1 && free.length === 1) return attach(newPlayer(free[0]), cb);
+    if (!asNew) {
+      if (inClass.length >= 1) return cb({ taken: true, name: inClass[0].name }); // já entrou alguém com este nome
+      return cb({ notFound: true });
     }
-    if (!guest) return cb({ notFound: true });
-    // nome que não está na turma: entra como participante extra (aparece na grelha como "extra")
-    const clean = name.trim().replace(/\s+/g, ' ').slice(0, 60);
-    const st = { id: 'g' + uid(8), name: clean, photo: null, guest: true };
+    // participante separado: nome não registado, ou nome igual a alguém que já entrou
+    const same = session.roster.filter(st => norm(st.name.replace(/ \(\d+\)$/, '')) === n).length;
+    const st = { id: 'g' + uid(8), name: same ? `${clean} (${same + 1})` : clean, photo: null, extra: true, homonym: same > 0 };
     session.roster.push(st);
-    claim(st.id, null, cb);
+    attach(newPlayer(st), cb);
   });
 
-  // "Não sou eu": larga o nome (as respostas já dadas mantêm-se)
-  socket.on('player:leave', () => {
-    if (!session || !me || me.socketId !== socket.id) return;
-    me.token = null; me.socketId = null; me = null;
+  // Mudou de telemóvel: o formador liberta o nome e dá-lhe um código de reentrada
+  socket.on('player:rejoin', (data, cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    const rejoin = String((data && data.rejoin) || '').replace(/\D/g, '');
+    if (!codeOk(socket.data.code)) return cb({ error: 'Código da sessão inválido ou sessão terminada.' });
+    const p = rejoin.length === 4 && Object.values(session.players).find(x => !x.token && x.rejoin === rejoin);
+    if (!p) return cb({ error: 'Código de reentrada inválido. Pede-o ao formador.' });
+    attach(p, cb);
+  });
+
+  // "Não sou eu" (só antes de responder a alguma pergunta): desfaz a entrada por completo
+  socket.on('player:leave', (cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    if (!session || !me || me.socketId !== socket.id) return cb({ error: 'Pedido inválido.' });
+    const answered = Object.values(session.answers).some(a => a[me.studentId]);
+    if (answered) return cb({ error: 'Já respondeste a perguntas. Fala com o formador.' });
+    delete session.players[me.studentId];
+    session.roster = session.roster.filter(st => !(st.extra && st.id === me.studentId));
+    me = null;
     socket.leave('players'); socket.join('lobby');
-    socket.emit('roster', rosterForPlayers());
+    persistSession();
+    cb({ ok: true });
+    socket.emit('roster', rosterForPlayers(socket));
     broadcast();
   });
 
