@@ -43,7 +43,11 @@ Segurança:
 
 ## 4. Durante a sessão
 **🎮 Jogo**: escolhe o curso, o questionário e os alunos e clica em **Abrir sala**. Aparece o QR code.
-Os alunos leem o QR, escolhem o seu nome/fotografia e confirmam.
+Os alunos leem o QR e **escrevem o nome** (não precisam de acentos nem maiúsculas: "joao goncalves" encontra "João Gonçalves").
+- Se o nome corresponder a um aluno da turma, entra logo (com a fotografia que adicionaste).
+- Se houver nomes parecidos (ex.: só "Ana"), aparecem apenas esses nomes para escolher.
+- Se o nome não estiver na turma, pode corrigir ou entrar como participante **extra** (aparece assim na grelha).
+- A lista da turma e as fotografias nunca são mostradas a quem entra.
 
 Ao abrir a sala escolhes **como avançam as perguntas** (vale para o quiz inteiro):
 - **🎮 Manual** — a pergunta fica aberta até tu carregares em `Fechar respostas`.
@@ -62,7 +66,7 @@ Opções que podes ligar/desligar a qualquer momento:
 - **Quem respondeu**: aparecem as fotografias dos alunos em cada opção (vem desligado, porque é uma avaliação).
 - **Ranking por pergunta**: mostra (ou não) o pódio Top 5 depois de cada pergunta.
 
-Se um aluno escolheu o nome errado ou mudou de telemóvel: **👥 Alunos** (na barra de baixo) → **Libertar nome**. As respostas já dadas mantêm-se.
+Se um aluno se enganou no nome, pode carregar em **Não sou …** no ecrã de espera. Se mudou de telemóvel ou o nome já estava ocupado: **👥 Alunos** (na barra de baixo) → **Libertar nome**. As respostas já dadas mantêm-se.
 Se um aluno fechar o browser sem querer, volta a abrir o link e entra automaticamente com o mesmo nome.
 
 ## 5. Resultados

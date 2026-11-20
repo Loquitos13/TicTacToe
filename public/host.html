@@ -290,7 +290,7 @@ function lobbyHtml() {
         </div></details>
     </div>
     <div>
-      <div class="row"><div class="count-big" id="joinCount">${connectedN()}</div><div style="font-size:1.3em">de ${S.roster.length} alunos<br>já entraram</div></div>
+      <div class="row"><div class="count-big" id="joinCount">${connectedN()}</div><div style="font-size:1.3em">de <span id="rosterN">${S.roster.length}</span> alunos<br>já entraram</div></div>
       <div class="joined" id="joined" style="margin-top:20px">${joinedHtml()}</div>
     </div></div>`;
 }
@@ -298,7 +298,7 @@ function joinedHtml() {
   const joined = new Map(S.players.map(p => [p.studentId, p]));
   return S.roster.map(s => {
     const p = joined.get(s.id);
-    return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}">${avatar(s, 'lg')}<span>${esc(s.name)}</span></div>`;
+    return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}">${avatar(s, 'lg')}<span>${esc(s.name)}${s.guest ? '<br><small style="opacity:.75">(extra)</small>' : ''}</span></div>`;
   }).join('');
 }
 
@@ -458,6 +458,14 @@ function updateLive() {
   if (S.phase === 'lobby') {
     const on = new Set(S.players.filter(p => p.connected).map(p => p.studentId));
     $('#joinCount') && ($('#joinCount').textContent = on.size);
+    // entrou alguém que não estava na turma (participante extra): acrescenta o cartão
+    const jn = $('#joined');
+    if (jn && jn.children.length !== S.roster.length) {
+      const have = new Set($$('#joined .p').map(d => d.dataset.id));
+      const tmp = document.createElement('div'); tmp.innerHTML = joinedHtml();
+      [...tmp.children].forEach(d => { if (!have.has(d.dataset.id)) { d.classList.add('off'); jn.appendChild(d); } });
+      $('#rosterN') && ($('#rosterN').textContent = S.roster.length);
+    }
     $$('#joined .p').forEach(d => {
       const isOn = on.has(d.dataset.id);
       if (isOn && d.classList.contains('off')) { d.classList.remove('off'); d.classList.remove('pop-in'); void d.offsetWidth; d.classList.add('pop-in'); Sound.play('pop'); }
@@ -729,7 +737,7 @@ async function renderResultsList() {
 async function openResult(id) {
   const r = await api('GET', '/api/results/' + id);
   const el = $('#tab-results');
-  const people = new Map(); r.roster.forEach(s => people.set(s.id, s)); r.players.forEach(p => people.set(p.studentId, { id: p.studentId, name: p.name, photo: p.photo }));
+  const people = new Map(); r.roster.forEach(s => people.set(s.id, s)); r.players.forEach(p => { if (!people.has(p.studentId)) people.set(p.studentId, { id: p.studentId, name: p.name, photo: p.photo }); });
   const list = [...people.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt'));
   const joined = new Set(r.players.map(p => p.studentId));
   const score = Object.fromEntries(r.players.map(p => [p.studentId, p.score]));
@@ -754,7 +762,7 @@ async function openResult(id) {
     <div class="tbl-wrap"><table class="res"><thead>
       <tr><th>Aluno</th>${r.questions.map((q, i) => `<th title="${esc(q.text)}">P${i + 1}</th>`).join('')}<th>Certas</th><th>%</th><th>Pontos</th></tr>
       <tr><th>Resposta correta</th>${r.questions.map(q => `<th style="color:var(--ok)">${q.correct.map(k => LETTERS[k]).join('/')}</th>`).join('')}<th></th><th></th><th></th></tr></thead>
-      <tbody>${list.map((p, j) => `<tr><td>${esc(p.name)}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
+      <tbody>${list.map((p, j) => `<tr><td>${esc(p.name)}${p.guest ? ' <small class="muted">(extra)</small>' : ''}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
         <td><b>${stats[j]}</b>/${nAsked}</td><td>${nAsked ? Math.round(stats[j] / nAsked * 100) : 0}%</td><td>${score[p.id] ?? 0}</td></tr>`).join('')}</tbody></table></div>
     <h3 style="margin-top:28px">Detalhe por pergunta</h3>
     ${r.questions.map((q, i) => {

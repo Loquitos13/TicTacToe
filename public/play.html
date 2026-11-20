@@ -16,6 +16,8 @@
   .middle { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; }
   .big-emoji { font-size: 84px; }
   .search { width: 100%; padding: 14px 16px; border-radius: 14px; border: 0; font-size: 1.05em; margin: 10px 0 14px; }
+  .list-names { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+  .name-btn { width: 100%; font-size: 1.1em; }
   .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
   .person { background: rgba(255,255,255,.14); border-radius: 16px; padding: 14px 8px; display: flex; flex-direction: column; align-items: center; gap: 8px; color: #fff; font-weight: 600; text-align: center; line-height: 1.15; transition: transform .15s, background .15s; }
   .person:active { transform: scale(.95); }
@@ -62,7 +64,9 @@ Sound.setVolume(0.2);
 muteButton();
 const app = $('#app');
 const socket = io({ auth: { role: 'player' } });
-let roster = null, state = null, pending = null, lastKey = '', search = '', timerRaf = null;
+let roster = null, state = null, lastKey = '', timerRaf = null;
+let joinStep = { kind: 'form' }; // form | choices | notFound
+let typed = '';
 const stored = () => { try { return JSON.parse(localStorage.getItem('aq_me') || 'null'); } catch { return null; } };
 const store = v => { try { v ? localStorage.setItem('aq_me', JSON.stringify(v)) : localStorage.removeItem('aq_me'); } catch {} };
 
@@ -70,20 +74,33 @@ socket.on('connect', () => { state = null; });
 socket.on('roster', r => {
   roster = r;
   const me = stored();
-  if (r.session && me && me.sessionId === r.session.id && !state) return claim(me.studentId, me.token, true);
+  if (r.session && me && me.sessionId === r.session.id && !state) return reclaim(me);
   if (!state) render();
 });
 socket.on('state', s => { if (!s.session) { state = null; roster = null; render(); return; } state = s; render(); });
-socket.on('reload', () => { state = null; pending = null; store(null); });
-socket.on('released', () => { state = null; store(null); toast('Foste desligado deste nome pelo formador.'); render(); });
+socket.on('reload', () => { state = null; joinStep = { kind: 'form' }; store(null); });
+socket.on('released', () => { state = null; store(null); joinStep = { kind: 'form' }; toast('Foste desligado deste nome pelo formador.'); render(); });
 
-function claim(studentId, token, silent) {
-  socket.emit('player:claim', { studentId, token }, res => {
-    if (res.error) { if (!silent) toast(res.error, 4000); else store(null); pending = null; render(); return; }
-    store({ sessionId: res.sessionId, studentId, token: res.token });
-    pending = null;
+function joined(res) {
+  if (res.error) { toast(res.error, 4500); joinStep = { kind: 'form' }; lastKey = ''; render(); return; }
+  store({ sessionId: res.sessionId, studentId: res.studentId, token: res.token });
+  Sound.play('pop');
+}
+// mesmo dispositivo: volta a entrar sozinho com o token guardado
+function reclaim(me) {
+  socket.emit('player:claim', { studentId: me.studentId, token: me.token }, res => { if (res.error) { store(null); render(); } else joined(res); });
+}
+function join(guest) {
+  Sound.init();
+  socket.emit('player:join', { name: typed, guest: !!guest }, res => {
+    if (res.choices) { joinStep = { kind: 'choices', list: res.choices }; return render(); }
+    if (res.notFound) { joinStep = { kind: 'notFound' }; return render(); }
+    joined(res);
   });
 }
+
+const logo = () => `<div class="logo">🎯 <span>Quiz</span></div>
+  <p class="center" style="margin:4px 0 0;opacity:.9">${roster.session.courseName ? esc(roster.session.courseName) + ' · ' : ''}${esc(roster.session.quizTitle)}</p>`;
 
 function render() {
   cancelAnimationFrame(timerRaf);
@@ -92,26 +109,35 @@ function render() {
     return set('wait', `<div class="logo">🎯 <span>Quiz</span></div>
       <div class="middle"><div class="big-emoji wiggle">🎮</div><h1>Quase lá!</h1><p>À espera que o formador abra a sessão<span class="dots"></span></p></div>`);
   }
-  if (pending) {
-    const p = roster.students.find(s => s.id === pending);
-    return set('confirm' + pending, `<div class="logo">🎯 <span>Quiz</span></div>
-      <div class="middle">${avatar(p, 'xl pop-in')}<h1>És tu, ${esc(p.name.split(' ')[0])}?</h1>
-      <div class="row" style="justify-content:center"><button class="btn ghost" id="no">Não</button><button class="btn primary" id="yes">Sim, sou eu! 🚀</button></div></div>`, () => {
-      $('#no').onclick = () => { pending = null; render(); };
-      $('#yes').onclick = () => { Sound.init(); Sound.play('pop'); claim(pending, null); };
+  if (joinStep.kind === 'choices') {
+    return set('choices' + joinStep.list.map(c => c.id).join(), logo() + `<div class="middle">
+      <h1 style="font-size:1.5em">Qual destes és tu?</h1>
+      <div class="list-names">${joinStep.list.map(c => `<button class="btn name-btn" data-id="${esc(c.id)}">${esc(c.name)}</button>`).join('')}</div>
+      <button class="btn ghost" id="back">← Escrever outra vez</button></div>`, () => {
+      $$('.name-btn').forEach(b => b.onclick = () => socket.emit('player:claim', { studentId: b.dataset.id }, joined));
+      $('#back').onclick = () => { joinStep = { kind: 'form' }; render(); };
     });
   }
-  const list = roster.students.filter(s => s.name.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').includes(search));
-  const key = 'pick' + JSON.stringify(roster.students.map(s => [s.id, s.taken])) + search;
-  set(key, `<div class="logo">🎯 <span>Quiz</span></div>
-    <p class="center" style="margin:4px 0 0">${roster.session.courseName ? esc(roster.session.courseName) + ' · ' : ''}${esc(roster.session.quizTitle)}</p>
-    <h1 class="center" style="font-size:1.6em">Quem és tu? 👇</h1>
-    <input class="search" id="q" placeholder="Procura o teu nome…" value="${esc(search)}" autocomplete="off">
-    <div class="people">${list.map((s, i) => `<button class="person ${s.taken ? 'taken' : ''} pop-in" style="animation-delay:${Math.min(i, 20) * 30}ms" data-id="${s.id}">
-      ${avatar(s, 'lg')}<span>${esc(s.name)}</span>${s.taken ? '<small>já entrou</small>' : ''}</button>`).join('') || '<p class="muted">Nenhum nome encontrado.</p>'}</div>`, () => {
-    const q = $('#q');
-    q.oninput = () => { search = q.value.toLowerCase().normalize('NFD').replace(/\p{M}/gu, ''); render(); q.focus(); q.setSelectionRange(q.value.length, q.value.length); };
-    $$('.person').forEach(b => b.onclick = () => { Sound.init(); pending = b.dataset.id; render(); });
+  if (joinStep.kind === 'notFound') {
+    return set('nf' + typed, logo() + `<div class="middle"><div class="big-emoji">🤔</div>
+      <h1 style="font-size:1.4em">Não encontrámos “${esc(typed)}” na turma</h1>
+      <p>Confirma se escreveste bem o nome e o apelido.</p>
+      <button class="btn primary" id="retry">✏️ Corrigir o nome</button>
+      <button class="btn ghost" id="guest">Entrar mesmo assim como “${esc(typed)}”</button></div>`, () => {
+      $('#retry').onclick = () => { joinStep = { kind: 'form' }; render(); };
+      $('#guest').onclick = () => join(true);
+    });
+  }
+  set('form', logo() + `<form class="middle" id="joinForm" autocomplete="off">
+      <div class="big-emoji wiggle">👋</div>
+      <h1 style="font-size:1.6em">Como te chamas?</h1>
+      <input class="search" id="nm" name="nome" placeholder="Nome e apelido" maxlength="60" autocapitalize="words" enterkeyhint="go" required value="${esc(typed)}">
+      <button class="btn primary" style="width:100%;font-size:1.15em">Entrar 🚀</button>
+    </form>`, () => {
+    const nm = $('#nm');
+    nm.oninput = () => typed = nm.value;
+    $('#joinForm').onsubmit = e => { e.preventDefault(); typed = nm.value.trim(); if (typed) join(false); };
+    setTimeout(() => nm.focus(), 50);
   });
 }
 
@@ -136,7 +162,10 @@ function renderGameInner() {
   const pk = ph + s.qIndex;
   const changed = pk !== prevPhase; prevPhase = pk;
   if (ph === 'lobby') {
-    return set('lobby' + state.me.studentId, header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Estás dentro! 🎉</h1><p>Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p></div>`);
+    return set('lobby' + state.me.studentId, header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1><p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
+      <button class="btn ghost" id="notMe" style="margin-top:10px">Não sou ${esc(state.me.name)}</button></div>`, () => {
+      $('#notMe').onclick = () => { socket.emit('player:leave'); store(null); state = null; joinStep = { kind: 'form' }; typed = ''; render(); };
+    });
   }
   const timedMode = s.settings.mode === 'timed';
   const showRank = s.settings.rankEach;

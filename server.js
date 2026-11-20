@@ -169,11 +169,21 @@ function broadcast() {
 }
 
 function rosterForPlayers() {
-  if (!session) return { session: null, students: [] };
-  return {
-    session: { id: session.id, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase },
-    students: session.roster.map(s => ({ id: s.id, name: s.name, photo: s.photo, taken: !!session.players[s.id] })),
-  };
+  if (!session) return { session: null };
+  // só a informação da sessão: a lista da turma (nomes e fotos) não é enviada a quem entra
+  return { session: { id: session.id, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase } };
+}
+
+// Procura na turma o nome escrito pelo aluno (sem acentos, maiúsculas ou espaços a mais).
+// "ana silva" encontra "Ana Maria Silva"; "ana" sozinho pode dar vários resultados.
+const norm = t => String(t || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+function findStudents(typed) {
+  const n = norm(typed);
+  if (!n) return [];
+  const exact = session.roster.filter(s => norm(s.name) === n);
+  if (exact.length) return exact;
+  const words = n.split(' ');
+  return session.roster.filter(s => { const sw = norm(s.name).split(' '); return words.every(w => sw.some(x => x.startsWith(w))); });
 }
 
 const READY_MS = 3000; // compasso de espera "Prepara-te! 3-2-1" antes de cada pergunta
@@ -377,8 +387,8 @@ function toCsv(rows) { return '﻿' + rows.map(r => r.map(csvCell).join(';')).jo
 function participants(r) {
   // todos os alunos da turma (incluindo quem não entrou) + quem entrou
   const map = new Map();
-  r.roster.forEach(s => map.set(s.id, { id: s.id, name: s.name }));
-  r.players.forEach(p => map.set(p.studentId, { id: p.studentId, name: p.name }));
+  r.roster.forEach(s => map.set(s.id, { id: s.id, name: s.name + (s.guest ? ' (extra)' : '') }));
+  r.players.forEach(p => { if (!map.has(p.studentId)) map.set(p.studentId, { id: p.studentId, name: p.name }); });
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt'));
 }
 function answerText(q, a) { return a == null ? '' : L(a.option) + ') ' + q.options[a.option]; }
@@ -525,15 +535,11 @@ io.on('connection', socket => {
   socket.emit('roster', rosterForPlayers());
   let me = null;
 
-  socket.on('player:claim', (data, cb) => {
-    if (typeof cb !== 'function') cb = () => {};
-    const { studentId, token } = (data && typeof data === 'object') ? data : {};
-    if (typeof studentId !== 'string' || (token != null && typeof token !== 'string')) return cb({ error: 'Pedido inválido.' });
-    if (!session) return cb && cb({ error: 'Ainda não há sessão ativa.' });
+  function claim(studentId, token, cb) {
     const st = session.roster.find(s => s.id === studentId);
-    if (!st) return cb && cb({ error: 'Aluno não encontrado.' });
+    if (!st) return cb({ error: 'Aluno não encontrado.' });
     const existing = session.players[studentId];
-    if (existing && existing.token && existing.token !== token) return cb && cb({ error: 'Este nome já está a ser usado noutro dispositivo. Pede ao formador para o libertar.' });
+    if (existing && existing.token && existing.token !== token) return cb({ error: `${st.name} já entrou noutro dispositivo. Se és tu, pede ao formador para libertar o teu nome.` });
     const p = existing || { studentId, name: st.name, photo: st.photo, score: 0, joinedAt: Date.now() };
     p.token = token || existing?.token || uid(16);
     if (p.socketId && p.socketId !== socket.id) { const old = io.sockets.sockets.get(p.socketId); if (old) old.emit('released'); }
@@ -542,7 +548,45 @@ io.on('connection', socket => {
     me = p;
     socket.leave('lobby'); socket.join('players');
     persistSession();
-    cb && cb({ ok: true, token: p.token, sessionId: session.id });
+    cb({ ok: true, token: p.token, sessionId: session.id, studentId, name: p.name });
+    broadcast();
+  }
+
+  // Reentrar (mesmo dispositivo, com o token guardado) ou escolher entre nomes parecidos
+  socket.on('player:claim', (data, cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    const { studentId, token } = (data && typeof data === 'object') ? data : {};
+    if (typeof studentId !== 'string' || (token != null && typeof token !== 'string')) return cb({ error: 'Pedido inválido.' });
+    if (!session) return cb({ error: 'Ainda não há sessão ativa.' });
+    claim(studentId, token, cb);
+  });
+
+  // Entrar escrevendo o nome
+  socket.on('player:join', (data, cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    const { name, guest } = (data && typeof data === 'object') ? data : {};
+    if (typeof name !== 'string' || !name.trim() || name.length > 60) return cb({ error: 'Escreve o teu nome.' });
+    if (!session) return cb({ error: 'Ainda não há sessão ativa.' });
+    const found = findStudents(name);
+    if (found.length === 1) return claim(found[0].id, null, cb);
+    if (found.length > 1) {
+      // vários nomes parecidos: mostra só os nomes que coincidem (sem fotos) para escolher
+      return cb({ choices: found.slice(0, 8).map(s => ({ id: s.id, name: s.name })) });
+    }
+    if (!guest) return cb({ notFound: true });
+    // nome que não está na turma: entra como participante extra (aparece na grelha como "extra")
+    const clean = name.trim().replace(/\s+/g, ' ').slice(0, 60);
+    const st = { id: 'g' + uid(8), name: clean, photo: null, guest: true };
+    session.roster.push(st);
+    claim(st.id, null, cb);
+  });
+
+  // "Não sou eu": larga o nome (as respostas já dadas mantêm-se)
+  socket.on('player:leave', () => {
+    if (!session || !me || me.socketId !== socket.id) return;
+    me.token = null; me.socketId = null; me = null;
+    socket.leave('players'); socket.join('lobby');
+    socket.emit('roster', rosterForPlayers());
     broadcast();
   });
 
