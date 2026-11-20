@@ -234,14 +234,17 @@ function phaseSound(prev) {
       tickTimer = setInterval(() => { const r = Math.ceil((end - Date.now()) / 1000); if (r <= 5 && r > 0) Sound.play(r <= 3 ? 'tock' : 'tick'); }, 1000);
     }
   }
-  if (ph === 'closed') { Sound.stopMusic(); Sound.play('gong'); }
-  if (ph === 'reveal') { Sound.stopMusic(); Sound.play('correct'); }
-  if (ph === 'leaderboard') { Sound.stopMusic(); Sound.play('drumroll', 1); setTimeout(() => S && S.phase === 'leaderboard' && Sound.music('party'), 1100); }
+  if (ph === 'closed') { Sound.stopMusic(0.8); Sound.play('softEnd'); }
+  if (ph === 'reveal') { Sound.stopMusic(); Sound.play('revealCorrect'); }
+  if (ph === 'leaderboard') {
+    Sound.stopMusic(); Sound.play('cheer');
+    setTimeout(() => { if (S && S.phase === 'leaderboard') { Confetti.burst(120); Sound.music('party'); } }, 1600);
+  }
   if (ph === 'end') {
     Sound.stopMusic();
     if (!S.settings.finalPodium) { Sound.play('fanfare'); Confetti.burst(200); return; }
     Sound.play('drumroll', FINAL_FIRST_AT - .2);
-    setTimeout(() => { if (S && S.phase === 'end') { Sound.play('fanfare'); Confetti.burst(300); setTimeout(() => S && S.phase === 'end' && Sound.music('party'), 2200); } }, FINAL_FIRST_AT * 1000);
+    setTimeout(() => { if (S && S.phase === 'end') { Sound.play('fanfare'); Sound.play('cheer', 3.5); Confetti.burst(300); setTimeout(() => S && S.phase === 'end' && Sound.music('party'), 2200); } }, FINAL_FIRST_AT * 1000);
   }
 }
 
@@ -255,7 +258,8 @@ function renderGame(full) {
   if (ph === 'lobby') html += lobbyHtml();
   if (ph === 'ready') html += readyHtml();
   if (ph === 'question') html += questionHtml();
-  if (ph === 'closed') { html += resultsHtml(false); closedShown.add(S.qIndex); }
+  const firstPoll = ph === 'closed' && !closedShown.has(S.qIndex);
+  if (ph === 'closed') { html += resultsHtml(false, firstPoll); closedShown.add(S.qIndex); }
   if (ph === 'reveal') html += resultsHtml(true);
   if (ph === 'leaderboard') html += `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Top 5</div>` + podiumHtml(S.ranking.slice(0, 5), false);
   if (ph === 'end') html += endHtml();
@@ -265,7 +269,9 @@ function renderGame(full) {
   if (ph === 'question' && timed()) runRing();
   if (ph === 'ready') runReady();
   const tu = $('.timeup'); if (tu) tu.addEventListener('animationend', () => tu.classList.add('hidden'));
-  if (ph === 'closed' || ph === 'reveal') requestAnimationFrame(() => setTimeout(() => $$('.opt .fill').forEach(f => f.style.width = f.dataset.w), 60));
+  // sondagem: as barras e as percentagens sobem de 0% até ao valor (com som); na resposta correta já aparecem cheias
+  if (ph === 'closed' && firstPoll) growPoll(timed() ? 1700 : 700);
+  else if (ph === 'closed' || ph === 'reveal') $$('.opt .fill').forEach(f => { f.style.transition = 'none'; f.style.width = f.dataset.w; });
 }
 
 function lobbyHtml() {
@@ -331,7 +337,24 @@ function questionHtml() {
 
 // withAnswer=false → sondagem (só quantos escolheram cada opção); true → destaca a correta
 const closedShown = new Set();
-function resultsHtml(withAnswer) {
+const POLL_MS = 1600;
+function growPoll(delay) {
+  setTimeout(() => {
+    if (!S || S.phase !== 'closed') return;
+    Sound.play('pollRise', POLL_MS / 1000);
+    $$('.opt .fill').forEach(f => { f.style.transition = `width ${POLL_MS}ms cubic-bezier(.25,.8,.3,1)`; f.style.width = f.dataset.w; });
+    const els = $$('.opt .num'), pcs = $$('.opt .pc'), t0 = performance.now();
+    const step = () => {
+      const k = Math.min(1, (performance.now() - t0) / POLL_MS), e = 1 - Math.pow(1 - k, 3);
+      els.forEach(el => el.textContent = Math.round(+el.dataset.n * e));
+      pcs.forEach(el => el.textContent = Math.round(+el.dataset.p * e) + '%');
+      if (k < 1) requestAnimationFrame(step);
+      else $$('.opt .cnt').forEach(c => { c.classList.remove('pop-in'); void c.offsetWidth; c.classList.add('pop-in'); });
+    };
+    step();
+  }, delay);
+}
+function resultsHtml(withAnswer, animate = false) {
   const q = S.question, total = S.answeredIds.length, max = Math.max(1, ...S.counts);
   const byId = new Map(S.roster.map(s => [s.id, s]));
   const pct = c => total ? Math.round(c / total * 100) : 0;
@@ -341,9 +364,9 @@ function resultsHtml(withAnswer) {
     <div class="opts" style="margin-top:10px">${q.options.map((o, i) => {
       const right = q.correct.includes(i);
       return `<div class="opt opt-${i} ${withAnswer ? (right ? 'right' : 'dim') : 'slide-up'} ${S.settings.showWho ? 'has-who' : ''}" style="animation-delay:${withAnswer ? 0 : i * 100}ms">
-        <div class="fill" data-w="${(S.counts[i] / max) * 100}%"></div>
+        <div class="fill" data-w="${pct(S.counts[i])}%"></div>
         <span class="letter">${LETTERS[i]}</span><span class="txt">${esc(o)}</span>
-        ${withAnswer && right ? '<span class="tick">✔</span>' : ''}<span class="cnt">${S.counts[i]} <small style="font-size:.55em;opacity:.85">${pct(S.counts[i])}%</small></span>
+        ${withAnswer && right ? '<span class="tick">✔</span>' : ''}<span class="cnt"><span class="num" data-n="${S.counts[i]}">${animate ? 0 : S.counts[i]}</span> <small class="pc" data-p="${pct(S.counts[i])}" style="font-size:.55em;opacity:.85">${animate ? 0 : pct(S.counts[i])}%</small></span>
         ${S.settings.showWho ? `<div class="who">${S.whoByOption[i].map(id => avatar(byId.get(id) || { name: '?' }, 'sm')).join('')}</div>` : ''}
       </div>`;
     }).join('')}</div>
@@ -443,7 +466,7 @@ function updateLive() {
     if (n && n.textContent != cnt) { n.textContent = cnt; n.classList.remove('pop-in'); void n.offsetWidth; n.classList.add('pop-in'); Sound.play('pop'); }
     const o = $('#ansOf'); if (o) o.textContent = 'de ' + of;
     const bar = $('#ansBar'); if (bar) bar.style.width = (of ? Math.min(100, cnt / of * 100) : 0) + '%';
-    const done = $('#allDone'); if (done) { const was = !done.classList.contains('hidden'); const now = of && cnt >= of; done.classList.toggle('hidden', !now); if (now && !was) Sound.play('correct'); }
+    const done = $('#allDone'); if (done) { const was = !done.classList.contains('hidden'); const now = of && cnt >= of; done.classList.toggle('hidden', !now); if (now && !was) Sound.play('softEnd'); }
   }
   // redesenha só a barra de controlos (mantém as animações do palco)
   const old = $('.controls');

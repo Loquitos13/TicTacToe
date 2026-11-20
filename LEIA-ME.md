@@ -80,3 +80,13 @@ Depois, no ecrã da sala, clica em **Mudar endereço** debaixo do QR code e cola
 
 ## Som
 A música e os efeitos são gerados pelo próprio browser (sem ficheiros nem direitos de autor). Liga o som do projetor; o botão 🔊 no canto liga/desliga.
+
+O que se ouve em cada momento (no projetor):
+- **Sala aberta**: música alegre de espera.
+- **Prepara-te 3-2-1**: três toques de contagem.
+- **Pergunta no ar**: música leve de "pensar" enquanto respondem (no modo por tempo, tic-tac nos últimos 5 segundos).
+- **Tempo esgotado / todos responderam**: sininho suave (também no telemóvel dos alunos).
+- **Sondagem**: notas a subir enquanto as barras e as percentagens crescem de 0% até ao valor final.
+- **Resposta correta**: brilho + acorde; no telemóvel cada aluno ouve o som de certo ou errado.
+- **Ranking Top 5**: aplausos e cornetas de festa, confettis e música de festa enquanto os bonecos dançam.
+- **Pódio final**: rufar de tambores, fanfarra, aplausos e música de festa.

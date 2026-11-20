@@ -23,6 +23,18 @@ const Sound = (() => {
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + 0.05);
   }
+  // som de marimba/pluck (seno com ataque curto)
+  function pluck(dest, t, midi, dur, vol) {
+    tone(dest, t, midi, dur, 'sine', vol);
+    tone(dest, t, midi + 12, dur * 0.4, 'sine', vol * 0.3);
+  }
+  function bandNoise(dest, t, dur, vol, freq, q = 1) {
+    if (!noiseBuf) noise(dest, t, 0.001, 0.0001);
+    const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = noiseBuf; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(dest); s.start(t, Math.random() * 0.3); s.stop(t + dur + 0.05);
+  }
   let noiseBuf = null;
   function noise(dest, t, dur, vol = 0.15, hp = 6000) {
     if (!noiseBuf) {
@@ -60,17 +72,23 @@ const Sound = (() => {
       },
     },
     // Pergunta: tensa, menor, mais rápida
+    // Pergunta no ar: música de "pensar" leve e divertida (marimba + baixo + shaker)
     think: {
-      bpm: 132,
+      bpm: 112,
       play(t, s) {
-        const bar = Math.floor(s / 16) % 4, st = s % 16;
-        const roots = [45, 45, 41, 43]; // A A F G
-        if (st % 4 === 0) kick(musicGain, t, 0.4);
-        noise(musicGain, t, 0.03, st % 2 ? 0.04 : 0.07);
-        if (st % 2 === 0) tone(musicGain, t, roots[bar] + (st % 4 === 2 ? 12 : 0), 0.12, 'sawtooth', 0.12);
-        const arp = [0, 3, 7, 12, 7, 3, 0, 10];
-        if (st % 2 === 1) tone(musicGain, t, roots[bar] + 24 + arp[(st >> 1) % 8], 0.08, 'square', 0.04);
-        if (st === 0 && bar % 2 === 0) tone(musicGain, t, roots[bar] + 36, 0.6, 'triangle', 0.06);
+        const bar = Math.floor(s / 16) % 8, st = s % 16;
+        const roots = [48, 45, 41, 43, 48, 45, 50, 43];            // C Am F G C Am Dm G
+        const r = roots[bar];
+        if (st % 8 === 0) kick(musicGain, t, 0.28);
+        if (st % 2 === 1) noise(musicGain, t, 0.025, 0.035, 7000);   // shaker
+        if (st % 8 === 4) noise(musicGain, t, 0.08, 0.06, 3000);     // snare suave
+        if ([0, 3, 6, 10].includes(st)) pluck(musicGain, t, r - 12, 0.3, 0.22);
+        const pent = [0, 2, 4, 7, 9, 12, 14, 16];
+        const mel = [0, null, 2, 4, null, 3, 2, null, 5, null, 4, 2, null, 1, null, null];
+        const m = mel[(st + (bar % 2) * 3) % 16];
+        if (m != null) pluck(musicGain, t, r + 12 + pent[m], 0.25, 0.13);
+        if (st === 0) [0, 4, 7].forEach(k => tone(musicGain, t, r + 12 + k, 1.6, 'sine', 0.025));
+        if (st % 4 === 0) tone(musicGain, t, 100, 0.03, 'sine', 0.05);   // tic-tac discreto
       },
     },
     // Classificação/fim: festivo
@@ -105,9 +123,44 @@ const Sound = (() => {
     musicGain.gain.setValueAtTime(0.5, ctx.currentTime);
     timerId = setInterval(scheduler, 25);
   }
-  function stopMusic() { clearInterval(timerId); timerId = null; current = null; }
+  // pára a música com um fade-out curto (não corta de repente)
+  function stopMusic(fade = 0.5) {
+    clearInterval(timerId); timerId = null; current = null;
+    if (ctx && fade) { const t = ctx.currentTime; musicGain.gain.cancelScheduledValues(t); musicGain.gain.setValueAtTime(musicGain.gain.value, t); musicGain.gain.linearRampToValueAtTime(0, t + fade); }
+  }
 
   const sfx = {
+    // fim do tempo / todos responderam: sininho suave
+    softEnd() {
+      const t = ctx.currentTime;
+      [[88, 0], [83, 0.18], [76, 0.36]].forEach(([n, d]) => { tone(sfxGain, t + d, n, 1.6, 'sine', 0.12); tone(sfxGain, t + d, n + 19, 0.6, 'sine', 0.02); });
+    },
+    // enquanto as barras da sondagem crescem: notas a subir + "swoosh" suave
+    pollRise(sec = 1.4) {
+      const t = ctx.currentTime, scale = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84];
+      const n = 14;
+      for (let i = 0; i < n; i++) pluck(sfxGain, t + i * sec / n, scale[Math.floor(i / n * scale.length)], 0.18, 0.07 + 0.05 * i / n);
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(220, t); o.frequency.exponentialRampToValueAtTime(660, t + sec);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05, t + sec * 0.8); g.gain.exponentialRampToValueAtTime(0.0001, t + sec + 0.2);
+      o.connect(g); g.connect(sfxGain); o.start(t); o.stop(t + sec + 0.3);
+      tone(sfxGain, t + sec, 84, 0.5, 'sine', 0.12);
+    },
+    // revelar a resposta correta: brilho + acorde
+    revealCorrect() {
+      const t = ctx.currentTime;
+      [84, 88, 91, 96, 100].forEach((n, i) => tone(sfxGain, t + i * 0.045, n, 0.3, 'sine', 0.08));
+      [60, 64, 67, 72].forEach(n => { tone(sfxGain, t + 0.22, n, 1.4, 'triangle', 0.1); tone(sfxGain, t + 0.22, n + 12, 0.8, 'sine', 0.05); });
+      kick(sfxGain, t + 0.22, 0.35); noise(sfxGain, t + 0.22, 0.5, 0.08, 6000);
+    },
+    // festa no pódio: aplausos + cornetas de festa + apito
+    cheer(sec = 2.6) {
+      const t = ctx.currentTime;
+      for (let i = 0; i < 160; i++) { const d = Math.random() * sec; bandNoise(sfxGain, t + d, 0.04 + Math.random() * 0.05, 0.12 * (1 - d / sec * 0.6), 1500 + Math.random() * 2500, 2); }
+      [[0.1, 62, 74], [0.35, 65, 77], [0.6, 67, 79]].forEach(([d, a, b]) => tone(sfxGain, t + d, a, 0.35, 'sawtooth', 0.06, b));
+      tone(sfxGain, t + 1.0, 96, 0.12, 'sine', 0.1, 98); tone(sfxGain, t + 1.15, 96, 0.3, 'sine', 0.1, 93);
+      [72, 76, 79, 84].forEach((n, i) => tone(sfxGain, t + 0.9 + i * 0.1, n, 0.4, 'square', 0.05));
+    },
     pop() { const t = ctx.currentTime; tone(sfxGain, t, 76, 0.08, 'sine', 0.3, 88); tone(sfxGain, t + 0.06, 88, 0.1, 'sine', 0.2); },
     tick() { const t = ctx.currentTime; tone(sfxGain, t, 96, 0.04, 'square', 0.12); },
     tock() { const t = ctx.currentTime; tone(sfxGain, t, 84, 0.06, 'square', 0.18); },
