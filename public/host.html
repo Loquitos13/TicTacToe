@@ -304,7 +304,7 @@ function joinedHtml() {
   const joined = new Map(S.players.map(p => [p.studentId, p]));
   return S.roster.map(s => {
     const p = joined.get(s.id);
-    return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}">${avatar(s, 'lg')}<span>${esc(s.name)}${s.homonym ? '<br><small style="color:#ffd93d">⚠ nome repetido</small>' : (s.extra || s.guest) ? '<br><small style="opacity:.75">(extra)</small>' : ''}</span></div>`;
+    return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}">${avatar(s, 'lg')}<span title="${esc(s.name)}">${esc(s.short || s.name)}</span></div>`;
   }).join('');
 }
 
@@ -398,7 +398,7 @@ function podiumHtml(top, final) {
       <div class="pts-bubble">${final ? p.score + ' pts' : plus ? '+' + plus : '+0'}</div>
       ${dancer(p, moves[i], colors[i], i === 0)}
       <div class="pstep" style="height:${heights[i]}px;background:${colors[i]}"><span class="place">${i + 1}º</span>
-        <span class="pname">${esc(p.name)}</span>${final ? '' : `<span class="pscore">${p.score} pts</span>`}</div>
+        <span class="pname" title="${esc(p.name)}">${esc(p.short || p.name)}</span>${final ? '' : `<span class="pscore">${p.score} pts</span>`}</div>
     </div>`;
   }).join('')}</div>`;
 }
@@ -504,9 +504,18 @@ function playersDialog() {
     <div class="list">${S.roster.map(s => { const p = joined.get(s.id); return `<div class="item">${avatar(s)}<div class="grow"><b>${esc(s.name)}</b><br>
       <small class="muted">${!p ? 'Ainda não entrou' : p.connected ? '🟢 Ligado' : '⚪ Desligado'}${p ? ' · ' + p.score + ' pts' : ''}</small></div>
       ${p ? `<button class="btn small" data-rel="${s.id}">Libertar nome</button>` : ''}</div>`; }).join('')}</div>
+    <form id="addLate" class="row" style="margin-top:14px"><input type="text" id="lateName" class="grow" placeholder="Nome completo de um formando que não está na lista" maxlength="80">
+      <button class="btn small primary">+ Acrescentar</button></form>
     <p style="text-align:right"><button class="btn primary" id="closeDlg">Fechar</button></p></div>`;
   document.body.appendChild(d);
   d.onclick = e => { if (e.target === d || e.target.id === 'closeDlg') d.remove(); };
+  $('#addLate', d).onsubmit = e => {
+    e.preventDefault();
+    socket.emit('host:addStudent', $('#lateName', d).value, res => {
+      if (!res || res.error) return toast((res && res.error) || 'Erro', 4500);
+      toast('Formando acrescentado: já pode entrar com o nome completo'); d.remove(); playersDialog();
+    });
+  };
   $$('[data-rel]', d).forEach(b => b.onclick = () => socket.emit('host:release', b.dataset.rel, res => {
     if (!res || res.error) return toast((res && res.error) || 'Erro');
     b.outerHTML = `<div style="text-align:center"><small class="muted">Código de reentrada</small><br><b style="font-size:1.6em;letter-spacing:.15em">${esc(res.rejoin)}</b></div>`;

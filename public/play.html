@@ -69,7 +69,7 @@ const app = $('#app');
 const CODE = (new URLSearchParams(location.search).get('c') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const socket = io({ auth: { role: 'player', code: CODE } });
 let roster = null, state = null, lastKey = '', timerRaf = null;
-let joinStep = { kind: 'form' }; // form | notFound | taken | rejoin
+let joinStep = { kind: 'form' }; // form | notFound | rejoin
 let typed = '';
 const stored = () => { try { return JSON.parse(localStorage.getItem('aq_me') || 'null'); } catch { return null; } };
 const store = v => { try { v ? localStorage.setItem('aq_me', JSON.stringify(v)) : localStorage.removeItem('aq_me'); } catch {} };
@@ -95,11 +95,10 @@ function joined(res) {
 function reclaim(me) {
   socket.emit('player:claim', { studentId: me.studentId, token: me.token }, res => { if (res.error) { store(null); render(); } else joined(res); });
 }
-function join(asNew) {
+function join() {
   Sound.init();
-  socket.emit('player:join', { name: typed, asNew: !!asNew }, res => {
+  socket.emit('player:join', { name: typed }, res => {
     if (res.notFound) { joinStep = { kind: 'notFound' }; return render(); }
-    if (res.taken) { joinStep = { kind: 'taken', name: res.name }; return render(); }
     joined(res);
   });
 }
@@ -130,24 +129,9 @@ function render() {
   }
   if (joinStep.kind === 'notFound') {
     return set('nf' + typed, logo() + `<div class="middle"><div class="big-emoji">🤔</div>
-      <h1 style="font-size:1.4em">“${esc(typed)}” não está na lista da turma</h1>
-      <p>Escreve o <b>nome completo</b> tal como o formador o registou (nome e apelido).</p>
-      <button class="btn primary" id="retry">✏️ Corrigir o nome</button>
-      <button class="btn ghost" id="asNew">Entrar como participante extra</button></div>`, () => {
-      $('#retry').onclick = () => { joinStep = { kind: 'form' }; render(); };
-      $('#asNew').onclick = () => join(true);
-    });
-  }
-  if (joinStep.kind === 'taken') {
-    return set('tk' + typed, logo() + `<div class="middle"><div class="big-emoji">✋</div>
-      <h1 style="font-size:1.4em">Já entrou alguém com o nome “${esc(joinStep.name)}”</h1>
-      <p><b>Se és tu e mudaste de telemóvel</b>, pede ao formador um código de reentrada.</p>
-      <p><b>Se és outra pessoa com o mesmo nome</b>, entra como participante separado: o formador vê o aviso de nome repetido.</p>
-      <button class="btn primary" id="rj">🔢 Tenho um código de reentrada</button>
-      <button class="btn ghost" id="asNew">Sou outra pessoa com o mesmo nome</button>
-      <button class="btn ghost" id="retry">← Voltar</button></div>`, () => {
-      $('#rj').onclick = () => { joinStep = { kind: 'rejoin' }; render(); };
-      $('#asNew').onclick = () => join(true);
+      <h1 style="font-size:1.4em">Não encontrámos “${esc(typed)}” na lista da turma</h1>
+      <p>Escreve o teu <b>nome completo</b>, tal como está na inscrição.<br>Se estiver certo, fala com o formador.</p>
+      <button class="btn primary" id="retry">✏️ Corrigir o nome</button></div>`, () => {
       $('#retry').onclick = () => { joinStep = { kind: 'form' }; render(); };
     });
   }
@@ -163,14 +147,14 @@ function render() {
   }
   set('form', logo() + `<form class="middle" id="joinForm" autocomplete="off">
       <div class="big-emoji wiggle">👋</div>
-      <h1 style="font-size:1.6em">Como te chamas?</h1>
-      <input class="search" id="nm" name="nome" placeholder="Nome e apelido" maxlength="60" autocapitalize="words" enterkeyhint="go" required value="${esc(typed)}">
+      <h1 style="font-size:1.6em">Escreve o teu nome completo</h1>
+      <input class="search" id="nm" name="nome" placeholder="Nome completo" maxlength="80" autocapitalize="words" enterkeyhint="go" required value="${esc(typed)}">
       <button class="btn primary" style="width:100%;font-size:1.15em">Entrar 🚀</button>
       <button type="button" class="btn ghost" id="rj" style="font-size:.9em">Mudei de telemóvel: tenho um código de reentrada</button>
     </form>`, () => {
     const nm = $('#nm');
     nm.oninput = () => typed = nm.value;
-    $('#joinForm').onsubmit = e => { e.preventDefault(); typed = nm.value.trim(); if (typed) join(false); };
+    $('#joinForm').onsubmit = e => { e.preventDefault(); typed = nm.value.trim(); if (typed) join(); };
     $('#rj').onclick = () => { joinStep = { kind: 'rejoin' }; render(); };
     setTimeout(() => nm.focus(), 50);
   });

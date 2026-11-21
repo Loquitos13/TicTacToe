@@ -45,12 +45,26 @@ Segurança:
 **🎮 Jogo**: escolhe o curso, o questionário e os alunos e clica em **Abrir sala**. Aparece o QR code.
 Cada sala aberta tem um **código único** (ex.: `K7P4QX`), que vai dentro do QR code e aparece por baixo dele. Sem o código certo não se entra, e o código de uma sessão anterior deixa de funcionar.
 
-Os alunos leem o QR e **escrevem o nome completo** (não precisam de acentos nem maiúsculas: "joao goncalves" encontra "João Gonçalves").
-- **Cada telemóvel é um participante diferente. Nomes iguais nunca são juntados na mesma pessoa.**
-- Só há ligação ao aluno da turma (com a fotografia) quando o nome é igual ao nome completo registado e esse aluno ainda não entrou. Partes do nome (ex.: só "Ana") não contam.
-- Se esse nome já tiver entrado, ninguém é juntado nem bloqueado: a pessoa entra como participante separado, "Ana Silva (2)", com o aviso **⚠ nome repetido** no teu ecrã, na grelha e no Excel.
-- Se o nome não estiver na turma, pode corrigir ou entrar como participante **extra**.
-- Na lista de alunos não é possível ter dois alunos com o mesmo nome (acrescenta um apelido para distinguir).
+Os alunos leem o QR e **escrevem o nome completo** (sem precisar de acentos nem maiúsculas). Quem é quem decide-o sempre o sistema, a partir da lista que tu registaste; o formando nunca escolhe.
+
+Regra de identificação (nomes comparados sem maiúsculas nem acentos):
+1. Usa o **primeiro nome**.
+2. Se houver outro formando com o mesmo primeiro nome, usa **primeiro + último nome** (nos dois).
+3. Se mesmo assim forem iguais, acrescenta **os nomes do meio**, um a um, até ficarem diferentes.
+
+Exemplo com Ana Maria Silva, Ana Rita Silva, Ana Costa e João Gonçalves:
+
+| Formando | Identificado por | Aceita | Não aceita |
+|---|---|---|---|
+| João Gonçalves | João | "joao goncalves", "João" | — |
+| Ana Costa | Ana Costa | "ana costa" | "Ana" |
+| Ana Maria Silva | Ana Maria Silva | "Ana Maria Silva" | "Ana Silva" |
+| Ana Rita Silva | Ana Rita Silva | "ana rita silva" | "Ana Silva" |
+
+- O nome que identifica cada formando é o que aparece nos cartões da sala e no pódio; a grelha e o Excel mostram sempre o nome completo.
+- Se o nome já tiver entrado noutro telemóvel, a entrada é recusada (só volta com o código de reentrada que tu dás).
+- Se o nome não estiver na lista, o formando é avisado para falar contigo: em **👥 Alunos** (barra de baixo) podes acrescentá-lo à sessão na hora.
+- Na lista de alunos não é possível ter dois alunos com o mesmo nome completo.
 - A lista da turma e as fotografias nunca são mostradas a quem entra.
 
 Ao abrir a sala escolhes **como avançam as perguntas** (vale para o quiz inteiro):

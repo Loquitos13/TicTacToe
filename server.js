@@ -103,7 +103,7 @@ function answersFor(i) { return (session.answers[i] ||= {}); }
 
 function ranking() {
   return Object.values(session.players)
-    .map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score }))
+    .map(p => ({ studentId: p.studentId, name: p.name, short: p.short || p.name, photo: p.photo, score: p.score }))
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 }
 
@@ -180,6 +180,44 @@ function rosterForPlayers(sk) {
 
 // Nomes comparados sem acentos, maiúsculas ou espaços a mais ("joao goncalves" = "João Gonçalves").
 // Só há correspondência com o nome COMPLETO; nunca por partes do nome.
+// Nome que identifica cada formando na sessão (regra do formador):
+//  1) o primeiro nome;
+//  2) se houver outro formando com o mesmo primeiro nome: primeiro + último nome (nos dois);
+//  3) se mesmo assim forem iguais: acrescenta os nomes do meio, um a um, até ficarem diferentes.
+// Guarda em cada formando: short (nome a mostrar) e key (posições das palavras usadas).
+function assignShortNames(list) {
+  const toks = new Map(list.map(st => [st, String(st.name).trim().split(/\s+/)]));
+  const ntoks = new Map(list.map(st => [st, norm(st.name).split(' ')]));
+  const keyOf = (st, idx) => idx.map(i => ntoks.get(st)[i]).join(' ');
+  const idxFor = (st, level) => {
+    const n = ntoks.get(st).length, last = n - 1;
+    if (level === 0 || n === 1) return [0];
+    const mids = [];
+    for (let i = 1; i < last && mids.length < level - 1; i++) mids.push(i);
+    return [0, ...mids, last];
+  };
+  list.forEach(st => st._lvl = 0);
+  for (let round = 0; round < 12; round++) {
+    const groups = new Map();
+    list.forEach(st => { const k = keyOf(st, idxFor(st, st._lvl)); groups.set(k, [...(groups.get(k) || []), st]); });
+    let changed = false;
+    for (const g of groups.values()) if (g.length > 1) g.forEach(st => { const n = ntoks.get(st).length; if (idxFor(st, st._lvl + 1).length > idxFor(st, st._lvl).length || (st._lvl === 0 && n > 1)) { st._lvl++; changed = true; } });
+    if (!changed) break;
+  }
+  list.forEach(st => { const idx = idxFor(st, st._lvl); st.key = idx; st.short = idx.map(i => toks.get(st)[i]).join(' '); delete st._lvl; });
+}
+// O nome escrito pelo formando identifica-o se tiver as mesmas palavras que distinguem o seu nome
+// (primeiro nome; e, se for preciso, último nome e nomes do meio).
+function matchesStudent(st, typedTokens) {
+  const nt = norm(st.name).split(' '), last = nt.length - 1, T = typedTokens;
+  if (T[0] !== nt[0]) return false;
+  for (const i of st.key || [0]) {
+    if (i === 0) continue;
+    if (i === last) { if (T[T.length - 1] !== nt[last] || T.length < 2) return false; }
+    else if (!T.slice(1, -1).includes(nt[i])) return false;
+  }
+  return true;
+}
 const norm = t => String(t || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 
 // Código da sessão: 6 caracteres sem letras/números que se confundem (0/O, 1/I/L)
@@ -494,6 +532,7 @@ io.on('connection', socket => {
       const fixed = parseInt(settings && settings.fixedTime, 10);
       if (fixed >= 5) qs.forEach(q => q.time = Math.min(300, fixed));
       const roster = db.students.filter(s => !studentIds || studentIds.includes(s.id)).map(s => ({ ...s }));
+      assignShortNames(roster);
       session = {
         id: new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '_' + uid(4),
         code: newCode(), // código único da sessão (vai no QR code)
@@ -531,6 +570,21 @@ io.on('connection', socket => {
       io.in('players').socketsJoin('lobby'); io.in('players').socketsLeave('players');
       broadcast();
     }));
+    socket.on('host:addStudent', guard((name, cb) => {
+      if (typeof cb !== 'function') cb = () => {};
+      if (!session) return cb({ error: 'Não há sessão ativa' });
+      name = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+      if (!name) return cb({ error: 'Escreve o nome completo' });
+      if (db.students.some(x => norm(x.name) === norm(name)) || session.roster.some(x => norm(x.name) === norm(name))) return cb({ error: `Já existe um formando chamado "${name}".` });
+      const st = { id: uid(), name, photo: null };
+      db.students.push(st); db.students.sort((a, b) => a.name.localeCompare(b.name, 'pt')); saveDb();
+      session.roster.push({ ...st });
+      assignShortNames(session.roster);
+      // quem já entrou mantém-se; atualiza só o nome curto mostrado
+      Object.values(session.players).forEach(p => { const r = session.roster.find(x => x.id === p.studentId); if (r) p.short = r.short; });
+      persistSession(); cb({ ok: true }); broadcast();
+    }));
+
     socket.on('host:release', guard((studentId, cb) => {
       if (typeof cb !== 'function') cb = () => {};
       if (!session || !session.players[studentId]) return cb({ error: 'Aluno não encontrado' });
@@ -564,7 +618,7 @@ io.on('connection', socket => {
     cb({ ok: true, token: p.token, sessionId: session.id, studentId: p.studentId, name: p.name });
     broadcast();
   }
-  const newPlayer = st => ({ studentId: st.id, name: st.name, photo: st.photo || null, score: 0, joinedAt: Date.now() });
+  const newPlayer = st => ({ studentId: st.id, name: st.name, short: st.short || st.name, photo: st.photo || null, score: 0, joinedAt: Date.now() });
 
   // Mesmo dispositivo a voltar (recarregou a página): só com o token que recebeu ao entrar
   socket.on('player:claim', (data, cb) => {
@@ -580,28 +634,20 @@ io.on('connection', socket => {
     broadcast();
   });
 
-  // Entrar escrevendo o nome.
-  // Regra: cada dispositivo é UM participante. Nomes iguais nunca são juntados na mesma pessoa.
+  // Entrar escrevendo o nome completo. Quem é quem decide-o sempre o sistema, pela lista do formador.
   socket.on('player:join', (data, cb) => {
     if (typeof cb !== 'function') cb = () => {};
-    const { name, asNew } = (data && typeof data === 'object') ? data : {};
+    const { name } = (data && typeof data === 'object') ? data : {};
     if (!codeOk(socket.data.code)) return cb({ error: 'Código da sessão inválido ou sessão terminada. Lê de novo o QR code.' });
     if (me && session.players[me.studentId] === me) return cb({ error: 'Já entraste neste dispositivo.' });
-    if (typeof name !== 'string' || !name.trim() || name.length > 60) return cb({ error: 'Escreve o teu nome.' });
-    const clean = name.trim().replace(/\s+/g, ' ').slice(0, 60), n = norm(clean);
-    if (!n) return cb({ error: 'Escreve o teu nome.' });
-    // alunos da turma (registados pelo formador) com exatamente este nome
-    const inClass = session.roster.filter(st => !st.extra && norm(st.name) === n);
-    const free = inClass.filter(st => !session.players[st.id]);
-    if (inClass.length === 1 && free.length === 1) return attach(newPlayer(free[0]), cb);
-    if (!asNew) {
-      if (inClass.length >= 1) return cb({ taken: true, name: inClass[0].name }); // já entrou alguém com este nome
-      return cb({ notFound: true });
-    }
-    // participante separado: nome não registado, ou nome igual a alguém que já entrou
-    const same = session.roster.filter(st => norm(st.name.replace(/ \(\d+\)$/, '')) === n).length;
-    const st = { id: 'g' + uid(8), name: same ? `${clean} (${same + 1})` : clean, photo: null, extra: true, homonym: same > 0 };
-    session.roster.push(st);
+    if (typeof name !== 'string' || !name.trim() || name.length > 80) return cb({ error: 'Escreve o teu nome completo.' });
+    const T = norm(name).split(' ').filter(Boolean);
+    if (!T.length) return cb({ error: 'Escreve o teu nome completo.' });
+    const found = session.roster.filter(st => matchesStudent(st, T));
+    if (found.length === 0) return cb({ notFound: true });
+    if (found.length > 1) return cb({ error: 'Escreve o teu nome completo (nome e apelidos).' });
+    const st = found[0];
+    if (session.players[st.id]) return cb({ error: `${st.short} já entrou noutro dispositivo. Se mudaste de telemóvel, pede ao formador o código de reentrada.` });
     attach(newPlayer(st), cb);
   });
 
@@ -622,7 +668,6 @@ io.on('connection', socket => {
     const answered = Object.values(session.answers).some(a => a[me.studentId]);
     if (answered) return cb({ error: 'Já respondeste a perguntas. Fala com o formador.' });
     delete session.players[me.studentId];
-    session.roster = session.roster.filter(st => !(st.extra && st.id === me.studentId));
     me = null;
     socket.leave('players'); socket.join('lobby');
     persistSession();
