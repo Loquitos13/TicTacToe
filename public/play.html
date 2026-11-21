@@ -47,6 +47,9 @@
   .ex-nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; }
   .ex-nav .btn { flex: 1; }
   .ex-submit-link { margin-top: 10px; align-self: center; font-size: .9em; }
+  .on-screen { background: rgba(255,255,255,.95); color: var(--ink); border-radius: 16px; padding: 14px 16px; text-align: center; font-size: 1.05em; line-height: 1.4; }
+  .letters-only .ans { font-size: 3.2em; }
+  .letters-only .ans .letter { background: transparent; width: auto; height: auto; }
   .list-names { display: flex; flex-direction: column; gap: 10px; width: 100%; }
   .name-btn { width: 100%; font-size: 1.1em; }
   .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
@@ -226,7 +229,7 @@ function renderGameInner() {
   const showRank = s.settings.rankEach;
   if (ph === 'ready') {
     set('ready' + s.qIndex, header() + qmeta() + `<div class="middle"><h1 class="slide-up">Prepara-te! 🧠</h1>
-      <div class="qtext pop-in" style="width:100%">${esc(state.question.text)}</div>
+      ${state.question.hidden ? onScreenNote : `<div class="qtext pop-in" style="width:100%">${esc(state.question.text)}</div>`}
       <div class="ready-n" id="rn">3</div></div>`);
     const end = performance.now() + state.remainingMs;
     const tick = () => { const el = $('#rn'); if (!el) return; el.textContent = Math.max(1, Math.ceil((end - performance.now()) / 1000)); if (end > performance.now()) timerRaf = requestAnimationFrame(tick); };
@@ -238,12 +241,12 @@ function renderGameInner() {
     if (state.answered) {
       const revealLater = (s.settings.revealMode || 'each') !== 'each';
       return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">${revealLater ? '✅' : '🤞'}</div><h1>Resposta enviada!</h1>
-        <div class="ans opt-${state.myOption}" style="min-height:auto;width:100%"><span class="letter">${LETTERS[state.myOption]}</span>${esc(q.options[state.myOption])}</div>
+        <div class="ans opt-${state.myOption}" style="min-height:auto;width:100%"><span class="letter">${LETTERS[state.myOption]}</span>${esc(q.options[state.myOption] || '')}</div>
         <p>${revealLater ? 'Aguarda a próxima pergunta' : 'Vamos ver se acertaste'}<span class="dots"></span></p></div>`);
     }
-    set('q' + s.qIndex, header() + qmeta() + `<div class="qtext slide-up">${esc(q.text)}</div>${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
+    set('q' + s.qIndex, header() + qmeta() + `${q.hidden ? onScreenNote : `<div class="qtext slide-up">${esc(q.text)}</div>`}${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
       ${timedMode ? '<div class="timebar"><div id="tb"></div></div>' : '<p class="center" style="margin:10px 0;opacity:.85">👆 Escolhe a tua resposta</p>'}
-      <div class="answers ${q.options.length === 2 ? 'n2' : ''}">${q.options.map((o, i) => `<button class="ans opt-${i} pop-in" style="animation-delay:${i * 70}ms" data-i="${i}"><span class="letter">${LETTERS[i]}</span>${esc(o)}</button>`).join('')}</div>`, () => {
+      <div class="answers ${q.options.length === 2 ? 'n2' : ''} ${q.hidden ? 'letters-only' : ''}">${q.options.map((o, i) => `<button class="ans opt-${i} pop-in" style="animation-delay:${i * 70}ms" data-i="${i}"><span class="letter">${LETTERS[i]}</span>${esc(o)}</button>`).join('')}</div>`, () => {
       $$('.ans').forEach(b => b.onclick = () => {
         const i = +b.dataset.i;
         $$('.ans').forEach(x => x.disabled = true);
@@ -270,7 +273,7 @@ function renderGameInner() {
     return set('rv-hidden' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="result none pop-in">
       <div class="big-emoji">${state.answered ? '📨' : '😴'}</div>
       <h2>${state.answered ? 'Resposta registada' : 'Sem resposta'}</h2>
-      ${state.answered ? `<div class="correct-box">A tua resposta: ${LETTERS[state.myOption]}) ${esc(state.question.options[state.myOption])}</div>` : ''}
+      ${state.answered ? `<div class="correct-box">A tua resposta: ${optLabel(state.question.options, state.myOption)}</div>` : ''}
       <p style="margin-top:12px">${atEnd ? 'As respostas corretas são mostradas no fim do quiz. 🤫' : 'Nesta avaliação as respostas corretas não são mostradas.'}</p>
       </div><p>Aguarda a próxima pergunta<span class="dots"></span></p></div>`);
   }
@@ -283,7 +286,7 @@ function renderGameInner() {
       <div class="big-emoji">${!state.answered ? '😴' : state.wasCorrect ? '🎉' : '😅'}</div>
       <h2>${!state.answered ? 'Sem resposta' : state.wasCorrect ? 'Certo!' : 'Errado'}</h2>
       ${state.wasCorrect ? `<div style="font-size:1.5em;font-weight:700">+${state.points} pontos</div>` : ''}
-      ${!state.wasCorrect ? `<div class="correct-box">Resposta correta:<br>${state.correct.map(i => `${LETTERS[i]}) ${esc(q.options[i])}`).join('<br>')}</div>` : ''}
+      ${!state.wasCorrect ? `<div class="correct-box">Resposta correta:<br>${state.correct.map(i => optLabel(q.options, i)).join('<br>')}</div>` : ''}
       </div>${ph === 'leaderboard' ? rankBox() : ''}</div>`);
     if (isNew) { Sound.play(state.wasCorrect ? 'correct' : 'wrong'); if (state.wasCorrect) Confetti.burst(80); navigator.vibrate && navigator.vibrate(state.wasCorrect ? [40, 60, 40] : 200); }
     return;
@@ -297,9 +300,9 @@ function renderGameInner() {
         ${m.score != null ? `<div style="font-size:2.4em;font-weight:700">${m.score} pts</div><div class="muted">${m.correct} de ${state.review ? state.review.length : s.total} respostas certas</div>` : ''}
         ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
       ${state.review ? `<h2 style="margin:10px 0 0">As respostas corretas</h2><div class="review">${state.review.map((r, i) => `
-        <div class="rv-item ${r.mine == null ? 'none' : r.ok ? 'ok' : 'bad'}"><div class="rv-q">${i + 1}. ${esc(r.text)}</div>
-          <div class="rv-a">✅ ${r.correct.map(k => `${LETTERS[k]}) ${esc(r.options[k])}`).join(' | ')}</div>
-          <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${LETTERS[r.mine]}) ${esc(r.options[r.mine])} ${r.ok ? '✓' : '✗'}`}</div></div>`).join('')}</div>` : ''}
+        <div class="rv-item ${r.mine == null ? 'none' : r.ok ? 'ok' : 'bad'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
+          <div class="rv-a">✅ ${r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
+          <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${optLabel(r.options, r.mine)} ${r.ok ? '✓' : '✗'}`}</div></div>`).join('')}</div>` : ''}
       ${!state.review && m.score == null ? `<div class="result none" style="margin-top:6px"><div class="big-emoji">📨</div><h2>Respostas enviadas!</h2>
         <p>Respondeste a ${state.answeredCount ?? 0} de ${s.total} perguntas. As tuas respostas foram registadas.</p></div>` : ''}
       <p>Obrigado por participares! 💜</p></div>`);
@@ -487,6 +490,9 @@ function renderExam() {
   });
   exClockStart();
 }
+
+const optLabel = (opts, i) => opts && opts[i] ? `${LETTERS[i]}) ${esc(opts[i])}` : LETTERS[i];
+const onScreenNote = `<div class="on-screen pop-in">👀 A pergunta e as opções estão no <b>ecrã do formador</b>.<br>Responde aqui com a letra.</div>`;
 
 function qmeta() { const s = state.session; return `<div class="qmeta"><span>Pergunta ${s.qIndex + 1} de ${s.total}</span><span>${esc(s.quizTitle)}</span></div>`; }
 render();

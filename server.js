@@ -173,7 +173,10 @@ function playerView(p) {
     };
   }
   if (q && ['ready', 'question', 'closed', 'reveal', 'leaderboard'].includes(session.phase)) {
-    v.question = { text: q.text, options: q.options, time: q.time, image: q.image || null };
+    // "esconder as perguntas nos telemóveis": só vão as letras; o texto está no ecrã do formador
+    const hide = !!session.settings.hideOnPhones;
+    v.question = hide ? { text: '', options: q.options.map(() => ''), time: q.time, image: null, hidden: true }
+      : { text: q.text, options: q.options, time: q.time, image: q.image || null };
     v.remainingMs = session.deadline ? Math.max(0, session.deadline - Date.now()) : 0;
   }
   // no fim (modo "só no fim"): todas as perguntas, a resposta correta e a resposta do formando
@@ -181,7 +184,8 @@ function playerView(p) {
   if (isEnd && revealEnd) {
     v.review = session.asked.map(i => {
       const qq = session.questions[i], a = (session.answers[i] || {})[p.studentId];
-      return { text: qq.text, options: qq.options, correct: qq.correct, mine: a ? a.option : null, ok: a ? a.correct : false };
+      const hide = !!session.settings.hideOnPhones;
+      return { text: hide ? '' : qq.text, options: hide ? qq.options.map(() => '') : qq.options, correct: qq.correct, mine: a ? a.option : null, ok: a ? a.correct : false };
     });
   }
   if (q && rv === 'each' && ['reveal', 'leaderboard'].includes(session.phase)) {
@@ -611,7 +615,9 @@ io.on('connection', socket => {
       settings.autoTimes = { poll: sec(at.poll, 5), reveal: sec(at.reveal, 6), board: sec(at.board, 8) };
       settings.paused = false;
       if (!['manual', 'timed', 'auto', 'exam'].includes(settings.mode)) settings.mode = 'manual';
+      settings.hideOnPhones = !!settings.hideOnPhones;
       if (settings.mode === 'exam') {
+        settings.hideOnPhones = false; // ao seu ritmo, cada um precisa de ler as perguntas no telemóvel
         // ao seu ritmo: sem passos por pergunta (resposta correta, sondagem, ranking) nem pontos por rapidez
         settings.examMinutes = Math.max(1, Math.min(300, parseInt(settings.examMinutes, 10) || 10));
         settings.revealMode = 'never'; settings.rankEach = false; settings.showPoll = false; settings.speedPoints = false;

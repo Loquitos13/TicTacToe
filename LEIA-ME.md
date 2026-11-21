@@ -89,6 +89,8 @@ Escolhes, com duas opções independentes, se os formandos veem as respostas cor
 Em qualquer caso **tu continuas a ver tudo**: liga **👁 Ver respostas corretas** na barra de baixo no teu portátil ou telemóvel (a opção correta fica marcada com ✔ na sondagem) (fica guardado só nesse dispositivo; deixa desligado no ecrã projetado) e tens sempre a grelha de resultados. Não há ranking depois de cada pergunta, porque mostraria quem acertou.
 Dica: podes abrir o painel do formador ao mesmo tempo no projetor e no teu telemóvel.
 
+**📱 Esconder as perguntas nos telemóveis** (opcional): a pergunta e as opções só aparecem no **teu ecrã**, que tem de estar projetado ou visível para todos. Nos telemóveis aparece "👀 A pergunta e as opções estão no ecrã do formador — responde aqui com a letra" e só os botões **A, B, C, D** (também no fim, a lista de respostas corretas mostra só as letras). O texto das perguntas nem sequer é enviado para os telemóveis, por isso as capturas de ecrã ficam sem conteúdo útil. No teu ecrã aparece o aviso "As perguntas só aparecem neste ecrã — mantém-no projetado". Não se aplica ao modo "Tempo total".
+
 Escolhes se queres **mostrar a sondagem** (barras com quantos escolheram cada opção). Sem sondagem, quando as respostas fecham aparece só "🔒 Respostas fechadas" e quantos responderam; a resposta correta é destacada sem números. Podes ligar/desligar a sondagem a qualquer momento na barra de baixo.
 
 E escolhes o **ranking**:
