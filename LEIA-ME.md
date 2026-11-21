@@ -77,6 +77,12 @@ Exemplo com Ana Maria Silva, Ana Rita Silva, Ana Costa e João Gonçalves:
 Ao abrir a sala escolhes **como avançam as perguntas** (vale para o quiz inteiro):
 - **🎮 Manual** — a pergunta fica aberta até tu carregares em `Fechar respostas`.
 - **⏱ Por tempo** — cada pergunta tem tempo limite (o de cada pergunta ou um tempo igual para todas). Quando chega a 0 (ou todos respondem) deixa de aceitar respostas e passa sozinha para a sondagem.
+- **🤖 Totalmente automático** — tudo por tempo: tempo para responder, sondagem, resposta correta e ranking (segundos configuráveis ao abrir a sala), passagem para a pergunta seguinte e pódio final. Só carregas em `Começar`. Durante o quiz tens **⏸ Pausar / ▶ Retomar**, e o botão amarelo avança logo se não quiseres esperar.
+
+E escolhes o **ranking**:
+- **Depois de cada pergunta e pódio final** (Top 5 com bonecos a dançar);
+- **Só o pódio final**;
+- **Sem ranking** — não há Top 5 nem pódio, e os formandos não recebem a sua posição (só a pontuação e o nº de respostas certas).
 
 Cada pergunta passa por estes passos (o botão amarelo, ou **espaço / →**, avança):
 1. **Prepara-te 3-2-1** — a pergunta aparece no ecrã e nos telemóveis, ainda sem opções.
@@ -89,7 +95,7 @@ No fim aparece o **pódio final animado** (do 5º para o 1º, com rufar de tambo
 
 Opções que podes ligar/desligar a qualquer momento:
 - **Quem respondeu**: aparecem as fotografias dos alunos em cada opção (vem desligado, porque é uma avaliação).
-- **Ranking por pergunta**: mostra (ou não) o pódio Top 5 depois de cada pergunta.
+- **Ranking por pergunta**: mostra (ou não) o pódio Top 5 depois de cada pergunta (não aparece se escolheste "Sem ranking").
 
 Se um aluno se enganou no nome, pode carregar em **Não sou …** no ecrã de espera (só antes de responder à primeira pergunta).
 Se um aluno mudou de telemóvel: **👥 Alunos** (na barra de baixo) → **Libertar nome**. Aparece um **código de reentrada** de 4 dígitos; o aluno escolhe "Mudei de telemóvel" e escreve-o. Só com esse código volta ao seu lugar (com as respostas já dadas), e cada código só serve uma vez.

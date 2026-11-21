@@ -118,6 +118,7 @@ function hostView() {
       id: session.id, code: session.code, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase, qIndex: session.qIndex,
       total: session.questions.length, settings: session.settings,
       question: q, remainingMs: session.deadline ? Math.max(0, session.deadline - Date.now()) : 0,
+      autoMs: session.autoAt ? Math.max(0, session.autoAt - Date.now()) : 0,
       counts, whoByOption, answeredIds: Object.keys(ans),
       players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, connected: !!p.socketId })),
       roster: session.roster,
@@ -142,7 +143,9 @@ function playerView(p) {
   const v = {
     session: { id: session.id, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase, qIndex: session.qIndex, total: session.questions.length, settings: session.settings },
     me: {
-      studentId: p.studentId, name: p.name, photo: p.photo, position: pos, of: rank.length,
+      studentId: p.studentId, name: p.name, photo: p.photo,
+      // "sem ranking": ninguém recebe posições
+      position: session.settings.noRanking ? null : pos, of: session.settings.noRanking ? null : rank.length,
       score: scoreOf(p),
       correct: Object.entries(session.answers).filter(([i, a]) => !(hideCurrent && +i === session.qIndex) && a[p.studentId] && a[p.studentId].correct).length,
     },
@@ -228,6 +231,21 @@ const codeOk = c => !!session && cleanCode(c) === session.code;
 
 const READY_MS = 3000; // compasso de espera "Prepara-te! 3-2-1" antes de cada pergunta
 
+// Modo totalmente automático: cada ecrã avança sozinho ao fim do seu tempo
+let autoTimer = null;
+const timedMode = () => session && session.settings.mode !== 'manual'; // 'timed' ou 'auto'
+function scheduleAuto() {
+  clearTimeout(autoTimer); autoTimer = null;
+  if (!session) return;
+  session.autoAt = null;
+  if (session.settings.mode !== 'auto' || session.settings.paused) return;
+  const t = session.settings.autoTimes || {};
+  const ms = { closed: t.poll, reveal: t.reveal, leaderboard: t.board }[session.phase];
+  if (!ms) return;
+  session.autoAt = Date.now() + ms * 1000;
+  autoTimer = setTimeout(() => { autoTimer = null; advance(); }, ms * 1000);
+}
+
 function closeQuestion() {
   if (!session || session.phase !== 'question') return;
   clearTimeout(timer); timer = null;
@@ -235,10 +253,11 @@ function closeQuestion() {
   session.phase = 'closed';
   session.deadline = null;
   persistSession();
+  scheduleAuto();
   broadcast();
 }
 
-function setPhase(ph) { session.phase = ph; persistSession(); broadcast(); }
+function setPhase(ph) { session.phase = ph; persistSession(); scheduleAuto(); broadcast(); }
 
 // Fluxo de cada pergunta: prepara-te → pergunta → sondagem → resposta correta → (ranking) → próxima
 function advance() {
@@ -262,7 +281,7 @@ function startQuestion(i) {
   session.deadline = Date.now() + READY_MS;
   if (!session.asked.includes(i)) session.asked.push(i);
   answersFor(i);
-  clearTimeout(timer);
+  clearTimeout(timer); clearTimeout(autoTimer); session.autoAt = null;
   timer = setTimeout(openQuestion, READY_MS);
   persistSession();
   broadcast();
@@ -274,7 +293,7 @@ function openQuestion() {
   clearTimeout(timer); timer = null;
   session.phase = 'question';
   session.questionStartedAt = Date.now();
-  if (session.settings.mode === 'timed') {
+  if (timedMode()) {
     // por tempo: quando chega a 0 deixa de aceitar respostas e passa sozinho para a sondagem
     session.deadline = Date.now() + q.time * 1000;
     timer = setTimeout(closeQuestion, q.time * 1000 + 300);
@@ -523,12 +542,19 @@ io.on('connection', socket => {
 
     socket.on('host:start', guard(({ quizId, settings, studentIds }) => {
       if (session) persistSession();
-      clearTimeout(timer);
+      clearTimeout(timer); clearTimeout(autoTimer);
       const quiz = db.quizzes.find(q => q.id === quizId);
       if (!quiz || !quiz.questions.length) return socket.emit('toast', 'Questionário sem perguntas');
       let qs = JSON.parse(JSON.stringify(quiz.questions));
       if (settings && settings.shuffle) qs.sort(() => Math.random() - 0.5);
       // tempo igual para todas as perguntas (opcional, escolhido ao abrir a sala)
+      settings = settings || {};
+      if (!['manual', 'timed', 'auto'].includes(settings.mode)) settings.mode = 'manual';
+      const sec = (v, d) => Math.max(2, Math.min(120, parseInt(v, 10) || d));
+      const at = settings.autoTimes || {};
+      settings.autoTimes = { poll: sec(at.poll, 5), reveal: sec(at.reveal, 6), board: sec(at.board, 8) };
+      settings.paused = false;
+      if (settings.noRanking) { settings.rankEach = false; settings.finalPodium = false; }
       const fixed = parseInt(settings && settings.fixedTime, 10);
       if (fixed >= 5) qs.forEach(q => q.time = Math.min(300, fixed));
       const roster = db.students.filter(s => !studentIds || studentIds.includes(s.id)).map(s => ({ ...s }));
@@ -549,9 +575,11 @@ io.on('connection', socket => {
 
     socket.on('host:settings', guard(s => {
       if (!session) return;
-      delete s.mode; // o modo (manual / por tempo) fica fixo durante toda a sessão
+      delete s.mode; delete s.autoTimes; // o modo e os tempos ficam fixos durante toda a sessão
+      delete s.noRanking; if (session.settings.noRanking) { delete s.rankEach; delete s.finalPodium; }
       Object.assign(session.settings, s);
       persistSession();
+      if ('paused' in s || 'rankEach' in s) scheduleAuto();
       broadcast();
     }));
 
@@ -559,13 +587,13 @@ io.on('connection', socket => {
     socket.on('host:goto', guard(i => { if (session && session.questions[i]) startQuestion(i); }));
     socket.on('host:end', guard(() => {
       if (!session) return;
-      clearTimeout(timer);
+      clearTimeout(timer); clearTimeout(autoTimer); session.autoAt = null;
       session.phase = 'end'; session.endedAt = Date.now(); session.deadline = null;
       persistSession(); broadcast();
     }));
     socket.on('host:close', guard(() => {
       if (session) persistSession();
-      clearTimeout(timer); session = null;
+      clearTimeout(timer); clearTimeout(autoTimer); session = null;
       io.to('players').emit('state', { session: null });
       io.in('players').socketsJoin('lobby'); io.in('players').socketsLeave('players');
       broadcast();
@@ -706,7 +734,7 @@ io.on('connection', socket => {
     persistSession();
     cb && cb({ ok: true });
     // no modo por tempo fecha logo quando todos responderem; no manual é o formador que decide
-    if (session.settings.mode === 'timed' && allAnswered()) closeQuestion(); else broadcast();
+    if (timedMode() && allAnswered()) closeQuestion(); else broadcast();
   });
 
   socket.on('disconnect', () => {

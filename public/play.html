@@ -203,7 +203,7 @@ function renderGameInner() {
       });
     });
   }
-  const timedMode = s.settings.mode === 'timed';
+  const timedMode = s.settings.mode !== 'manual'; // por tempo ou totalmente automático
   const showRank = s.settings.rankEach;
   if (ph === 'ready') {
     set('ready' + s.qIndex, header() + qmeta() + `<div class="middle"><h1 class="slide-up">Prepara-te! 🧠</h1>

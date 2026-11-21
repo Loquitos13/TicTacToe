@@ -63,6 +63,10 @@
   .opt.has-who { flex-wrap: wrap; }
   .opt.has-who .who { flex-basis: 100%; }
   .modes { display: grid; gap: 8px; }
+  .times { display: flex; flex-direction: column; gap: 10px; background: #f6f3fb; border-radius: 14px; padding: 12px; }
+  .times label { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .times-grid { display: flex; flex-direction: column; gap: 8px; }
+  .num-in input { width: 74px; text-align: center; }
   .mode { display: flex; gap: 10px; align-items: flex-start; border: 2px solid #e5e0ef; border-radius: 14px; padding: 12px; cursor: pointer; }
   .mode:has(input:checked) { border-color: var(--d); background: #f5f0ff; }
   .mode input { margin-top: 4px; accent-color: var(--d); width: 18px; height: 18px; }
@@ -212,7 +216,8 @@ function showTab(t) {
 /* =================== JOGO =================== */
 let lastPhaseKey = '', tickTimer = null;
 function next() { Sound.init(); socket.emit('host:next'); }
-const timed = () => S && S.settings.mode === 'timed';
+const timed = () => S && S.settings.mode !== 'manual'; // por tempo ou automático
+const isAuto = () => S && S.settings.mode === 'auto';
 const connectedN = () => S.players.filter(p => p.connected).length;
 
 function onState(prev) {
@@ -221,6 +226,7 @@ function onState(prev) {
   lastPhaseKey = key;
   if (changed) phaseSound(prev);
   if (tab === 'game') renderGame(changed);
+  runAutoInfo();
 }
 
 function phaseSound(prev) {
@@ -252,13 +258,24 @@ function phaseSound(prev) {
   }
 }
 
+// modo automático: mostra quanto falta para avançar sozinho
+let autoTick = null;
+function runAutoInfo() {
+  clearInterval(autoTick);
+  const el = () => $('#autoInfo');
+  if (!S || !isAuto() || S.settings.paused || !S.autoMs) { if (el()) el().textContent = S && isAuto() && S.settings.paused ? '⏸ Em pausa' : ''; return; }
+  const end = Date.now() + S.autoMs;
+  const f = () => { const r = Math.max(0, Math.ceil((end - Date.now()) / 1000)); if (el()) el().textContent = r ? `⏱ avança em ${r}s ·` : ''; if (!r) clearInterval(autoTick); };
+  f(); autoTick = setInterval(f, 250);
+}
+
 function renderGame(full) {
   const el = $('#tab-game');
   if (!S) return renderSetup(el);
   if (!full) return updateLive();
   const ph = S.phase;
   let html = `<div id="stage"><div class="stage-top"><span>${S.courseName ? '🎓 ' + esc(S.courseName) + ' · ' : ''}📝 ${esc(S.quizTitle)}</span>
-    <span>${timed() ? '⏱ Por tempo' : '🎮 Manual'} · ${ph === 'lobby' ? 'Sala aberta' : ph === 'end' ? 'Final' : `Pergunta ${S.qIndex + 1} / ${S.total}`}</span></div>`;
+    <span>${isAuto() ? '🤖 Automático' : timed() ? '⏱ Por tempo' : '🎮 Manual'} · ${ph === 'lobby' ? 'Sala aberta' : ph === 'end' ? 'Final' : `Pergunta ${S.qIndex + 1} / ${S.total}`}</span></div>`;
   if (ph === 'lobby') html += lobbyHtml();
   if (ph === 'ready') html += readyHtml();
   if (ph === 'question') html += questionHtml();
@@ -417,9 +434,10 @@ function controlsHtml() {
   }[ph];
   const allIn = ph === 'question' && connectedN() && S.answeredIds.length >= connectedN();
   return `<div class="controls noprint">
-    <div class="info"><span id="ctlInfo">${ph === 'end' ? 'Sessão terminada — as respostas estão guardadas.' : `${connectedN()} ligados · espaço/→ avança`}</span></div>
+    ${isAuto() && ph !== 'end' && ph !== 'lobby' ? `<button class="btn small ghost" id="btnPause">${S.settings.paused ? '▶ Retomar' : '⏸ Pausar'}</button>` : ''}
+    <div class="info"><b id="autoInfo" style="color:#ffd93d"></b> <span id="ctlInfo">${ph === 'end' ? 'Sessão terminada — as respostas estão guardadas.' : `${connectedN()} ligados · espaço/→ avança`}</span></div>
     <label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>
-    <label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>
+    ${S.settings.noRanking ? '' : `<label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>`}
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
     ${ph !== 'end' ? `<button class="btn small danger" id="btnEnd">Terminar</button>` : ''}
@@ -436,7 +454,8 @@ function bindGame() {
   on('btnFs', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
   on('btnPlayers', playersDialog);
   $('#setWho').onchange = e => socket.emit('host:settings', { showWho: e.target.checked });
-  $('#setRank').onchange = e => socket.emit('host:settings', { rankEach: e.target.checked });
+  const sr = $('#setRank'); if (sr) sr.onchange = e => socket.emit('host:settings', { rankEach: e.target.checked });
+  on('btnPause', () => socket.emit('host:settings', { paused: !S.settings.paused }));
   const sel = $('#urlSel');
   if (sel) {
     sel.onchange = () => { if (sel.value) $('#urlIn').value = sel.value; else $('#urlIn').focus(); };
@@ -548,12 +567,24 @@ function renderSetup(el) {
         <label>Como avançam as perguntas? <small class="muted">(aplica-se a todo o quiz)</small></label>
         <div class="modes">
           <label class="mode"><input type="radio" name="sMode" value="manual" checked><span><b>🎮 Manual</b><small>Tu abres cada pergunta e decides quando fechar. Depois mostras a sondagem, a resposta correta e o ranking ao teu ritmo.</small></span></label>
-          <label class="mode"><input type="radio" name="sMode" value="timed"><span><b>⏱ Por tempo (automático)</b><small>Cada pergunta tem tempo limite. Quando chega a 0 (ou todos respondem) deixa de aceitar respostas e passa sozinha para a sondagem. Depois avanças tu para a resposta correta.</small></span></label>
+          <label class="mode"><input type="radio" name="sMode" value="timed"><span><b>⏱ Por tempo</b><small>Cada pergunta tem tempo limite. Quando chega a 0 (ou todos respondem) deixa de aceitar respostas e passa sozinha para a sondagem. Depois avanças tu para a resposta correta.</small></span></label>
+          <label class="mode"><input type="radio" name="sMode" value="auto"><span><b>🤖 Totalmente automático</b><small>Tudo por tempo: respostas, sondagem, resposta correta, ranking e passagem para a pergunta seguinte, até ao pódio final. Só carregas em "Começar". Podes pausar ou avançar quando quiseres.</small></span></label>
         </div>
-        <div class="row" id="timeRow" style="display:none"><label>⏱ Tempo por pergunta</label>
-          <select id="sTime"><option value="0">O definido em cada pergunta</option>${[10, 15, 20, 30, 45, 60, 90, 120].map(t => `<option value="${t}">${t} segundos (todas)</option>`).join('')}</select></div>
-        <label class="switch"><input type="checkbox" id="sRank" checked> Mostrar ranking (pódio Top 5 com bonecos a dançar) depois de cada pergunta</label>
-        <label class="switch"><input type="checkbox" id="sFinal" checked> Pódio final animado</label>
+        <div class="times" id="timeRow" hidden>
+          <label>⏱ Tempo para responder
+            <select id="sTime"><option value="0">O definido em cada pergunta</option>${[10, 15, 20, 30, 45, 60, 90, 120].map(t => `<option value="${t}">${t} s (todas)</option>`).join('')}</select></label>
+          <div id="autoRow" class="times-grid" hidden>
+            <label>📊 Sondagem <span class="num-in"><input type="number" id="tPoll" min="2" max="120" value="5"> s</span></label>
+            <label>✅ Resposta correta <span class="num-in"><input type="number" id="tReveal" min="2" max="120" value="6"> s</span></label>
+            <label id="tBoardL">🏆 Ranking <span class="num-in"><input type="number" id="tBoard" min="2" max="120" value="8"> s</span></label>
+          </div>
+        </div>
+        <label>🏆 Ranking</label>
+        <select id="sRanking">
+          <option value="each">Depois de cada pergunta (Top 5) e pódio final</option>
+          <option value="end">Só o pódio final</option>
+          <option value="none">Sem ranking (ninguém vê posições nem pódio)</option>
+        </select>
         <label class="switch"><input type="checkbox" id="sWho"> Mostrar no ecrã quem respondeu o quê (fotos em cada opção)</label>
         <label class="switch"><input type="checkbox" id="sSpeed" checked> Pontos extra por responder depressa</label>
         <label class="switch"><input type="checkbox" id="sShuffle"> Baralhar a ordem das perguntas</label>
@@ -573,13 +604,20 @@ function renderSetup(el) {
     $('#sQuiz').innerHTML = qz.filter(q => q.courseId === cid).map(q => `<option value="${q.id}">${esc(q.title)} (${q.questions.length} perguntas)</option>`).join('');
   };
   $('#sCourse').onchange = fillQuiz; fillQuiz();
-  $$('[name=sMode]').forEach(r => r.onchange = () => $('#timeRow').style.display = $('[name=sMode]:checked').value === 'timed' ? '' : 'none');
+  const syncSetup = () => {
+    const m = $('[name=sMode]:checked').value;
+    $('#timeRow').hidden = m === 'manual'; $('#autoRow').hidden = m !== 'auto';
+    $('#tBoardL').hidden = $('#sRanking').value !== 'each';
+  };
+  $$('[name=sMode]').forEach(r => r.onchange = syncSetup); $('#sRanking').onchange = syncSetup; syncSetup();
   if ($('#allOn')) { $('#allOn').onclick = () => $$('.sStu').forEach(c => c.checked = true); $('#allOff').onclick = () => $$('.sStu').forEach(c => c.checked = false); }
   go.onclick = () => {
     const ids = $$('.sStu').filter(c => c.checked).map(c => c.value);
     if (!ids.length) return toast('Escolhe pelo menos um aluno');
     Sound.init();
-    socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, rankEach: $('#sRank').checked, finalPodium: $('#sFinal').checked, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked } });
+    socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value,
+      rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
+      autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked } });
   };
 }
 
