@@ -662,6 +662,18 @@ io.on('connection', socket => {
   });
 
   // "Não sou eu" (só antes de responder a alguma pergunta): desfaz a entrada por completo
+  // Fotografia tirada pelo próprio formando (opcional): só é usada nesta sessão
+  socket.on('player:photo', (dataUrl, cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    if (!session || !me || me.socketId !== socket.id) return cb({ error: 'Pedido inválido.' });
+    if (typeof dataUrl !== 'string' || dataUrl.length > 400000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(dataUrl)) return cb({ error: 'Fotografia inválida.' });
+    const url = savePhoto(dataUrl);
+    if (!url) return cb({ error: 'Fotografia inválida.' });
+    me.photo = url;
+    const r = session.roster.find(x => x.id === me.studentId); if (r) r.photo = url;
+    persistSession(); cb({ ok: true }); broadcast();
+  });
+
   socket.on('player:leave', (cb) => {
     if (typeof cb !== 'function') cb = () => {};
     if (!session || !me || me.socketId !== socket.id) return cb({ error: 'Pedido inválido.' });

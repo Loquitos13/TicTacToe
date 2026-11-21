@@ -18,6 +18,17 @@
   .search { width: 100%; padding: 14px 16px; border-radius: 14px; border: 0; font-size: 1.05em; margin: 10px 0 14px; }
   .code-in { text-align: center; font-size: 1.8em; letter-spacing: .25em; text-transform: uppercase; font-weight: 700; }
   .middle p { margin: 0; }
+  .ph-demo { height: 150px; display: grid; place-items: end center; }
+  .ph-demo.small .dancer { --s: .7; }
+  .ph-demo.small { height: 115px; }
+  .cam-frame { position: relative; width: min(78vw, 300px); aspect-ratio: 1; border-radius: 24px; overflow: hidden; background: rgba(0,0,0,.35); }
+  .cam-frame video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+  .cam-ring { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at center, transparent 0 46%, rgba(20,10,40,.6) 46.5%); }
+  .cam-ring::after { content: ''; position: absolute; inset: 4%; border-radius: 50%; border: 3px dashed rgba(255,255,255,.85); }
+  .shoot { width: 100%; font-size: 1.2em; }
+  .prev-row { display: flex; align-items: center; gap: 16px; }
+  .prev-circle { width: min(52vw, 200px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; border: 5px solid #fff; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+  .retake { padding: 12px 14px; line-height: 1.2; }
   .list-names { display: flex; flex-direction: column; gap: 10px; width: 100%; }
   .name-btn { width: 100%; font-size: 1.1em; }
   .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
@@ -180,8 +191,10 @@ function renderGameInner() {
   const s = state.session, ph = s.phase;
   const pk = ph + s.qIndex;
   const changed = pk !== prevPhase; prevPhase = pk;
+  if (ph === 'lobby' && needPhotoStep()) return renderPhotoStep();
+  if (ph !== 'lobby') stopCamera();
   if (ph === 'lobby') {
-    return set('lobby' + state.me.studentId, header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1><p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
+    return set('lobby' + state.me.studentId + (state.me.photo || ''), header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1><p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
       <button class="btn ghost" id="notMe" style="margin-top:10px">Não sou ${esc(state.me.name)}</button></div>`, () => {
       $('#notMe').onclick = () => socket.emit('player:leave', res => {
         if (res && res.error) return toast(res.error, 4500);
@@ -263,6 +276,96 @@ function rankBox() {
     ? `<div class="pop-in" style="display:flex;align-items:center;gap:12px">${dancer(m, 'wave', '#ffd93d', m.position === 1)}<p style="font-size:1.3em;margin:0">Estás no <b>Top 5</b>!<br><b style="font-size:1.6em">${m.position}º</b> lugar 🎉</p></div>`
     : `<p style="font-size:1.2em">Estás em <b>${m.position}º</b> lugar de ${m.of}</p>`;
 }
+// ---------- Fotografia opcional (depois do nome, antes da sala de espera) ----------
+let photo = { step: 'ask', data: null, stream: null, fallback: false };
+const photoKey = () => 'aq_photo_' + state.session.id + '_' + state.me.studentId;
+function needPhotoStep() {
+  if (state.me.photo) return false;            // já tem fotografia (do formador ou tirada agora)
+  try { if (localStorage.getItem(photoKey())) return false; } catch {}
+  return photo.step !== 'done';
+}
+function photoDone() { stopCamera(); photo.step = 'done'; try { localStorage.setItem(photoKey(), '1'); } catch {} lastKey = ''; render(); }
+function stopCamera() { if (photo.stream) { photo.stream.getTracks().forEach(t => t.stop()); photo.stream = null; } }
+
+async function startCamera() {
+  photo.step = 'camera'; photo.fallback = false; lastKey = ''; render();
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('sem câmara');
+    photo.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 720 } }, audio: false });
+    const v = $('#cam'); if (!v) return stopCamera();
+    v.srcObject = photo.stream; await v.play().catch(() => {});
+    $('#shoot').disabled = false;
+  } catch (e) {
+    // sem permissão ou ligação sem HTTPS: usa a câmara do telemóvel através do seletor de ficheiros
+    photo.fallback = true; lastKey = ''; render();
+  }
+}
+function capture() {
+  const v = $('#cam'); if (!v || !v.videoWidth) return;
+  const size = 360, m = Math.min(v.videoWidth, v.videoHeight);
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d');
+  g.translate(size, 0); g.scale(-1, 1); // igual ao que a pessoa vê (espelho)
+  g.drawImage(v, (v.videoWidth - m) / 2, (v.videoHeight - m) / 2, m, m, 0, 0, size, size);
+  photo.data = c.toDataURL('image/jpeg', 0.85);
+  stopCamera(); Sound.play('sent'); photo.step = 'preview'; lastKey = ''; render();
+}
+function renderPhotoStep() {
+  const name = esc(state.me.name.split(' ')[0]);
+  if (photo.step === 'ask') {
+    return set('ph-ask', header() + `<div class="middle">
+      <div class="ph-demo">${dancer(state.me, 'wave', '#ffd93d')}</div>
+      <h1 style="font-size:1.5em">Olá, ${name}! Queres pôr a tua fotografia?</h1>
+      <p>Assim o teu boneco aparece com a tua cara em vez das iniciais. É opcional e só é usada nesta sessão.</p>
+      <button class="btn primary" id="phYes" style="width:100%">📷 Tirar fotografia</button>
+      <button class="btn ghost" id="phNo">Agora não</button></div>`, () => {
+      $('#phYes').onclick = () => { Sound.init(); startCamera(); };
+      $('#phNo').onclick = photoDone;
+    });
+  }
+  if (photo.step === 'camera') {
+    if (photo.fallback) {
+      return set('ph-fb', header() + `<div class="middle"><div class="big-emoji">📷</div>
+        <h1 style="font-size:1.4em">Abre a câmara do telemóvel</h1>
+        <p>Não foi possível usar a câmara dentro da página. Toca no botão para tirar a fotografia com a câmara do telemóvel.</p>
+        <label class="btn primary" style="width:100%;text-align:center">📸 Abrir câmara<input type="file" accept="image/*" capture="user" id="phFile" hidden></label>
+        <button class="btn ghost" id="phNo">Continuar sem fotografia</button></div>`, () => {
+        $('#phFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; photo.data = await resizeImage(f, 360); photo.step = 'preview'; lastKey = ''; render(); };
+        $('#phNo').onclick = photoDone;
+      });
+    }
+    return set('ph-cam', header() + `<div class="middle">
+      <h1 style="font-size:1.3em">Centra a cara no círculo</h1>
+      <div class="cam-frame"><video id="cam" playsinline muted autoplay></video><div class="cam-ring"></div></div>
+      <button class="btn primary shoot" id="shoot" disabled>📸 Tirar</button>
+      <button class="btn ghost" id="phNo">Continuar sem fotografia</button></div>`, () => {
+      $('#shoot').onclick = capture;
+      $('#phNo').onclick = photoDone;
+    });
+  }
+  if (photo.step === 'preview') {
+    return set('ph-prev' + photo.data.length, header() + `<div class="middle">
+      <h1 style="font-size:1.4em">Assim vais aparecer</h1>
+      <div class="prev-row">
+        <img class="prev-circle pop-in" src="${photo.data}" alt="A tua fotografia">
+        <button class="btn ghost retake" id="phAgain">🔄<br>Repetir</button>
+      </div>
+      <div class="ph-demo small">${dancer({ name: state.me.name, photo: photo.data }, 'disco', '#7dd3fc')}</div>
+      <button class="btn primary" id="phUse" style="width:100%">✅ Usar esta fotografia</button>
+      <button class="btn ghost" id="phNo">Não quero fotografia</button></div>`, () => {
+      $('#phAgain').onclick = startCamera;
+      $('#phNo').onclick = () => { photo.data = null; photoDone(); };
+      $('#phUse').onclick = () => {
+        $('#phUse').disabled = true;
+        socket.emit('player:photo', photo.data, res => {
+          if (res && res.error) { $('#phUse').disabled = false; return toast(res.error, 4000); }
+          Sound.play('pop'); photoDone();
+        });
+      };
+    });
+  }
+}
+
 function qmeta() { const s = state.session; return `<div class="qmeta"><span>Pergunta ${s.qIndex + 1} de ${s.total}</span><span>${esc(s.quizTitle)}</span></div>`; }
 render();
 </script>

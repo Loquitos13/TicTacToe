@@ -67,6 +67,12 @@ Exemplo com Ana Maria Silva, Ana Rita Silva, Ana Costa e João Gonçalves:
 - Na lista de alunos não é possível ter dois alunos com o mesmo nome completo.
 - A lista da turma e as fotografias nunca são mostradas a quem entra.
 
+**Fotografia (opcional, decide o formando):** depois de escrever o nome, quem ainda não tem fotografia vê "Queres pôr a tua fotografia?".
+- **Tirar fotografia:** o telemóvel pede autorização para usar a câmara; a imagem aparece num quadro com um círculo para centrar a cara. Depois de tirar, aparece a foto num círculo (e no boneco) tal como vai ficar, com o botão **🔄 Repetir** ao lado. Pode **usar esta fotografia** ou **não querer fotografia**.
+- **Agora não:** entra logo na sala de espera, com as iniciais.
+- A fotografia só é usada nesta sessão (não muda a ficha do aluno) e substitui logo as iniciais no teu ecrã.
+- A câmara dentro da página só funciona em **https** (ex.: com o túnel `cloudflared`) ou em `localhost`. Numa ligação `http://` pela rede local, a app abre automaticamente a câmara do próprio telemóvel em alternativa.
+
 Ao abrir a sala escolhes **como avançam as perguntas** (vale para o quiz inteiro):
 - **🎮 Manual** — a pergunta fica aberta até tu carregares em `Fechar respostas`.
 - **⏱ Por tempo** — cada pergunta tem tempo limite (o de cada pergunta ou um tempo igual para todas). Quando chega a 0 (ou todos respondem) deixa de aceitar respostas e passa sozinha para a sondagem.

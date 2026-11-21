@@ -304,7 +304,7 @@ function joinedHtml() {
   const joined = new Map(S.players.map(p => [p.studentId, p]));
   return S.roster.map(s => {
     const p = joined.get(s.id);
-    return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}">${avatar(s, 'lg')}<span title="${esc(s.name)}">${esc(s.short || s.name)}</span></div>`;
+    return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}" data-photo="${esc(s.photo || '')}">${avatar(s, 'lg')}<span title="${esc(s.name)}">${esc(s.short || s.name)}</span></div>`;
   }).join('');
 }
 
@@ -472,6 +472,15 @@ function updateLive() {
       [...tmp.children].forEach(d => { if (!have.has(d.dataset.id)) { d.classList.add('off'); jn.appendChild(d); } });
       $('#rosterN') && ($('#rosterN').textContent = S.roster.length);
     }
+    // um formando tirou fotografia: troca as iniciais pela foto, com animação
+    S.roster.forEach(st => {
+      const d = $(`#joined .p[data-id="${CSS.escape(st.id)}"]`);
+      if (d && st.photo && d.dataset.photo !== st.photo) {
+        d.dataset.photo = st.photo;
+        const img = document.createElement('div'); img.innerHTML = avatar(st, 'lg pop-in');
+        d.querySelector('.avatar').replaceWith(img.firstElementChild); Sound.play('pop');
+      }
+    });
     $$('#joined .p').forEach(d => {
       const isOn = on.has(d.dataset.id);
       if (isOn && d.classList.contains('off')) { d.classList.remove('off'); d.classList.remove('pop-in'); void d.offsetWidth; d.classList.add('pop-in'); Sound.play('pop'); }
