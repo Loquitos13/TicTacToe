@@ -1079,12 +1079,21 @@ function sheetHtml(p) {
     <table class="sheet-tbl"><thead><tr><th>Nº</th><th>Pergunta</th><th>Resposta correta</th><th>Resposta do formando</th><th>Resultado</th><th>Pontos</th></tr></thead><tbody>${rows}</tbody></table>
   </div>`;
 }
+async function downloadFile(url, fallback) {
+  const res = await fetch(url, { headers: { 'x-host-password': PW } });
+  if (!res.ok) return toast('Não foi possível descarregar');
+  const name = (/filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '') || [])[1] || fallback;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(await res.blob()); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
 function showSheets(people) {
   const el = $('#tab-results');
   el.innerHTML = `<div class="card"><div class="row noprint"><button class="btn small" id="backRes">← Voltar aos resultados</button><span class="grow"></span>
+    <button class="btn small" id="sheetDocx">⬇ Word${people.length === 1 ? '' : ' (todas)'}</button>
     <button class="btn small primary" onclick="print()">🖨 Imprimir / guardar PDF</button></div>
     ${people.map(sheetHtml).join('<div class="page-break"></div>')}</div>`;
   $('#backRes').onclick = () => openResult(lastResult.r.id);
+  $('#sheetDocx').onclick = () => downloadFile(`/api/results/${encodeURIComponent(lastResult.r.id)}/docx${people.length === 1 ? '?student=' + encodeURIComponent(people[0].id) : ''}`, 'fichas.docx');
   window.scrollTo(0, 0);
 }
 
@@ -1117,8 +1126,14 @@ function aiSignals(q, a, peers) {
   if (lens.length >= 3 && len > 120 && len > med * 2.5) { sc += 15; why.push(`📏 Muito mais longa que a da turma (${len} vs. mediana ${med} caracteres)`); }
   const hits = AI_PHRASES.filter(([rx]) => rx.test(low)).map(([, l]) => l);
   if (hits.length) { sc += Math.min(24, hits.length * 8); why.push(`🗣️ Expressões típicas de IA: ${hits.slice(0, 5).map(h => '“' + h + '”').join(', ')}`); }
+  // travessão (—) e meia-risca (–): quase nunca escritos à mão num telemóvel. O hífen (-) não conta,
+  // nem a unir palavras ("guarda-chuva", "dá-me") nem solto.
+  const em = (txt.match(/\u2014/g) || []).length, en = (txt.match(/\u2013/g) || []).length;
+  if (em || en) {
+    sc += em + en >= 2 ? 15 : 10;
+    why.push(`➖ Usa ${[em ? `travessão (—) ×${em}` : '', en ? `meia-risca (–) ×${en}` : ''].filter(Boolean).join(' e ')} — raros em texto escrito no telemóvel (hífenes entre palavras não contam)`);
+  }
   const fmt = [];
-  if (/[—–]/.test(txt)) fmt.push('travessões (—)');
   if (/(^|\n)\s*([-•*]|\d+[.)])\s/.test(txt)) fmt.push('lista com marcadores');
   if (/\*\*[^*]+\*\*/.test(txt)) fmt.push('negrito em markdown');
   if ((txt.match(/[;:]/g) || []).length >= 2) fmt.push('pontuação muito formal');
@@ -1230,7 +1245,7 @@ async function openResult(id) {
     <p class="muted" style="margin-top:0">${new Date(r.startedAt).toLocaleString('pt-PT')} · ${list.length} alunos · ${nAsked} de ${r.questions.length} perguntas feitas · média de acerto ${avg}% ${r.endedAt ? '' : '· <b>sessão em curso</b>'}</p>
     ${openTotal ? `<div class="pend-note row"><span class="grow">${pending ? `❔ Há <b>${pending}</b> resposta(s) livre(s) por validar.` : `✅ Todas as ${openTotal} respostas livres estão validadas.`}</span>
       <button class="btn small primary noprint" id="btnValidate">✍️ ${pending ? 'Validar respostas livres' : 'Rever validações'}</button></div>` : ''}
-    <div class="row noprint" style="margin:8px 0"><span class="muted grow">📄 Ficha individual: carrega no nome de um formando.</span><button class="btn small" id="btnAllSheets">🖨 Fichas de todos (uma por página)</button></div>
+    <div class="row noprint" style="margin:8px 0"><span class="muted grow">📄 Ficha individual: carrega no nome de um formando.</span><button class="btn small" id="btnAllDocx">⬇ Word: fichas de todos</button><button class="btn small" id="btnAllSheets">🖨 Fichas de todos (uma por página)</button></div>
     <h3>Grelha: quem respondeu o quê</h3>
     <div class="tbl-wrap"><table class="res"><thead>
       <tr><th>Aluno</th>${r.questions.map((q, i) => `<th title="${esc(q.text)}">P${i + 1}</th>`).join('')}<th>Certas</th><th>%</th><th>Pontos</th></tr>
@@ -1257,6 +1272,7 @@ async function openResult(id) {
   $('#back').onclick = renderResultsList;
   const bv = $('#btnValidate'); if (bv) bv.onclick = () => openValidator(r.id, !pending);
   $('#btnAllSheets').onclick = () => showSheets(list.filter(p => joined.has(p.id)));
+  $('#btnAllDocx').onclick = () => downloadFile(`/api/results/${encodeURIComponent(r.id)}/docx`, 'fichas.docx');
   $$('[data-sheet]').forEach(a => a.onclick = e => { e.preventDefault(); showSheets([list.find(p => p.id === a.dataset.sheet)]); });
   // avaliar respostas livres (clicar outra vez no mesmo botão volta a "por avaliar")
   $$('[data-mark]').forEach(b => b.onclick = async () => {

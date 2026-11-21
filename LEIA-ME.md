@@ -145,10 +145,10 @@ Se um aluno fechar o browser sem querer, volta a abrir o link e entra automatica
 
 **🤖 Indício de uso de IA (só para ti):** em cada resposta livre, no ecrã de validação e no detalhe por pergunta, aparece um indicador **Baixo / Médio / Alto** com os motivos. **Não é uma prova** — nenhum sistema consegue provar que um texto foi escrito por IA — serve só para te ajudar a decidir. Junta:
 - sinais de comportamento registados pelo telemóvel: texto **colado** (e quanto), **saída da app** durante a resposta, texto que apareceu **sem ser digitado** (colado, ditado ou sugestão do teclado) e escrita invulgarmente rápida;
-- sinais do texto: **expressões típicas** de assistentes de IA ("em suma", "é importante salientar", "desempenha um papel crucial"…), **formatação** pouco comum num telemóvel (travessões, listas, negrito) e comprimento muito acima do resto da turma.
+- sinais do texto: **expressões típicas** de assistentes de IA ("em suma", "é importante salientar", "desempenha um papel crucial"…), **formatação** pouco comum num telemóvel (**travessão — e meia-risca –**, listas, negrito; os hífenes entre palavras, como "guarda-chuva", não contam) e comprimento muito acima do resto da turma.
 O indicador não aparece nas fichas, no Excel nem aos formandos.
 
-**Ficha individual:** carrega no nome de um formando na grelha (📄) para ver a ficha dele com todas as perguntas, a resposta correta, a resposta dada, o resultado (✓ / ✗ / parcial / por validar) e os pontos, com o total de certas e a pontuação. **🖨 Imprimir / guardar PDF** imprime-a; **🖨 Fichas de todos** junta as fichas de todos os formandos, uma por página.
+**Ficha individual:** carrega no nome de um formando na grelha (📄) para ver a ficha dele com todas as perguntas, a resposta correta, a resposta dada, o resultado (✓ / ✗ / parcial / por validar) e os pontos, com o total de certas e a pontuação. **🖨 Imprimir / guardar PDF** imprime-a; **🖨 Fichas de todos** junta as fichas de todos os formandos, uma por página. **⬇ Word** descarrega as fichas em Word (.docx, A4 na vertical): na grelha, **⬇ Word: fichas de todos** (uma por página); dentro da ficha de um formando, **⬇ Word** só com a dele.
 **📊 Resultados** (podes filtrar por curso) → **Ver grelha**:
 - Grelha aluno × pergunta, com a linha da resposta correta, ✓/✗, total de certas, % e pontos.
 - Detalhe por pergunta: pergunta, opções, resposta correta e a resposta de cada aluno (com o tempo que demorou).

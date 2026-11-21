@@ -9,6 +9,7 @@ const os = require('os');
 const QRCode = require('qrcode');
 const { Server } = require('socket.io');
 const Q = require('./questions'); // tipos de pergunta
+const { buildDocx } = require('./fichas-docx'); // fichas de respostas em Word
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = path.join(__dirname, 'data');
@@ -589,6 +590,20 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${safe}_${date}_${req.query.type === 'grelha' ? 'grelha' : 'detalhado'}.csv"`);
   res.send(toCsv(rows));
+});
+
+// Fichas de respostas em Word (A4 vertical): todas (uma por formando) ou só de um formando (?student=ID)
+app.get('/api/results/:id/docx', auth, async (req, res) => {
+  const f = resultFile(path.basename(req.params.id));
+  if (!fs.existsSync(f)) return res.status(404).end();
+  const r = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const { buffer, count, name } = await buildDocx(r, req.query.student ? String(req.query.student) : null);
+  if (!count) return res.status(404).json({ error: 'Sem formandos' });
+  const clean = t => String(t).normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\w\-]+/g, '_').slice(0, 50);
+  const file = `Fichas_${clean(r.quizTitle)}_${new Date(r.startedAt).toISOString().slice(0, 10)}${name ? '_' + clean(name) : ''}.docx`;
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename="${file}"`);
+  res.send(buffer);
 });
 
 // O formador marca uma resposta livre como certa / errada (ou volta a "por avaliar")
