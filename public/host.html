@@ -170,6 +170,11 @@
   .sheet-tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
   .page-break { height: 1px; background: #eee; margin: 24px 0; }
   .validator { max-width: 760px; margin: 0 auto; }
+  .ai-badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: .82em; font-weight: 700; white-space: nowrap; cursor: help; }
+  .ai-badge.big { font-size: .95em; padding: 4px 12px; }
+  .ai-baixo { background: #ecfdf5; color: #166534; } .ai-medio { background: #fef3c7; color: #92400e; } .ai-alto { background: #fee2e2; color: #991b1b; }
+  .ai-panel { border-radius: 12px; padding: 10px 14px; margin-top: 10px; background: #f8fafc; border: 1px solid #e5e7eb; color: var(--ink); }
+  .ai-panel ul { margin: 6px 0 0; padding-left: 20px; } .ai-panel li { margin: 2px 0; }
   .vbar { height: 8px; background: #eee; border-radius: 99px; overflow: hidden; margin-top: 10px; } .vbar div { height: 100%; background: var(--ok); }
   .v-model { background: #f0fdf4; color: #166534; border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; }
   .v-who { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
@@ -1083,6 +1088,51 @@ function showSheets(people) {
   window.scrollTo(0, 0);
 }
 
+// ---------- Indício de uso de IA nas respostas livres (só para o formador; não entra na ficha) ----------
+// Não é uma prova: junta sinais de comportamento (colar, sair da app, texto sem digitação) e do texto
+// (expressões típicas de assistentes de IA, formatação, comprimento face à turma).
+const AI_PHRASES = [
+  [/\bem suma\b/, 'em suma'], [/\bem s[ií]ntese\b/, 'em síntese'], [/\bem conclus[aã]o\b/, 'em conclusão'], [/\b[eé] importante (salientar|referir|notar|destacar|sublinhar|ressaltar)/, 'é importante salientar/referir'],
+  [/\bvale (a pena )?(ressaltar|salientar|destacar)/, 'vale a pena salientar'], [/\bdesempenha(m)? um papel\b/, 'desempenha um papel'], [/\b(crucial|fundamental|essencial) para\b/, 'crucial/fundamental para'],
+  [/\bal[eé]m disso\b/, 'além disso'], [/\bpor outro lado\b/, 'por outro lado'], [/\bnesse sentido\b/, 'nesse sentido'], [/\bassim sendo\b/, 'assim sendo'],
+  [/\b(de forma|de maneira) (eficaz|eficiente|significativa|abrangente)/, 'de forma eficaz/significativa'], [/\bhol[ií]stic/, 'holística'], [/\bmultifacetad/, 'multifacetado'],
+  [/\b(fomentar|potenciar|otimizar|alavancar)\b/, 'fomentar/potenciar/otimizar'], [/\b(promover|garantir|assegurar) (um|uma|a|o) /, 'promover/garantir/assegurar…'],
+  [/\btais como\b/, 'tais como'], [/\bcomo (um )?modelo de (linguagem|ia)\b/, 'como modelo de linguagem'], [/^(claro|certamente|com certeza)[!,.]/, 'começa com "Claro!/Certamente"'], [/\bespero que (isto|isso) (ajude|te ajude)/, 'espero que ajude'],
+  [/\baqui est[aá]/, 'aqui está'], [/\bpontos[- ]chave\b/, 'pontos-chave'], [/\bpor fim\b/, 'por fim'],
+];
+function aiSignals(q, a, peers) {
+  const txt = String(a.value || ''), low = txt.toLowerCase(), len = txt.length, m = a.meta || null;
+  const why = []; let sc = 0;
+  if (m) {
+    const pastedShare = len ? Math.min(1, m.pasted / len) : 0;
+    if (m.pasted && pastedShare >= 0.5) { sc += 45; why.push(`📋 Colou texto (${m.pasted} de ${len} caracteres)`); }
+    else if (m.pasted >= 15) { sc += 20; why.push(`📋 Colou parte do texto (${m.pasted} caracteres)`); }
+    if (m.hidden >= 2) { sc += 25; why.push(`↗️ Saiu da app ${m.hidden} vezes enquanto respondia`); }
+    else if (m.hidden === 1) { sc += 15; why.push('↗️ Saiu da app enquanto respondia'); }
+    if (!m.pasted && len >= 40 && m.keys < len * 0.4) { sc += 20; why.push(`⌨️ Só ${m.keys} de ${len} caracteres foram digitados (texto inserido de outra forma: colado, ditado ou sugestão do teclado)`); }
+    const cps = m.typingMs ? (m.keys / (m.typingMs / 1000)) : 0;
+    if (cps > 9 && m.keys > 60) { sc += 10; why.push(`⚡ Escrita muito rápida (${cps.toFixed(0)} caracteres/s)`); }
+  } else why.push('ℹ️ Sem dados de escrita (resposta de uma versão anterior da app)');
+  const lens = peers.map(p => String(p.value || '').length).sort((x, y) => x - y), med = lens.length ? lens[Math.floor(lens.length / 2)] : 0;
+  if (lens.length >= 3 && len > 120 && len > med * 2.5) { sc += 15; why.push(`📏 Muito mais longa que a da turma (${len} vs. mediana ${med} caracteres)`); }
+  const hits = AI_PHRASES.filter(([rx]) => rx.test(low)).map(([, l]) => l);
+  if (hits.length) { sc += Math.min(24, hits.length * 8); why.push(`🗣️ Expressões típicas de IA: ${hits.slice(0, 5).map(h => '“' + h + '”').join(', ')}`); }
+  const fmt = [];
+  if (/[—–]/.test(txt)) fmt.push('travessões (—)');
+  if (/(^|\n)\s*([-•*]|\d+[.)])\s/.test(txt)) fmt.push('lista com marcadores');
+  if (/\*\*[^*]+\*\*/.test(txt)) fmt.push('negrito em markdown');
+  if ((txt.match(/[;:]/g) || []).length >= 2) fmt.push('pontuação muito formal');
+  if (fmt.length) { sc += Math.min(12, fmt.length * 6); why.push(`✒️ Formatação pouco comum num telemóvel: ${fmt.join(', ')}`); }
+  sc = Math.min(100, sc);
+  return { score: sc, level: sc >= 55 ? 'alto' : sc >= 25 ? 'medio' : 'baixo', why };
+}
+function aiBadge(sig, big) {
+  const label = { alto: 'Alto', medio: 'Médio', baixo: 'Baixo' }[sig.level];
+  return `<span class="ai-badge ai-${sig.level} ${big ? 'big' : ''}" title="Indício de uso de IA (não é prova): ${esc(sig.why.join(' · ') || 'sem sinais')}">🤖 ${label} ${sig.score}%</span>`;
+}
+const aiPanel = sig => `<div class="ai-panel ai-${sig.level}"><div>${aiBadge(sig, true)} <b>Indício de uso de IA</b> <small class="muted">— só tu vês isto; não é uma prova</small></div>
+  ${sig.why.length ? `<ul>${sig.why.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : '<p class="muted" style="margin:6px 0 0">Sem sinais relevantes.</p>'}</div>`;
+
 // ---------- Validar respostas livres, uma a uma ----------
 async function openValidator(id, reviewAll) {
   const r = await api('GET', '/api/results/' + id);
@@ -1107,6 +1157,7 @@ async function openValidator(id, reviewAll) {
       ${(it.q.accepted || []).length ? `<div class="v-model">💡 Resposta modelo: <b>${it.q.accepted.map(esc).join(' · ')}</b>${it.a.suggest === true ? ' <span class="tag ok">coincide com o modelo</span>' : ''}</div>` : ''}
       <div class="v-who">${avatar(p, 'sm')} <b>${esc(p.name)}</b> respondeu:</div>
       <div class="v-answer">${esc(it.a.value)}</div>
+      ${aiPanel(aiSignals(it.q, it.a, Object.values(r.answers[it.i] || {})))}
       ${it.a.correct != null ? `<p class="muted center">Já validada como <b>${it.a.correct ? '✓ Certa' : '✗ Errada'}</b> — podes alterar.</p>` : ''}
       <div class="v-btns"><button class="btn danger" id="vNo">✗ Errada <small>(E)</small></button><button class="btn go" id="vYes">✓ Certa <small>(C)</small></button></div>
       <div class="row" style="justify-content:space-between;margin-top:12px"><button class="btn small" id="vPrev" ${k ? '' : 'disabled'}>← Anterior</button><button class="btn small" id="vSkip">Saltar →</button></div>
@@ -1197,6 +1248,7 @@ async function openResult(id) {
         <div style="margin-bottom:8px"><span class="tag ${t === 'scale' || t === 'open' ? 'none' : 'ok'}">${t === 'scale' || t === 'open' ? '' : 'Resposta correta: '}${esc(solutionText(q))}</span></div>
         ${asked.has(i) ? list.map(p => { const a = ans[p.id]; return `<div class="ans-row">${avatar(p, 'sm')}<span style="min-width:200px">${esc(p.name)}</span>
           ${a ? `<span class="tag ${t === 'scale' ? 'none' : cls(a)}">${esc(ansText(q, a))}${mark(a)}${t === 'fill' ? ` (${a.right ?? 0}/${fillBlanksOf(q.text).length})` : ''}</span>
+            ${t === 'open' ? `<span class="noprint">${aiBadge(aiSignals(q, a, Object.values(ans)))}</span>` : ''}
             ${t === 'open' ? `<span class="markers noprint"><button class="btn small ${a.correct === true ? 'go' : ''}" data-mark="1" data-q="${i}" data-s="${esc(p.id)}">✓ Certa</button><button class="btn small ${a.correct === false ? 'danger' : ''}" data-mark="0" data-q="${i}" data-s="${esc(p.id)}">✗ Errada</button></span>` : ''}
             <small class="muted">${(a.timeMs / 1000).toFixed(1)} s</small>` : `<span class="tag none">${joined.has(p.id) ? 'Sem resposta' : 'Ausente'}</span>`}</div>`; }).join('') : ''}
       </div>`;

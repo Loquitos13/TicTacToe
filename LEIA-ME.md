@@ -143,6 +143,11 @@ Se um aluno fechar o browser sem querer, volta a abrir o link e entra automatica
 ## 5. Resultados
 **Validar respostas livres (uma a uma):** quando há respostas livres aparece "❔ Há N resposta(s) livre(s) por validar" e o botão **✍️ Validar respostas livres**. Abre um ecrã com uma resposta de cada vez — pergunta, resposta modelo (e se coincide com ela), nome do formando e a resposta — com **✗ Errada** / **✓ Certa** (ou as teclas **E** / **C**), **Anterior** e **Saltar**. A pontuação e a grelha atualizam-se a cada validação; depois podes **Rever validações**. A escala 1–5 e as respostas por validar não contam para a % de acerto.
 
+**🤖 Indício de uso de IA (só para ti):** em cada resposta livre, no ecrã de validação e no detalhe por pergunta, aparece um indicador **Baixo / Médio / Alto** com os motivos. **Não é uma prova** — nenhum sistema consegue provar que um texto foi escrito por IA — serve só para te ajudar a decidir. Junta:
+- sinais de comportamento registados pelo telemóvel: texto **colado** (e quanto), **saída da app** durante a resposta, texto que apareceu **sem ser digitado** (colado, ditado ou sugestão do teclado) e escrita invulgarmente rápida;
+- sinais do texto: **expressões típicas** de assistentes de IA ("em suma", "é importante salientar", "desempenha um papel crucial"…), **formatação** pouco comum num telemóvel (travessões, listas, negrito) e comprimento muito acima do resto da turma.
+O indicador não aparece nas fichas, no Excel nem aos formandos.
+
 **Ficha individual:** carrega no nome de um formando na grelha (📄) para ver a ficha dele com todas as perguntas, a resposta correta, a resposta dada, o resultado (✓ / ✗ / parcial / por validar) e os pontos, com o total de certas e a pontuação. **🖨 Imprimir / guardar PDF** imprime-a; **🖨 Fichas de todos** junta as fichas de todos os formandos, uma por página.
 **📊 Resultados** (podes filtrar por curso) → **Ver grelha**:
 - Grelha aluno × pergunta, com a linha da resposta correta, ✓/✗, total de certas, % e pontos.

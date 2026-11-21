@@ -325,6 +325,14 @@ function endExam() {
   session.deadline = null; session.endedAt = Date.now(); session.phase = 'end';
   persistSession(); broadcast();
 }
+// sinais de escrita das respostas livres (enviados pelo telemóvel; só o formador os vê)
+function cleanMeta(m, prev) {
+  if (!m || typeof m !== 'object') return prev || null;
+  const n = (v, max) => Math.max(0, Math.min(max, parseInt(v, 10) || 0));
+  const cur = { pasted: n(m.pasted, 100000), keys: n(m.keys, 100000), ms: n(m.ms, 36e5), typingMs: n(m.typingMs, 36e5), hidden: n(m.hidden, 1000) };
+  if (!prev) return cur; // ao corrigir a resposta (modo tempo total) os sinais acumulam
+  return { pasted: prev.pasted + cur.pasted, keys: prev.keys + cur.keys, ms: prev.ms + cur.ms, typingMs: prev.typingMs + cur.typingMs, hidden: prev.hidden + cur.hidden };
+}
 function pointsFor(q, entry, timeMs, speed) {
   if (!entry.frac) return 0;
   const base = speed ? Math.round(1000 * (1 - Math.min(timeMs, q.time * 1000) / (q.time * 1000) / 2)) : 1000;
@@ -844,7 +852,9 @@ io.on('connection', socket => {
     if (!qq) return cb({ error: 'Pedido inválido.' });
     const g = Q.grade(qq, data.value !== undefined ? data.value : data.option);
     if (g.error) return cb({ error: g.error });
+    const prevA = answersFor(i)[me.studentId];
     answersFor(i)[me.studentId] = { ...g.entry, timeMs: Date.now() - session.examStart, points: pointsFor(qq, g.entry, 0, false), at: Date.now() };
+    if (Q.typeOf(qq) === 'open') answersFor(i)[me.studentId].meta = cleanMeta(data.meta, prevA && prevA.meta);
     examRecompute(me);
     persistSession(); cb({ ok: true }); broadcast();
   });
@@ -873,6 +883,7 @@ io.on('connection', socket => {
     const timeMs = Date.now() - session.questionStartedAt;
     const points = pointsFor(q, g.entry, timeMs, session.settings.speedPoints);
     ans[me.studentId] = { ...g.entry, timeMs, points, at: Date.now() };
+    if (Q.typeOf(q) === 'open') ans[me.studentId].meta = cleanMeta(option && option.meta);
     me.score += points;
     persistSession();
     cb && cb({ ok: true });
