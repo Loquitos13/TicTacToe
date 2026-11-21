@@ -28,7 +28,8 @@
   .shoot { width: 100%; font-size: 1.2em; }
   .prev-row { display: flex; align-items: center; gap: 16px; }
   .prev-circle { width: min(52vw, 200px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; border: 5px solid #fff; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
-  .retake { padding: 12px 14px; line-height: 1.2; }
+  .retake { padding: 12px 14px; line-height: 1.2; width: 100%; }
+  .retake-col { display: flex; flex-direction: column; gap: 10px; }
   .list-names { display: flex; flex-direction: column; gap: 10px; width: 100%; }
   .name-btn { width: 100%; font-size: 1.1em; }
   .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
@@ -310,6 +311,17 @@ function capture() {
   photo.data = c.toDataURL('image/jpeg', 0.85);
   stopCamera(); Sound.play('sent'); photo.step = 'preview'; lastKey = ''; render();
 }
+// escolher uma fotografia guardada no telemóvel/computador (galeria / ficheiros)
+const galleryBtn = (id, label, cls = 'btn ghost') => `<label class="${cls}" style="text-align:center;${cls === 'btn' ? 'width:100%' : ''}">${label}<input type="file" accept="image/*" id="${id}" hidden></label>`;
+function bindFile(id) {
+  const inp = $('#' + id); if (!inp) return;
+  inp.onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { photo.data = await resizeImage(f, 360); }
+    catch { e.target.value = ''; return toast('Não foi possível abrir esta imagem. Escolhe uma fotografia em JPG ou PNG.', 4500); }
+    stopCamera(); photo.step = 'preview'; lastKey = ''; render();
+  };
+}
 function renderPhotoStep() {
   const name = esc(state.me.name.split(' ')[0]);
   if (photo.step === 'ask') {
@@ -318,8 +330,10 @@ function renderPhotoStep() {
       <h1 style="font-size:1.5em">Olá, ${name}! Queres pôr a tua fotografia?</h1>
       <p>Assim o teu boneco aparece com a tua cara em vez das iniciais. É opcional e só é usada nesta sessão.</p>
       <button class="btn primary" id="phYes" style="width:100%">📷 Tirar fotografia</button>
+      ${galleryBtn('phGal', '📁 Escolher da galeria', 'btn')}
       <button class="btn ghost" id="phNo">Agora não</button></div>`, () => {
       $('#phYes').onclick = () => { Sound.init(); startCamera(); };
+      bindFile('phGal');
       $('#phNo').onclick = photoDone;
     });
   }
@@ -329,8 +343,9 @@ function renderPhotoStep() {
         <h1 style="font-size:1.4em">Abre a câmara do telemóvel</h1>
         <p>Não foi possível usar a câmara dentro da página. Toca no botão para tirar a fotografia com a câmara do telemóvel.</p>
         <label class="btn primary" style="width:100%;text-align:center">📸 Abrir câmara<input type="file" accept="image/*" capture="user" id="phFile" hidden></label>
+        ${galleryBtn('phGal', '📁 Escolher da galeria', 'btn')}
         <button class="btn ghost" id="phNo">Continuar sem fotografia</button></div>`, () => {
-        $('#phFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; photo.data = await resizeImage(f, 360); photo.step = 'preview'; lastKey = ''; render(); };
+        bindFile('phFile'); bindFile('phGal');
         $('#phNo').onclick = photoDone;
       });
     }
@@ -338,8 +353,10 @@ function renderPhotoStep() {
       <h1 style="font-size:1.3em">Centra a cara no círculo</h1>
       <div class="cam-frame"><video id="cam" playsinline muted autoplay></video><div class="cam-ring"></div></div>
       <button class="btn primary shoot" id="shoot" disabled>📸 Tirar</button>
+      ${galleryBtn('phGal', '📁 Escolher da galeria')}
       <button class="btn ghost" id="phNo">Continuar sem fotografia</button></div>`, () => {
       $('#shoot').onclick = capture;
+      bindFile('phGal');
       $('#phNo').onclick = photoDone;
     });
   }
@@ -348,12 +365,16 @@ function renderPhotoStep() {
       <h1 style="font-size:1.4em">Assim vais aparecer</h1>
       <div class="prev-row">
         <img class="prev-circle pop-in" src="${photo.data}" alt="A tua fotografia">
-        <button class="btn ghost retake" id="phAgain">🔄<br>Repetir</button>
+        <div class="retake-col">
+          <button class="btn ghost retake" id="phAgain">🔄<br>Repetir</button>
+          ${galleryBtn('phGal', '📁<br>Galeria', 'btn ghost retake')}
+        </div>
       </div>
       <div class="ph-demo small">${dancer({ name: state.me.name, photo: photo.data }, 'disco', '#7dd3fc')}</div>
       <button class="btn primary" id="phUse" style="width:100%">✅ Usar esta fotografia</button>
       <button class="btn ghost" id="phNo">Não quero fotografia</button></div>`, () => {
       $('#phAgain').onclick = startCamera;
+      bindFile('phGal');
       $('#phNo').onclick = () => { photo.data = null; photoDone(); };
       $('#phUse').onclick = () => {
         $('#phUse').disabled = true;

@@ -69,6 +69,7 @@ Exemplo com Ana Maria Silva, Ana Rita Silva, Ana Costa e João Gonçalves:
 
 **Fotografia (opcional, decide o formando):** depois de escrever o nome, quem ainda não tem fotografia vê "Queres pôr a tua fotografia?".
 - **Tirar fotografia:** o telemóvel pede autorização para usar a câmara; a imagem aparece num quadro com um círculo para centrar a cara. Depois de tirar, aparece a foto num círculo (e no boneco) tal como vai ficar, com o botão **🔄 Repetir** ao lado. Pode **usar esta fotografia** ou **não querer fotografia**.
+- **Escolher da galeria:** em qualquer passo pode, em vez disso, escolher uma fotografia já guardada no telemóvel ou no computador. Na pré-visualização tem, ao lado do círculo, **🔄 Repetir** (câmara) e **📁 Galeria** (escolher outra).
 - **Agora não:** entra logo na sala de espera, com as iniciais.
 - A fotografia só é usada nesta sessão (não muda a ficha do aluno) e substitui logo as iniciais no teu ecrã.
 - A câmara dentro da página só funciona em **https** (ex.: com o túnel `cloudflared`) ou em `localhost`. Numa ligação `http://` pela rede local, a app abre automaticamente a câmara do próprio telemóvel em alternativa.
