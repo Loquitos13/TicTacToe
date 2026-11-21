@@ -521,6 +521,19 @@ function renderExam() {
 const optLabel = (opts, i) => opts && opts[i] ? `${LETTERS[i]}) ${esc(opts[i])}` : LETTERS[i];
 const onScreenNote = `<div class="on-screen pop-in">👀 A pergunta e as opções estão no <b>ecrã do formador</b>.<br>Responde aqui com a letra.</div>`;
 
+// Origem do texto colado, pelos metadados da área de transferência (versão HTML que acompanha o texto).
+// Só guarda o nome da origem; o HTML em si nunca é enviado.
+function pasteOrigin(html) {
+  if (!html) return null;
+  const h = html.toLowerCase();
+  if (/data-start="\d+"[^>]*data-end="\d+"/.test(h) || h.includes('chatgpt') || h.includes('data-message-author-role') || h.includes('markdown prose')) return 'chatgpt';
+  if (h.includes('gemini') || h.includes('model-response') || h.includes('markdown-main-panel')) return 'gemini';
+  if (h.includes('claude.ai') || h.includes('font-claude') || h.includes('standard-markdown')) return 'claude';
+  if (h.includes('copilot') || h.includes('cib-serp') || h.includes('ac-textblock')) return 'copilot';
+  if (h.includes('perplexity')) return 'perplexity';
+  if (h.includes('deepseek')) return 'deepseek';
+  return 'formatado'; // copiado de uma página / app com formatação
+}
 // quantas vezes o formando saiu da app (mudou de separador/app) — usado nos sinais das respostas livres
 let hiddenCount = 0;
 document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenCount++; });
@@ -538,8 +551,13 @@ function answerWidget(q, cur, exam) {
       <button class="btn primary" id="openSend" style="width:100%;margin-top:10px">${exam ? '💾 Guardar resposta' : '📨 Enviar resposta'}</button>`,
     bind: on => {
       // sinais de escrita (só para o formador): quanto foi colado, quanto foi escrito e se saiu da app
-      const ta = $('#openIn'), m = { pasted: 0, keys: 0, start: performance.now(), firstKey: null, hidden0: hiddenCount };
-      ta.addEventListener('paste', e => { const t = (e.clipboardData || window.clipboardData)?.getData('text') || ''; m.pasted += t.length; });
+      const ta = $('#openIn'), m = { pasted: 0, keys: 0, start: performance.now(), firstKey: null, hidden0: hiddenCount, source: null };
+      ta.addEventListener('paste', e => {
+        const cd = e.clipboardData || window.clipboardData; const t = cd?.getData('text') || '';
+        m.pasted += t.length;
+        let src = null; try { src = pasteOrigin(cd?.getData('text/html') || ''); } catch {}
+        if (src && (!m.source || m.source === 'formatado')) m.source = src;
+      });
       ta.addEventListener('beforeinput', e => {
         if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') return;
         if (/^insert/.test(e.inputType) && e.data) { m.keys += e.data.length; if (m.firstKey == null) m.firstKey = performance.now(); }
@@ -547,7 +565,7 @@ function answerWidget(q, cur, exam) {
       $('#openSend').onclick = () => {
         const v = $('#openIn').value.trim(); if (!v) return toast('Escreve a tua resposta.');
         const now = performance.now();
-        on(v, $('#openSend'), { pasted: m.pasted, keys: m.keys, ms: Math.round(now - m.start), typingMs: m.firstKey == null ? 0 : Math.round(now - m.firstKey), hidden: hiddenCount - m.hidden0 });
+        on(v, $('#openSend'), { pasted: m.pasted, keys: m.keys, ms: Math.round(now - m.start), typingMs: m.firstKey == null ? 0 : Math.round(now - m.firstKey), hidden: hiddenCount - m.hidden0, pasteSource: m.source });
       };
     },
   };

@@ -32,12 +32,12 @@ function studentBlock(r, p, ctx) {
     else if (a.correct === true) { res = '✓ Certa'; color = '166534'; }
     else if (a.correct === false) { if (t === 'fill' && a.right) { res = `${a.right}/${q.blanks.length} certas`; color = '92400E'; } else { res = '✗ Errada'; color = '991B1B'; } }
     else { res = 'Por validar'; color = '854D0E'; }
-    const qsub = t === 'mc' || t === 'tf' ? q.options.map((o, k) => `${LETTERS[k]}) ${o}`).join('   ') : { fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5' }[t];
+    const qsub = t === 'mc' || t === 'tf' ? 'Opções: ' + q.options.join(' · ') : { fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5' }[t];
     return new TableRow({ cantSplit: true, children: [
       cell(String(i + 1), { width: COLS[0], align: AlignmentType.CENTER }),
       cell([{ text: Q.displayText(q), bold: true }, { text: qsub, size: 15, color: '666666', break: 1 }], { width: COLS[1] }),
-      cell(t === 'scale' ? '—' : Q.correctText(q), { width: COLS[2] }),
-      cell(a ? Q.answerText(q, a) : '', { width: COLS[3] }),
+      cell(Q.plainCorrect(q), { width: COLS[2] }),
+      cell(a ? Q.plainAnswer(q, a) : '', { width: COLS[3] }),
       cell(res, { width: COLS[4], color, bold: true }),
       cell(a ? String(a.points || 0) : '0', { width: COLS[5], align: AlignmentType.RIGHT }),
     ] });

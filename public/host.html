@@ -1069,8 +1069,8 @@ function sheetHtml(p) {
     if (a && t === 'open' && a.correct == null) pend++;
     const res = !asked.has(i) ? '<span class="tag none">não feita</span>' : !a ? `<span class="tag none">${joined.has(p.id) ? 'Sem resposta' : 'Ausente'}</span>`
       : t === 'scale' ? '<span class="tag none">opinião</span>' : a.correct === true ? '<span class="tag ok">✓ Certa</span>' : a.correct === false ? (t === 'fill' && a.right ? `<span class="tag pend">${a.right}/${fillBlanksOf(q.text).length}</span>` : '<span class="tag bad">✗ Errada</span>') : '<span class="tag pend">❔ Por validar</span>';
-    return `<tr><td>${i + 1}</td><td><b>${esc(qTitle(q))}</b><br><small class="muted">${QTYPE_LABEL[t]}${t === 'mc' || t === 'tf' ? ' · ' + q.options.map((o, k) => `${LETTERS[k]}) ${esc(o)}`).join(' · ') : ''}</small></td>
-      <td>${t === 'scale' ? '—' : esc(solutionText(q))}</td><td>${a ? esc(ansText(q, a)) : ''}</td><td>${res}</td><td class="num">${a ? (a.points || 0) : 0}</td></tr>`;
+    return `<tr><td>${i + 1}</td><td><b>${esc(qTitle(q))}</b><br><small class="muted">${QTYPE_LABEL[t]}${t === 'mc' || t === 'tf' ? ' · opções: ' + q.options.map(esc).join(' · ') : ''}</small></td>
+      <td>${esc(plainCorrectOf(q))}</td><td>${a ? esc(plainAnswerOf(q, a)) : ''}</td><td>${res}</td><td class="num">${a ? (a.points || 0) : 0}</td></tr>`;
   }).join('');
   return `<div class="sheet">
     <div class="sheet-head">${avatar(p, 'lg')}<div class="grow"><div class="muted">${r.courseName ? '🎓 ' + esc(r.courseName) + ' · ' : ''}📝 ${esc(r.quizTitle)} · ${new Date(r.startedAt).toLocaleDateString('pt-PT')}</div>
@@ -1112,6 +1112,12 @@ const AI_PHRASES = [
 function aiSignals(q, a, peers) {
   const txt = String(a.value || ''), low = txt.toLowerCase(), len = txt.length, m = a.meta || null;
   const why = []; let sc = 0;
+  if (m && m.pasteSource) {
+    const names = { chatgpt: 'ChatGPT', gemini: 'Gemini', claude: 'Claude', copilot: 'Copilot', perplexity: 'Perplexity', deepseek: 'DeepSeek' };
+    if (names[m.pasteSource]) { sc += 60; why.push(`🧾 Metadados da colagem: o texto foi copiado do ${names[m.pasteSource]}`); }
+    else { sc += 15; why.push('🧾 Metadados da colagem: texto copiado de uma página ou app com formatação (não foi escrito no telemóvel)'); }
+  }
+  if (m && m.invisible) { sc += 20; why.push(`👻 ${m.invisible} caractere(s) invisível(eis) / espaço(s) especial(ais) no texto — comuns em texto copiado de IA ou da web`); }
   if (m) {
     const pastedShare = len ? Math.min(1, m.pasted / len) : 0;
     if (m.pasted && pastedShare >= 0.5) { sc += 45; why.push(`📋 Colou texto (${m.pasted} de ${len} caracteres)`); }

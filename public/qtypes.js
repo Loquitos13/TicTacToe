@@ -26,3 +26,21 @@ function solutionText(q) {
   if (t === 'open') return (q.accepted || []).length ? 'Modelo: ' + q.accepted.join(' · ') + ' (validada pelo formador)' : 'Resposta livre (validada pelo formador)';
   return 'Escala 1–5 (sem resposta certa)';
 }
+
+// texto completo para as fichas (sem letras nem abreviaturas)
+const fillSentenceOf = (q, words) => { let k = 0; return String(q.text).replace(BLANK_RX, () => words[k++] || '_____'); };
+function plainCorrectOf(q) {
+  const t = qType(q);
+  if (t === 'mc' || t === 'tf') return q.correct.map(i => q.options[i]).join(' / ');
+  if (t === 'fill') return fillSentenceOf(q, fillBlanksOf(q.text));
+  if (t === 'open') return (q.accepted || []).length ? q.accepted.join(' / ') : 'Sem resposta modelo (validada pelo formador)';
+  return '—';
+}
+function plainAnswerOf(q, a) {
+  if (!a) return '';
+  const t = qType(q);
+  if (t === 'mc' || t === 'tf') return q.options[a.option];
+  if (t === 'fill') return fillSentenceOf(q, a.value || []);
+  if (t === 'scale') { const lab = a.value === 1 ? q.scaleMin : a.value === 5 ? q.scaleMax : ''; return `${a.value} de 5${lab ? ' (' + lab + ')' : ''}`; }
+  return String(a.value ?? '');
+}

@@ -330,9 +330,15 @@ function endExam() {
 function cleanMeta(m, prev) {
   if (!m || typeof m !== 'object') return prev || null;
   const n = (v, max) => Math.max(0, Math.min(max, parseInt(v, 10) || 0));
-  const cur = { pasted: n(m.pasted, 100000), keys: n(m.keys, 100000), ms: n(m.ms, 36e5), typingMs: n(m.typingMs, 36e5), hidden: n(m.hidden, 1000) };
+  const SOURCES = ['chatgpt', 'gemini', 'claude', 'copilot', 'perplexity', 'deepseek', 'formatado'];
+  const cur = { pasted: n(m.pasted, 100000), keys: n(m.keys, 100000), ms: n(m.ms, 36e5), typingMs: n(m.typingMs, 36e5), hidden: n(m.hidden, 1000),
+    pasteSource: SOURCES.includes(m.pasteSource) ? m.pasteSource : null };
   if (!prev) return cur; // ao corrigir a resposta (modo tempo total) os sinais acumulam
-  return { pasted: prev.pasted + cur.pasted, keys: prev.keys + cur.keys, ms: prev.ms + cur.ms, typingMs: prev.typingMs + cur.typingMs, hidden: prev.hidden + cur.hidden };
+  const src = [cur.pasteSource, prev.pasteSource].find(x => x && x !== 'formatado') || cur.pasteSource || prev.pasteSource || null;
+  return { pasted: prev.pasted + cur.pasted, keys: prev.keys + cur.keys, ms: prev.ms + cur.ms, typingMs: prev.typingMs + cur.typingMs, hidden: prev.hidden + cur.hidden, pasteSource: src };
+}
+// caracteres invisíveis / espaços especiais no texto original (antes de o limpar), comuns em texto copiado de IA
+function invisibleCount(raw) { return (String(raw ?? '').match(/[\u200B\u200C\u200D\u2060\uFEFF\u00AD\u202F\u00A0\u2009\u200A]/g) || []).length;
 }
 function pointsFor(q, entry, timeMs, speed) {
   if (!entry.frac) return 0;
@@ -869,7 +875,7 @@ io.on('connection', socket => {
     if (g.error) return cb({ error: g.error });
     const prevA = answersFor(i)[me.studentId];
     answersFor(i)[me.studentId] = { ...g.entry, timeMs: Date.now() - session.examStart, points: pointsFor(qq, g.entry, 0, false), at: Date.now() };
-    if (Q.typeOf(qq) === 'open') answersFor(i)[me.studentId].meta = cleanMeta(data.meta, prevA && prevA.meta);
+    if (Q.typeOf(qq) === 'open') { const mm = cleanMeta(data.meta, prevA && prevA.meta) || {}; mm.invisible = Math.max(invisibleCount(data.value), (prevA && prevA.meta && prevA.meta.invisible) || 0); answersFor(i)[me.studentId].meta = mm; }
     examRecompute(me);
     persistSession(); cb({ ok: true }); broadcast();
   });
@@ -898,7 +904,7 @@ io.on('connection', socket => {
     const timeMs = Date.now() - session.questionStartedAt;
     const points = pointsFor(q, g.entry, timeMs, session.settings.speedPoints);
     ans[me.studentId] = { ...g.entry, timeMs, points, at: Date.now() };
-    if (Q.typeOf(q) === 'open') ans[me.studentId].meta = cleanMeta(option && option.meta);
+    if (Q.typeOf(q) === 'open') { const mm = cleanMeta(option && option.meta) || {}; mm.invisible = invisibleCount(raw); ans[me.studentId].meta = mm; }
     me.score += points;
     persistSession();
     cb && cb({ ok: true });

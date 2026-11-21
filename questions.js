@@ -138,4 +138,22 @@ function solutionOf(q) {
   return {};
 }
 
-module.exports = { TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
+// Texto completo para as fichas (sem letras nem abreviaturas)
+const fillSentence = (q, words) => { let k = 0; return String(q.text).replace(BLANK_RE, () => { const w = words[k++]; return w ? w : '_____'; }); };
+function plainCorrect(q) {
+  const t = typeOf(q);
+  if (t === 'mc' || t === 'tf') return q.correct.map(i => q.options[i]).join(' / ');
+  if (t === 'fill') return fillSentence(q, q.blanks);
+  if (t === 'open') return (q.accepted || []).length ? q.accepted.join(' / ') : 'Sem resposta modelo (validada pelo formador)';
+  return '—';
+}
+function plainAnswer(q, a) {
+  if (!a) return '';
+  const t = typeOf(q);
+  if (t === 'mc' || t === 'tf') return q.options[a.option];
+  if (t === 'fill') return fillSentence(q, a.value || []);
+  if (t === 'scale') { const lab = a.value === 1 ? q.scaleMin : a.value === 5 ? q.scaleMax : ''; return `${a.value} de 5${lab ? ' (' + lab + ')' : ''}`; }
+  return String(a.value ?? '');
+}
+
+module.exports = { plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
