@@ -90,6 +90,18 @@
   .al-q { font-weight: 600; font-size: 1.15em; margin-bottom: 8px; }
   .al-a { font-weight: 700; font-size: 1.15em; display: flex; flex-direction: column; gap: 6px; }
   .al-a .letter { color: #fff; margin-right: 6px; }
+  .exam-top { text-align: center; margin: 10px 0 6px; }
+  .exam-clock { font-size: clamp(4em, 11vw, 8em); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .exam-clock.hurry { color: #ffd93d; animation: pulse 1s infinite; }
+  .exam-sub { font-size: 1.3em; opacity: .9; }
+  .exam-stats { display: flex; justify-content: center; gap: 24px; font-size: 1.3em; font-weight: 600; margin: 8px 0 18px; }
+  .exam-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .ex-card { display: flex; gap: 12px; align-items: center; background: rgba(255,255,255,.14); border-radius: 16px; padding: 10px 12px; }
+  .ex-card.done { background: rgba(34,197,94,.35); }
+  .ex-card.off { opacity: .5; }
+  .ex-info { flex: 1; min-width: 0; } .ex-info b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ex-bar { height: 8px; background: rgba(255,255,255,.25); border-radius: 99px; overflow: hidden; margin: 6px 0 4px; }
+  .ex-bar div { height: 100%; background: #ffd93d; transition: width .4s; }
   .big-msg { text-align: center; font-size: 3em; font-weight: 700; margin: 10px 0; }
   .board { max-width: 900px; width: 100%; margin: 10px auto; display: flex; flex-direction: column; gap: 12px; }
   .board .r { display: flex; align-items: center; gap: 16px; background: #fff; color: var(--ink); border-radius: 18px; padding: 10px 18px; font-size: 1.4em; font-weight: 600; }
@@ -225,6 +237,7 @@ let lastPhaseKey = '', tickTimer = null;
 function next() { Sound.init(); socket.emit('host:next'); }
 const timed = () => S && S.settings.mode !== 'manual'; // por tempo ou automático
 const isAuto = () => S && S.settings.mode === 'auto';
+const isExamMode = () => S && S.settings.mode === 'exam';
 const pollOn = () => S && S.settings.showPoll !== false;
 const hiddenReveal = () => S && (S.settings.revealMode || 'each') !== 'each';
 // neste dispositivo, mostrar as respostas corretas? (o projetor fica sem elas; o portátil/telemóvel do formador com elas)
@@ -247,6 +260,7 @@ function phaseSound(prev) {
   if (!S) return Sound.stopMusic();
   const ph = S.phase;
   if (ph === 'lobby') Sound.music('lobby');
+  if (ph === 'exam') { Sound.play('whoosh'); Sound.music('think'); }
   if (ph === 'ready') { Sound.stopMusic(); [0, 1000, 2000].forEach(t => setTimeout(() => S && S.phase === 'ready' && Sound.play('tock'), t)); }
   if (ph === 'question') {
     Sound.play('whoosh'); Sound.music('think');
@@ -288,9 +302,10 @@ function renderGame(full) {
   if (!full) return updateLive();
   const ph = S.phase;
   let html = `<div id="stage"><div class="stage-top"><span>${S.courseName ? '🎓 ' + esc(S.courseName) + ' · ' : ''}📝 ${esc(S.quizTitle)}</span>
-    <span>${isAuto() ? '🤖 Automático' : timed() ? '⏱ Por tempo' : '🎮 Manual'} · ${ph === 'lobby' ? 'Sala aberta' : ph === 'end' ? 'Final' : `Pergunta ${S.qIndex + 1} / ${S.total}`}</span></div>`;
+    <span>${isExamMode() ? '⏳ Tempo total' : isAuto() ? '🤖 Automático' : timed() ? '⏱ Por tempo' : '🎮 Manual'} · ${ph === 'lobby' ? 'Sala aberta' : ph === 'end' ? 'Final' : ph === 'exam' ? `${S.total} perguntas` : `Pergunta ${S.qIndex + 1} / ${S.total}`}</span></div>`;
   if (ph === 'lobby') html += lobbyHtml();
   if (ph === 'ready') html += readyHtml();
+  if (ph === 'exam') html += examHtml();
   if (ph === 'question') html += questionHtml();
   const firstPoll = ph === 'closed' && !closedShown.has(S.qIndex);
   if (ph === 'closed') { html += resultsHtml(false, firstPoll); closedShown.add(S.qIndex); }
@@ -302,6 +317,7 @@ function renderGame(full) {
   bindGame();
   if (ph === 'question' && timed()) runRing();
   if (ph === 'ready') runReady();
+  if (ph === 'exam') runExamClock();
   const tu = $('.timeup'); if (tu) tu.addEventListener('animationend', () => tu.classList.add('hidden'));
   // sondagem: as barras e as percentagens sobem de 0% até ao valor (com som); na resposta correta já aparecem cheias
   if (ph === 'closed' && firstPoll && pollOn()) growPoll(timed() ? 1700 : 700);
@@ -336,6 +352,43 @@ function joinedHtml() {
     const p = joined.get(s.id);
     return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}" data-photo="${esc(s.photo || '')}">${avatar(s, 'lg')}<span title="${esc(s.name)}">${esc(s.short || s.name)}</span></div>`;
   }).join('');
+}
+
+// ---------- modo tempo total: relógio e progresso de cada formando ----------
+function examHtml() {
+  return `<div class="exam-top"><div class="exam-clock" id="examClock">--:--</div>
+      <div class="exam-sub">para responder a todas as ${S.total} perguntas · cada um ao seu ritmo</div></div>
+    <div class="exam-stats" id="examStats">${examStatsHtml()}</div>
+    <div class="exam-grid" id="examGrid">${examGridHtml()}</div>`;
+}
+function examStatsHtml() {
+  const pr = Object.values(S.examProgress || {}), done = pr.filter(x => x.submitted).length;
+  return `<span>👥 ${S.players.length} a responder</span><span>📨 ${done} entregaram</span>`;
+}
+function examGridHtml() {
+  const byId = new Map(S.roster.map(r => [r.id, r]));
+  return S.players.map(p => {
+    const pr = (S.examProgress || {})[p.studentId] || { answered: 0 }, st = byId.get(p.studentId) || p;
+    const pct = Math.round(pr.answered / S.total * 100);
+    return `<div class="ex-card ${pr.submitted ? 'done' : ''} ${p.connected ? '' : 'off'}">${avatar(st)}
+      <div class="ex-info"><b>${esc(st.short || p.name)}</b><div class="ex-bar"><div style="width:${pct}%"></div></div>
+      <small>${pr.submitted ? '📨 Entregou' : `${pr.answered} / ${S.total}`}</small></div></div>`;
+  }).join('') || '<p class="center">À espera dos formandos…</p>';
+}
+let examClockTimer, examWarned = false;
+function runExamClock() {
+  clearInterval(examClockTimer);
+  const end = Date.now() + S.remainingMs;
+  const f = () => {
+    const el = $('#examClock'); if (!el) return clearInterval(examClockTimer);
+    const r = Math.max(0, end - Date.now()), m = Math.floor(r / 60000), sec = Math.floor(r / 1000) % 60;
+    el.textContent = `${m}:${String(sec).padStart(2, '0')}`;
+    el.classList.toggle('hurry', r < 60000);
+    if (r < 60000 && r > 0 && !examWarned) { examWarned = true; Sound.play('gong'); }
+    if (r >= 60000) examWarned = false;
+    if (r <= 10000 && r > 0 && sec !== f.last) { f.last = sec; Sound.play('tick'); }
+  };
+  f(); examClockTimer = setInterval(f, 250);
 }
 
 function readyHtml() {
@@ -457,30 +510,32 @@ function endHtml() {
 function controlsHtml() {
   const ph = S.phase, last = S.qIndex + 1 >= S.total;
   const label = {
-    lobby: '▶ Começar quiz', ready: '⏩ Abrir já', question: timed() ? '⏹ Terminar tempo' : '⏹ Fechar respostas',
+    lobby: '▶ Começar quiz', ready: '⏩ Abrir já', exam: '🏁 Terminar agora', question: timed() ? '⏹ Terminar tempo' : '⏹ Fechar respostas',
     closed: hiddenReveal() ? (last ? '🏁 Resultados finais' : '➡ Próxima pergunta') : '✅ Mostrar resposta correta',
     reveal: S.settings.rankEach ? '🏆 Ranking' : (last ? '🏁 Resultados finais' : '➡ Próxima pergunta'),
     leaderboard: last ? '🏁 Resultados finais' : '➡ Próxima pergunta',
   }[ph];
   const allIn = ph === 'question' && connectedN() && S.answeredIds.length >= connectedN();
   return `<div class="controls noprint">
+    ${ph === 'exam' ? `<button class="btn small ghost" id="btnExtend">＋1 min</button>` : ''}
     ${isAuto() && ph !== 'end' && ph !== 'lobby' ? `<button class="btn small ghost" id="btnPause">${S.settings.paused ? '▶ Retomar' : '⏸ Pausar'}</button>` : ''}
     <div class="info"><b id="autoInfo" style="color:#ffd93d"></b> <span id="ctlInfo">${ph === 'end' ? 'Sessão terminada — as respostas estão guardadas.' : `${connectedN()} ligados · espaço/→ avança`}</span></div>
-    ${hiddenReveal() ? `<label class="switch" title="Só neste dispositivo. Deixa desligado no ecrã projetado."><input type="checkbox" id="setSee" ${seeAnswers ? 'checked' : ''}> 👁 Ver respostas corretas</label>` : ''}
+    ${hiddenReveal() && !isExamMode() ? `<label class="switch" title="Só neste dispositivo. Deixa desligado no ecrã projetado."><input type="checkbox" id="setSee" ${seeAnswers ? 'checked' : ''}> 👁 Ver respostas corretas</label>` : ''}
     ${ph === 'end' && S.settings.revealEnd ? `<button class="btn small ${showAnswersList ? 'primary' : 'ghost'}" id="btnAnswers">${showAnswersList ? '🏆 Voltar ao pódio' : '📋 Mostrar respostas corretas'}</button>` : ''}
-    <label class="switch" title="Mostrar quantos escolheram cada opção"><input type="checkbox" id="setPoll" ${pollOn() ? 'checked' : ''}> Sondagem</label>
+    ${isExamMode() ? '' : `<label class="switch" title="Mostrar quantos escolheram cada opção"><input type="checkbox" id="setPoll" ${pollOn() ? 'checked' : ''}> Sondagem</label>`}
     ${pollOn() ? `<label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>` : ''}
     ${S.settings.noRanking || hiddenReveal() ? '' : `<label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>`}
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
-    ${ph !== 'end' ? `<button class="btn small danger" id="btnEnd">Terminar</button>` : ''}
+    ${ph !== 'end' && ph !== 'exam' ? `<button class="btn small danger" id="btnEnd">Terminar</button>` : ''}
     ${ph === 'end' ? `<button class="btn primary" id="btnGrid">📊 Ver grelha de resultados</button><button class="btn small ghost" id="btnClose">Fechar sessão</button>` : `<button class="btn primary ${allIn ? 'pulse' : ''}" id="btnNext">${label}</button>`}
   </div>`;
 }
 
 function bindGame() {
   const on = (id, fn) => { const e = $('#' + id); if (e) e.onclick = fn; };
-  on('btnNext', next);
+  on('btnNext', () => { if (S.phase === 'exam' && !confirm('Terminar agora? As respostas dadas até aqui ficam entregues.')) return; next(); });
+  on('btnExtend', () => socket.emit('host:extend', 1));
   on('btnEnd', () => confirm('Terminar o quiz agora? As perguntas que faltam ficam como "não feitas".') && socket.emit('host:end'));
   on('btnClose', () => confirm('Fechar a sessão? (os resultados ficam guardados em Resultados)') && socket.emit('host:close'));
   on('btnGrid', () => { showTab('results'); openResult(S.id); });
@@ -489,7 +544,7 @@ function bindGame() {
   on('btnAnswers', () => { showAnswersList = !showAnswersList; if (showAnswersList) Sound.play('revealCorrect'); renderGame(true); });
   const ss = $('#setSee'); if (ss) ss.onchange = e => { seeAnswers = e.target.checked; try { localStorage.setItem('aq_see_answers', seeAnswers ? '1' : '0'); } catch {} renderGame(true); };
   const sw = $('#setWho'); if (sw) sw.onchange = e => socket.emit('host:settings', { showWho: e.target.checked });
-  $('#setPoll').onchange = e => socket.emit('host:settings', { showPoll: e.target.checked });
+  const sp = $('#setPoll'); if (sp) sp.onchange = e => socket.emit('host:settings', { showPoll: e.target.checked });
   const sr = $('#setRank'); if (sr) sr.onchange = e => socket.emit('host:settings', { rankEach: e.target.checked });
   on('btnPause', () => socket.emit('host:settings', { paused: !S.settings.paused }));
   const sel = $('#urlSel');
@@ -516,6 +571,11 @@ function runRing() {
 
 // atualizações sem redesenhar tudo (ex.: alguém respondeu / entrou)
 function updateLive() {
+  if (S.phase === 'exam') {
+    const g = $('#examGrid'); if (g) g.innerHTML = examGridHtml();
+    const st = $('#examStats'); if (st) st.innerHTML = examStatsHtml();
+    runExamClock(); // o formador pode ter acrescentado tempo
+  }
   if (S.phase === 'lobby') {
     const on = new Set(S.players.filter(p => p.connected).map(p => p.studentId));
     $('#joinCount') && ($('#joinCount').textContent = on.size);
@@ -607,6 +667,11 @@ function renderSetup(el) {
           <label class="mode"><input type="radio" name="sMode" value="manual" checked><span><b>🎮 Manual</b><small>Tu abres cada pergunta e decides quando fechar. Depois mostras a sondagem, a resposta correta e o ranking ao teu ritmo.</small></span></label>
           <label class="mode"><input type="radio" name="sMode" value="timed"><span><b>⏱ Por tempo</b><small>Cada pergunta tem tempo limite. Quando chega a 0 (ou todos respondem) deixa de aceitar respostas e passa sozinha para a sondagem. Depois avanças tu para a resposta correta.</small></span></label>
           <label class="mode"><input type="radio" name="sMode" value="auto"><span><b>🤖 Totalmente automático</b><small>Tudo por tempo: respostas, sondagem, resposta correta, ranking e passagem para a pergunta seguinte, até ao pódio final. Só carregas em "Começar". Podes pausar ou avançar quando quiseres.</small></span></label>
+          <label class="mode"><input type="radio" name="sMode" value="exam"><span><b>⏳ Tempo total (cada um ao seu ritmo)</b><small>Cada formando recebe todas as perguntas no telemóvel e responde ao seu ritmo: pode andar para a frente e para trás e mudar respostas até entregar. Quando o tempo total acaba, tudo é entregue automaticamente.</small></span></label>
+        </div>
+        <div class="times" id="examRow" hidden>
+          <label>⏳ Tempo total para responder a todas as perguntas <span class="num-in"><input type="number" id="tTotal" min="1" max="300" value="10"> min</span></label>
+          <small class="muted">Sem sondagem, resposta correta nem ranking entre perguntas; cada resposta certa vale 1000 pontos (sem pontos por rapidez).</small>
         </div>
         <div class="times" id="timeRow" hidden>
           <label>⏱ Tempo para responder
@@ -649,7 +714,12 @@ function renderSetup(el) {
   $('#sCourse').onchange = fillQuiz; fillQuiz();
   const syncSetup = () => {
     const m = $('[name=sMode]:checked').value;
-    $('#timeRow').hidden = m === 'manual'; $('#autoRow').hidden = m !== 'auto';
+    $('#timeRow').hidden = m === 'manual' || m === 'exam'; $('#autoRow').hidden = m !== 'auto'; $('#examRow').hidden = m !== 'exam';
+    // ao seu ritmo não há passos por pergunta
+    const ex = m === 'exam';
+    ['#sRevEach', '#sPoll', '#sSpeed'].forEach(id => { $(id).disabled = ex; if (ex) $(id).checked = false; });
+    if (!ex && $('#sRevEach').dataset.wasEx) { $('#sRevEach').checked = $('#sPoll').checked = $('#sSpeed').checked = true; }
+    $('#sRevEach').dataset.wasEx = ex ? '1' : '';
     const rv = $('#sRevEach').checked ? 'each' : 'hidden', eachOpt = $('#sRanking option[value=each]');
     eachOpt.disabled = rv !== 'each';
     if (rv !== 'each' && $('#sRanking').value === 'each') $('#sRanking').value = 'end';
@@ -665,7 +735,7 @@ function renderSetup(el) {
     Sound.init();
     socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sRevEach').checked ? 'each' : ($('#sRevEnd').checked ? 'end' : 'never'), revealEnd: $('#sRevEnd').checked,
       rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
-      autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked } });
+      autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, examMinutes: +$('#tTotal').value, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked } });
   };
 }
 

@@ -91,6 +91,7 @@ function persistSession() {
     roster: session.roster,
     players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, joinedAt: p.joinedAt })),
     code: session.code,
+    submitted: session.submitted || null,
     answers: session.answers,
     asked: session.asked,
   };
@@ -113,8 +114,13 @@ function hostView() {
   const ans = q ? answersFor(session.qIndex) : {};
   const counts = q ? q.options.map((_, i) => Object.values(ans).filter(a => a.option === i).length) : [];
   const whoByOption = q ? q.options.map((_, i) => Object.entries(ans).filter(([, a]) => a.option === i).map(([sid]) => sid)) : [];
+  const examProgress = isExam() ? Object.fromEntries(Object.values(session.players).map(p => [p.studentId, {
+    answered: session.questions.filter((_, i) => (session.answers[i] || {})[p.studentId]).length,
+    submitted: !!(session.submitted || {})[p.studentId],
+  }])) : null;
   return {
     session: {
+      examProgress,
       id: session.id, code: session.code, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase, qIndex: session.qIndex,
       total: session.questions.length, settings: session.settings,
       question: q, remainingMs: session.deadline ? Math.max(0, session.deadline - Date.now()) : 0,
@@ -158,6 +164,14 @@ function playerView(p) {
     },
     answered: !!mine, myOption: mine ? mine.option : null,
   };
+  if (session.phase === 'exam') {
+    v.exam = {
+      questions: session.questions.map(qq => ({ text: qq.text, options: qq.options, image: qq.image || null })),
+      mine: Object.fromEntries(session.questions.map((_, i) => [i, ((session.answers[i] || {})[p.studentId] || {}).option]).filter(([, o]) => o != null)),
+      remainingMs: Math.max(0, session.deadline - Date.now()),
+      submitted: !!(session.submitted || {})[p.studentId],
+    };
+  }
   if (q && ['ready', 'question', 'closed', 'reveal', 'leaderboard'].includes(session.phase)) {
     v.question = { text: q.text, options: q.options, time: q.time, image: q.image || null };
     v.remainingMs = session.deadline ? Math.max(0, session.deadline - Date.now()) : 0;
@@ -276,9 +290,31 @@ function closeQuestion() {
 function setPhase(ph) { session.phase = ph; persistSession(); scheduleAuto(); broadcast(); }
 
 // Fluxo de cada pergunta: prepara-te → pergunta → sondagem → resposta correta → (ranking) → próxima
+// Modo "tempo total": todas as perguntas ao mesmo tempo, cada formando ao seu ritmo, até acabar o tempo
+const isExam = () => session && session.settings.mode === 'exam';
+function startExam() {
+  session.phase = 'exam';
+  session.examStart = Date.now();
+  session.deadline = Date.now() + session.settings.examMinutes * 60000;
+  session.asked = session.questions.map((_, i) => i);
+  session.questions.forEach((_, i) => answersFor(i));
+  session.submitted = {};
+  clearTimeout(timer); timer = setTimeout(endExam, session.deadline - Date.now() + 300);
+  persistSession(); broadcast();
+}
+function endExam() {
+  if (!session || session.phase !== 'exam') return;
+  clearTimeout(timer); timer = null;
+  session.deadline = null; session.endedAt = Date.now(); session.phase = 'end';
+  persistSession(); broadcast();
+}
+function examRecompute(p) { p.score = session.questions.reduce((t, _, i) => t + (((session.answers[i] || {})[p.studentId] || {}).points || 0), 0); }
+
 function advance() {
   if (!session) return;
   const ph = session.phase;
+  if (ph === 'lobby' && isExam()) return startExam();
+  if (ph === 'exam') return endExam();
   if (ph === 'lobby') return startQuestion(0);
   if (ph === 'ready') return openQuestion();
   if (ph === 'question') return closeQuestion();
@@ -569,16 +605,23 @@ io.on('connection', socket => {
       if (settings && settings.shuffle) qs.sort(() => Math.random() - 0.5);
       // tempo igual para todas as perguntas (opcional, escolhido ao abrir a sala)
       settings = settings || {};
-      if (!['manual', 'timed', 'auto'].includes(settings.mode)) settings.mode = 'manual';
+      if (!['manual', 'timed', 'auto', 'exam'].includes(settings.mode)) settings.mode = 'manual';
       const sec = (v, d) => Math.max(2, Math.min(120, parseInt(v, 10) || d));
       const at = settings.autoTimes || {};
       settings.autoTimes = { poll: sec(at.poll, 5), reveal: sec(at.reveal, 6), board: sec(at.board, 8) };
       settings.paused = false;
+      if (!['manual', 'timed', 'auto', 'exam'].includes(settings.mode)) settings.mode = 'manual';
+      if (settings.mode === 'exam') {
+        // ao seu ritmo: sem passos por pergunta (resposta correta, sondagem, ranking) nem pontos por rapidez
+        settings.examMinutes = Math.max(1, Math.min(300, parseInt(settings.examMinutes, 10) || 10));
+        settings.revealMode = 'never'; settings.rankEach = false; settings.showPoll = false; settings.speedPoints = false;
+      }
       if (settings.noRanking) { settings.rankEach = false; settings.finalPodium = false; }
       if (!['each', 'end', 'never'].includes(settings.revealMode)) settings.revealMode = 'each';
       // duas opções independentes: depois de cada pergunta / todas no fim
       settings.revealEnd = settings.revealEnd === true || settings.revealMode === 'end';
       if (settings.revealMode !== 'each') settings.revealMode = settings.revealEnd ? 'end' : 'never';
+      if (settings.mode === 'exam') settings.revealMode = settings.revealEnd ? 'end' : 'never';
       settings.showPoll = settings.showPoll !== false;
       if (settings.revealMode !== 'each') settings.rankEach = false;
       const fixed = parseInt(settings && settings.fixedTime, 10);
@@ -613,6 +656,13 @@ io.on('connection', socket => {
     }));
 
     socket.on('host:next', guard(advance));
+    socket.on('host:extend', guard(min => {
+      if (!session || session.phase !== 'exam') return;
+      const add = Math.max(1, Math.min(30, parseInt(min, 10) || 1)) * 60000;
+      session.deadline += add; session.settings.examMinutes += add / 60000;
+      clearTimeout(timer); timer = setTimeout(endExam, session.deadline - Date.now() + 300);
+      persistSession(); broadcast();
+    }));
     socket.on('host:goto', guard(i => { if (session && session.questions[i]) startQuestion(i); }));
     socket.on('host:end', guard(() => {
       if (!session) return;
@@ -742,6 +792,29 @@ io.on('connection', socket => {
     persistSession();
     cb({ ok: true });
     socket.emit('roster', rosterForPlayers(socket));
+    broadcast();
+  });
+
+  socket.on('player:examAnswer', (data, cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    if (!session || !me || me.socketId !== socket.id || session.players[me.studentId] !== me) return cb({ error: 'Não identificado' });
+    if (session.phase !== 'exam' || Date.now() > session.deadline) return cb({ error: 'O tempo terminou.' });
+    if ((session.submitted || {})[me.studentId]) return cb({ error: 'Já entregaste.' });
+    const i = parseInt(data && data.q, 10), option = parseInt(data && data.option, 10), qq = session.questions[i];
+    if (!qq || !(option >= 0 && option < qq.options.length)) return cb({ error: 'Pedido inválido.' });
+    const correct = qq.correct.includes(option);
+    answersFor(i)[me.studentId] = { option, timeMs: Date.now() - session.examStart, correct, points: correct ? 1000 : 0, at: Date.now() };
+    examRecompute(me);
+    persistSession(); cb({ ok: true }); broadcast();
+  });
+  socket.on('player:submit', (cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    if (!session || !me || me.socketId !== socket.id || session.phase !== 'exam') return cb({ error: 'Pedido inválido.' });
+    (session.submitted ||= {})[me.studentId] = Date.now();
+    persistSession(); cb({ ok: true });
+    // todos os formandos ligados entregaram: termina
+    const on = Object.values(session.players).filter(p => p.socketId);
+    if (on.length && on.every(p => session.submitted[p.studentId])) return endExam();
     broadcast();
   });
 

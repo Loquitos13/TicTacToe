@@ -34,6 +34,19 @@
   .rv-item { background: #fff; color: var(--ink); border-radius: 14px; padding: 12px 14px; border-left: 6px solid #bbb; }
   .rv-item.ok { border-left-color: var(--ok); } .rv-item.bad { border-left-color: var(--bad); }
   .rv-q { font-weight: 600; } .rv-a { color: #166534; font-weight: 600; margin-top: 4px; } .rv-m { color: var(--muted); font-size: .92em; margin-top: 2px; }
+  .ex-top { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 8px; font-weight: 600; }
+  .ex-clock { font-size: 1.5em; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ex-clock.hurry { color: #ffd93d; animation: pulse 1s infinite; }
+  .ex-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; justify-content: center; }
+  .ex-chip { width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,.18); color: #fff; font-weight: 700; }
+  .ex-chip.ans { background: #22c55e; } .ex-chip.cur { outline: 3px solid #ffd93d; }
+  .ex-answers { flex: none; margin-top: 12px; }
+  .ex-answers .ans { min-height: 90px; }
+  .ans.sel { outline: 5px solid #fff; transform: scale(1.02); }
+  .ans.unsel { opacity: .55; }
+  .ex-nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; }
+  .ex-nav .btn { flex: 1; }
+  .ex-submit-link { margin-top: 10px; align-self: center; font-size: .9em; }
   .list-names { display: flex; flex-direction: column; gap: 10px; width: 100%; }
   .name-btn { width: 100%; font-size: 1.1em; }
   .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
@@ -197,6 +210,8 @@ function renderGameInner() {
   const pk = ph + s.qIndex;
   const changed = pk !== prevPhase; prevPhase = pk;
   if (ph === 'lobby' && needPhotoStep()) return renderPhotoStep();
+  if (ph === 'exam') { stopCamera(); return renderExam(); }
+  clearInterval(exClock);
   if (ph !== 'lobby') stopCamera();
   if (ph === 'lobby') {
     return set('lobby' + state.me.studentId + (state.me.photo || ''), header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1><p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
@@ -405,6 +420,72 @@ function renderPhotoStep() {
       };
     });
   }
+}
+
+// ---------- Modo tempo total: todas as perguntas, ao seu ritmo ----------
+let exIdx = 0, exConfirm = false, exClock = null, exWarned = false;
+function exClockStart() {
+  clearInterval(exClock);
+  const end = performance.now() + state.exam.remainingMs;
+  const f = () => {
+    const el = $('#exClock'); if (!el) return;
+    const r = Math.max(0, end - performance.now()), m = Math.floor(r / 60000), sec = Math.floor(r / 1000) % 60;
+    el.textContent = `⏳ ${m}:${String(sec).padStart(2, '0')}`;
+    el.classList.toggle('hurry', r < 60000);
+    if (r < 60000 && r > 0 && !exWarned) { exWarned = true; toast('Falta menos de 1 minuto! ⏰', 3500); Sound.play('tock'); navigator.vibrate && navigator.vibrate(200); }
+  };
+  f(); exClock = setInterval(f, 250);
+}
+function renderExam() {
+  const ex = state.exam, n = ex.questions.length, done = Object.keys(ex.mine).length;
+  const top = `<div class="ex-top"><span id="exClock" class="ex-clock">⏳</span><span>${done}/${n} respondidas</span></div>`;
+  if (ex.submitted) {
+    set('ex-sent', header() + top + `<div class="middle"><div class="big-emoji pop-in">📨</div><h1>Entregue!</h1>
+      <p>Respondeste a ${done} de ${n} perguntas.<br>Aguarda que o tempo acabe ou que o formador termine<span class="dots"></span></p></div>`);
+    return exClockStart();
+  }
+  if (exConfirm) {
+    const missing = ex.questions.map((_, i) => i).filter(i => ex.mine[i] == null);
+    set('ex-confirm' + done, header() + top + `<div class="middle"><div class="big-emoji">📨</div><h1 style="font-size:1.5em">Entregar as respostas?</h1>
+      <p>Respondeste a <b>${done} de ${n}</b> perguntas.${missing.length ? '<br>Ainda não respondeste a:' : ''}</p>
+      ${missing.length ? `<div class="ex-chips">${missing.map(i => `<button class="ex-chip" data-go="${i}">${i + 1}</button>`).join('')}</div>` : ''}
+      <p style="opacity:.85">Depois de entregar já não podes mudar as respostas.</p>
+      <button class="btn primary" id="exSubmit" style="width:100%">✅ Entregar</button>
+      <button class="btn ghost" id="exBack">← Voltar às perguntas</button></div>`, () => {
+      $$('[data-go]').forEach(b => b.onclick = () => { exIdx = +b.dataset.go; exConfirm = false; render(); });
+      $('#exBack').onclick = () => { exConfirm = false; render(); };
+      $('#exSubmit').onclick = () => socket.emit('player:submit', res => { if (res && res.error) return toast(res.error); Sound.play('fanfare'); });
+    });
+    return exClockStart();
+  }
+  exIdx = Math.max(0, Math.min(n - 1, exIdx));
+  const q = ex.questions[exIdx], mine = ex.mine[exIdx];
+  set('ex' + exIdx + JSON.stringify(ex.mine), header() + top + `
+    <div class="ex-chips">${ex.questions.map((_, i) => `<button class="ex-chip ${ex.mine[i] != null ? 'ans' : ''} ${i === exIdx ? 'cur' : ''}" data-go="${i}">${i + 1}</button>`).join('')}</div>
+    <div class="qmeta"><span>Pergunta ${exIdx + 1} de ${n}</span><span>${mine != null ? '✅ respondida' : ''}</span></div>
+    <div class="qtext">${esc(q.text)}</div>${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
+    <div class="answers ex-answers ${q.options.length === 2 ? 'n2' : ''}">${q.options.map((o, i) => `<button class="ans opt-${i} ${mine === i ? 'sel' : mine != null ? 'unsel' : ''}" data-i="${i}"><span class="letter">${LETTERS[i]}</span>${esc(o)}</button>`).join('')}</div>
+    <div class="ex-nav"><button class="btn ghost" id="exPrev" ${exIdx === 0 ? 'disabled' : ''}>← Anterior</button>
+      ${exIdx < n - 1 ? `<button class="btn ghost" id="exNext">Seguinte →</button>` : `<button class="btn primary" id="exEnd">Rever e entregar ✅</button>`}</div>
+    ${exIdx < n - 1 ? `<button class="btn ghost ex-submit-link" id="exEnd">Entregar</button>` : ''}`, () => {
+    $$('[data-go]').forEach(b => b.onclick = () => { exIdx = +b.dataset.go; render(); });
+    $('#exPrev').onclick = () => { exIdx--; render(); };
+    const nx = $('#exNext'); if (nx) nx.onclick = () => { exIdx++; render(); };
+    $$('#exEnd').forEach(b => b.onclick = () => { exConfirm = true; render(); });
+    $$('.ex-answers .ans').forEach(b => b.onclick = () => {
+      const opt = +b.dataset.i, at = exIdx;
+      socket.emit('player:examAnswer', { q: at, option: opt }, res => {
+        if (res && res.error) return toast(res.error, 3500);
+        Sound.play('sent'); navigator.vibrate && navigator.vibrate(30);
+        state.exam.mine[at] = opt;
+        // passa sozinho para a próxima pergunta ainda sem resposta
+        const nextFree = state.exam.questions.findIndex((_, i) => i > at && state.exam.mine[i] == null);
+        if (nextFree >= 0) setTimeout(() => { if (exIdx === at) { exIdx = nextFree; render(); } }, 350);
+        render();
+      });
+    });
+  });
+  exClockStart();
 }
 
 function qmeta() { const s = state.session; return `<div class="qmeta"><span>Pergunta ${s.qIndex + 1} de ${s.total}</span><span>${esc(s.quizTitle)}</span></div>`; }
