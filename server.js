@@ -9,7 +9,7 @@ const os = require('os');
 const QRCode = require('qrcode');
 const { Server } = require('socket.io');
 const Q = require('./questions'); // tipos de pergunta
-const { buildDocx } = require('./fichas-docx'); // fichas de respostas em Word
+const { buildDocx, buildKeyDocx } = require('./fichas-docx'); // fichas de respostas e lista de soluções em Word
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = path.join(__dirname, 'data');
@@ -506,6 +506,17 @@ app.post('/api/quizzes', auth, (req, res) => {
   const i = db.quizzes.findIndex(x => x.id === q.id);
   if (i >= 0) db.quizzes[i] = q; else db.quizzes.push(q);
   saveDb(); res.json(q);
+});
+// Lista de soluções em Word (todas as perguntas com a resposta correta destacada)
+app.get('/api/quizzes/:id/docx', auth, async (req, res) => {
+  const quiz = db.quizzes.find(q => q.id === req.params.id);
+  if (!quiz) return res.status(404).end();
+  const course = (db.courses.find(c => c.id === quiz.courseId) || {}).name || '';
+  const buf = await buildKeyDocx(quiz, course);
+  const clean = t => String(t).normalize('NFD').replace(/\p{M}/gu, '').replace(/[^\w\-]+/g, '_').slice(0, 60);
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename="Solucoes_${clean(quiz.title)}.docx"`);
+  res.send(buf);
 });
 app.delete('/api/quizzes/:id', auth, (req, res) => {
   db.quizzes = db.quizzes.filter(q => q.id !== req.params.id);

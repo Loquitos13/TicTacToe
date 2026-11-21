@@ -83,3 +83,50 @@ async function buildDocx(r, studentId) {
 }
 
 module.exports = { buildDocx };
+
+// ---------- Lista de soluções de um questionário (todas as perguntas com a resposta correta destacada) ----------
+const GREEN = '166534', GREEN_BG = 'DCFCE7';
+function run(text, o = {}) { return new TextRun({ text: String(text ?? ''), font: FONT, size: o.size || 21, bold: o.bold, color: o.color, italics: o.italics, shading: o.bg ? { type: ShadingType.CLEAR, color: 'auto', fill: o.bg } : undefined, break: o.break }); }
+function para(runs, o = {}) { return new Paragraph({ children: runs, spacing: { after: o.after ?? 60, before: o.before }, indent: o.indent ? { left: o.indent } : undefined, keepNext: o.keepNext }); }
+
+function keyBlock(q, i) {
+  const t = Q.typeOf(q), out = [];
+  const label = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5' }[t];
+  out.push(para([run(`${i + 1}. `, { bold: true, size: 23 }), run(Q.displayText(q), { bold: true, size: 23 })], { before: 200, after: 40, keepNext: true }));
+  out.push(para([run(`${label} · ${q.time} s`, { size: 17, color: '777777' })], { after: 80, keepNext: true }));
+  if (t === 'mc' || t === 'tf') {
+    q.options.forEach((o, k) => {
+      const ok = q.correct.includes(k);
+      out.push(para([run(`${LETTERS[k]})  `, { bold: true, color: ok ? GREEN : '444444' }), run(o, { bold: ok, color: ok ? GREEN : '222222', bg: ok ? GREEN_BG : undefined }), ...(ok ? [run('   ✓ correta', { bold: true, color: GREEN, size: 18 })] : [])], { indent: 360, after: 30 }));
+    });
+  } else if (t === 'fill') {
+    const parts = String(q.text).split(/\[\[([^\]]+?)\]\]/g);
+    out.push(para(parts.map((p, k) => k % 2 ? run(p.trim(), { bold: true, color: GREEN, bg: GREEN_BG }) : run(p)), { indent: 360 }));
+    out.push(para([run('Palavras disponíveis: ', { size: 18, color: '777777' }), run(Q.wordBank(q).join(' · '), { size: 18, color: '555555' })], { indent: 360 }));
+  } else if (t === 'open') {
+    if ((q.accepted || []).length) out.push(para([run('Resposta de referência: ', { bold: true, color: GREEN }), run(q.accepted.join(' / '), { bold: true, color: GREEN, bg: GREEN_BG })], { indent: 360 }));
+    else out.push(para([run('⚠ Sem resposta de referência — edita a pergunta para a acrescentar.', { bold: true, color: '991B1B' })], { indent: 360 }));
+    out.push(para([run('Validada pelo formador, resposta a resposta.', { size: 17, color: '777777', italics: true })], { indent: 360 }));
+  } else {
+    out.push(para([1, 2, 3, 4, 5].map(n => run(`  ${n}  `, { bold: true, bg: 'EDE9FE' })).flatMap((r, k) => k ? [run('  '), r] : [r]), { indent: 360 }));
+    if (q.scaleMin || q.scaleMax) out.push(para([run(`1 = ${q.scaleMin || '—'}     ·     5 = ${q.scaleMax || '—'}`, { size: 18, color: '555555' })], { indent: 360 }));
+    out.push(para([run('Escala de opinião: não tem resposta certa.', { size: 17, color: '777777', italics: true })], { indent: 360 }));
+  }
+  return out;
+}
+async function buildKeyDocx(quiz, courseName) {
+  const doc = new Document({
+    creator: 'Quiz', title: `Soluções — ${quiz.title}`, styles: { default: { document: { run: { font: FONT } } } },
+    sections: [{
+      properties: { page: { size: { orientation: PageOrientation.PORTRAIT, width: PAGE_W, height: 16838 }, margin: { top: 1134, bottom: 1134, left: MARGIN, right: MARGIN } } },
+      children: [
+        para([run('Lista de soluções', { bold: true, size: 32, color: '4C1D95' })], { after: 60 }),
+        para([run([courseName ? `Curso: ${courseName}` : null, `Questionário: ${quiz.title}`, `${quiz.questions.length} perguntas`].filter(Boolean).join('   ·   '), { size: 18, color: '555555' })], { after: 120 }),
+        para([run('A resposta correta está destacada a verde.', { size: 18, italics: true, color: '555555' })], { after: 120 }),
+        ...quiz.questions.flatMap(keyBlock),
+      ],
+    }],
+  });
+  return Packer.toBuffer(doc);
+}
+module.exports.buildKeyDocx = buildKeyDocx;

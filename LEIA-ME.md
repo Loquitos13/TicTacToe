@@ -38,7 +38,7 @@ Segurança:
    | **Escolha múltipla** | 2 a 6 opções (A–F) | uma ou mais corretas |
    | **Verdadeiro / Falso** | dois botões | marcas qual é a certa |
    | **Completar espaços** | a frase tem espaços; o formando toca nas palavras para os preencher | cada palavra certa entre `[[ ]]`, ex.: `A capital é [[Lisboa]].` + palavras extra para baralhar. Pontos proporcionais às palavras certas |
-   | **Resposta livre** | escreve o texto | **validada sempre por ti, uma a uma**, nos resultados; as "respostas modelo" (opcionais) só servem de referência e indicam quando a resposta coincide com o modelo |
+   | **Resposta livre** | escreve o texto | **validada sempre por ti, uma a uma**, nos resultados; tem de ter uma **resposta de referência** (obrigatória), que aparece na lista de soluções e quando validas |
    | **Escala 1–5** | botões 1 a 5 (com legenda opcional) | opinião: sem resposta certa nem pontos; mostra a média |
 
    Podes colar várias perguntas de uma vez em texto (uma por bloco, separadas por linha em branco):
@@ -56,15 +56,17 @@ Segurança:
    Porto, Douro, Mondego
 
    Dá um exemplo de escuta ativa. [livre]
+   *Ouvir com atenção e mostrar que se percebeu
 
    Diz uma cor da bandeira. [livre]
-   *verde
-   *vermelho          (respostas modelo, só de referência)
+   *verde ou vermelho      (resposta de referência, obrigatória)
 
    Gostaste da formação? [escala]
    1=Nada
    5=Muito
    ```
+
+**📋 Lista de soluções:** em Questionários, o botão **📋 Soluções** de cada questionário mostra todas as perguntas com a resposta correta **destacada a verde**: todas as opções (a correta marcada), a frase completa nos espaços, a resposta de referência das respostas livres e a escala 1–5 com as legendas. Podes **imprimir / guardar PDF** ou descarregar em **Word** (A4 vertical).
 
 ## 4. Durante a sessão
 **🎮 Jogo**: escolhe o curso, o questionário e os alunos e clica em **Abrir sala**. Aparece o QR code.

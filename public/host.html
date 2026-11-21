@@ -161,6 +161,13 @@
   .qedit .opt-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
   .qedit .opt-row input[type=text] { flex: 1; }
   .qedit .opt-row .letter { color: #fff; }
+  .key-item { border-bottom: 1px solid #eee; padding: 12px 0; break-inside: avoid; }
+  .key-q { font-size: 1.08em; margin-bottom: 6px; }
+  .key-opts { margin: 4px 0 0; padding-left: 28px; } .key-opts li { margin: 3px 0; }
+  .key-ok { background: #dcfce7; color: #166534; font-weight: 700; border-radius: 6px; padding: 1px 6px; }
+  .key-fill { font-size: 1.05em; line-height: 1.9; margin: 4px 0; }
+  .key-warn { color: #991b1b; font-weight: 700; }
+  .key-scale { display: flex; gap: 6px; } .key-scale span { background: #ede9fe; border-radius: 8px; padding: 4px 12px; font-weight: 700; }
   .sheet-link { color: inherit; text-decoration: none; } .sheet-link:hover { text-decoration: underline; }
   .sheet { padding: 6px 0 20px; }
   .sheet-head { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
@@ -914,7 +921,7 @@ function renderQuizzes() {
         <button class="btn small" data-ren="${c.id}">✏️ Renomear</button><button class="btn small danger" data-cdel="${c.id}" title="Apagar curso">✕</button></div>
       <div class="list" style="margin-top:12px">${qs.map(q => `<div class="item"><div class="grow"><b>${esc(q.title)}</b><br><small class="muted">${q.questions.length} perguntas</small></div>
         <button class="btn small" data-edit="${q.id}">Editar</button><button class="btn small" data-dup="${q.id}">Duplicar</button>
-        <button class="btn small" data-exp="${q.id}">Exportar</button><button class="btn small danger" data-del="${q.id}">✕</button></div>`).join('') || '<p class="muted" style="margin:0">Ainda sem questionários neste curso.</p>'}</div></div>`; }).join('')}`;
+        <button class="btn small" data-key="${q.id}">📋 Soluções</button><button class="btn small" data-exp="${q.id}">Exportar</button><button class="btn small danger" data-del="${q.id}">✕</button></div>`).join('') || '<p class="muted" style="margin:0">Ainda sem questionários neste curso.</p>'}</div></div>`; }).join('')}`;
   const after = async () => { await reloadCQ(); renderQuizzes(); };
   $('#newCourse').onsubmit = async e => { e.preventDefault(); await api('POST', '/api/courses', { name: $('#courseName').value }); toast('Curso criado'); after(); };
   $$('[data-ren]').forEach(b => b.onclick = async () => { const n = prompt('Novo nome do curso:', courseName(b.dataset.ren)); if (n && n.trim()) { await api('PUT', '/api/courses/' + b.dataset.ren, { name: n }); after(); } });
@@ -923,8 +930,33 @@ function renderQuizzes() {
   $$('[data-edit]').forEach(b => b.onclick = () => { editing = JSON.parse(JSON.stringify(quizzes.find(q => q.id === b.dataset.edit))); renderQuizzes(); });
   $$('[data-dup]').forEach(b => b.onclick = async () => { const q = JSON.parse(JSON.stringify(quizzes.find(q => q.id === b.dataset.dup))); delete q.id; q.title += ' (cópia)'; q.questions.forEach(x => delete x.id); await api('POST', '/api/quizzes', q); after(); });
   $$('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('Apagar este questionário?')) return; await api('DELETE', '/api/quizzes/' + b.dataset.del); after(); });
+  $$('[data-key]').forEach(b => b.onclick = () => showAnswerKey(quizzes.find(q => q.id === b.dataset.key)));
   $$('[data-exp]').forEach(b => b.onclick = () => { const q = quizzes.find(q => q.id === b.dataset.exp); download(q.title + '.json', JSON.stringify(q, null, 2), 'application/json'); });
   $$('[data-imp]').forEach(inp => inp.onchange = async e => { try { const q = JSON.parse(await e.target.files[0].text()); delete q.id; q.courseId = inp.dataset.imp; await api('POST', '/api/quizzes', q); toast('Importado'); after(); } catch (err) { toast('Ficheiro inválido'); } });
+}
+// Lista de soluções: todas as perguntas com a resposta correta destacada (imprimir / PDF / Word)
+function answerKeyItemHtml(q, i) {
+  const t = qType(q);
+  let body = '';
+  if (t === 'mc' || t === 'tf') body = `<ol class="key-opts" type="A">${q.options.map((o, k) => `<li class="${q.correct.includes(k) ? 'key-ok' : ''}">${esc(o)}${q.correct.includes(k) ? ' <b>✓ correta</b>' : ''}</li>`).join('')}</ol>`;
+  if (t === 'fill') body = `<p class="key-fill">${String(q.text).split(BLANK_RX).map((p, k) => k % 2 ? `<span class="key-ok">${esc(p.trim())}</span>` : esc(p)).join('')}</p>
+    <p class="muted">Palavras disponíveis: ${bankOf(q).map(esc).join(' · ')}</p>`;
+  if (t === 'open') body = (q.accepted || []).length ? `<p>Resposta de referência: <span class="key-ok">${q.accepted.map(esc).join(' / ')}</span></p><p class="muted">Validada pelo formador, resposta a resposta.</p>`
+    : `<p class="key-warn">⚠ Sem resposta de referência — edita a pergunta para a acrescentar.</p>`;
+  if (t === 'scale') body = `<div class="key-scale">${[1, 2, 3, 4, 5].map(n => `<span>${n}</span>`).join('')}</div>
+    ${q.scaleMin || q.scaleMax ? `<p class="muted">1 = ${esc(q.scaleMin || '—')} · 5 = ${esc(q.scaleMax || '—')}</p>` : ''}<p class="muted">Escala de opinião: não tem resposta certa.</p>`;
+  return `<div class="key-item"><div class="key-q"><b>${i + 1}.</b> ${esc(qTitle(q))} <span class="tag none">${QTYPE_LABEL[t]} · ${q.time} s</span></div>${body}</div>`;
+}
+function showAnswerKey(quiz) {
+  const el = $('#tab-quizzes');
+  el.innerHTML = `<div class="card"><div class="row noprint"><button class="btn small" id="keyBack">← Questionários</button><span class="grow"></span>
+      <button class="btn small" id="keyDocx">⬇ Word</button><button class="btn small primary" onclick="print()">🖨 Imprimir / guardar PDF</button></div>
+    <h2 style="margin:14px 0 2px">📋 Lista de soluções</h2>
+    <p class="muted" style="margin-top:0">🎓 ${esc(courseName(quiz.courseId))} · 📝 ${esc(quiz.title)} · ${quiz.questions.length} perguntas · a resposta correta está destacada a verde</p>
+    ${quiz.questions.map(answerKeyItemHtml).join('')}</div>`;
+  $('#keyBack').onclick = renderQuizzes;
+  $('#keyDocx').onclick = () => downloadFile(`/api/quizzes/${encodeURIComponent(quiz.id)}/docx`, 'solucoes.docx');
+  window.scrollTo(0, 0);
 }
 const blankQ = () => ({ type: 'mc', text: '', options: ['', '', '', ''], correct: [0], time: 20 });
 
@@ -940,10 +972,10 @@ function renderEditor(el) {
         <li><b>Escolha múltipla:</b> linhas seguintes = opções; marca a(s) correta(s) com <b>*</b>.</li>
         <li><b>Verdadeiro/Falso:</b> opções <code>*Verdadeiro</code> e <code>Falso</code> (ou o contrário).</li>
         <li><b>Completar espaços:</b> põe cada palavra certa entre <code>[[ ]]</code> na frase; na linha seguinte, palavras extra separadas por vírgulas (opcional).</li>
-        <li><b>Resposta livre:</b> acaba a pergunta com <code>[livre]</code>; linhas com <b>*</b> = respostas aceites (opcional).</li>
+        <li><b>Resposta livre:</b> acaba a pergunta com <code>[livre]</code>; na linha seguinte, com <b>*</b>, a resposta de referência (obrigatória).</li>
         <li><b>Escala 1–5:</b> acaba a pergunta com <code>[escala]</code>; opcional <code>1=Nada</code> e <code>5=Muito</code> nas linhas seguintes.</li>
       </ul>
-      <textarea id="bulkQ" rows="10" style="width:100%" placeholder="Qual é a capital de Portugal? [20s]&#10;Porto&#10;*Lisboa&#10;Coimbra&#10;&#10;O sol é uma estrela.&#10;*Verdadeiro&#10;Falso&#10;&#10;A capital de Portugal é [[Lisboa]] e fica junto ao rio [[Tejo]].&#10;Porto, Douro, Mondego&#10;&#10;Dá um exemplo de escuta ativa. [livre]&#10;&#10;Gostaste da formação? [escala]&#10;1=Nada&#10;5=Muito"></textarea>
+      <textarea id="bulkQ" rows="10" style="width:100%" placeholder="Qual é a capital de Portugal? [20s]&#10;Porto&#10;*Lisboa&#10;Coimbra&#10;&#10;O sol é uma estrela.&#10;*Verdadeiro&#10;Falso&#10;&#10;A capital de Portugal é [[Lisboa]] e fica junto ao rio [[Tejo]].&#10;Porto, Douro, Mondego&#10;&#10;Dá um exemplo de escuta ativa. [livre]&#10;*Ouvir com atenção e mostrar que se percebeu&#10;&#10;Gostaste da formação? [escala]&#10;1=Nada&#10;5=Muito"></textarea>
       <button class="btn small" id="parseQ">Adicionar estas perguntas</button></details>
     <div id="qList">${q.questions.map((x, i) => qEditHtml(x, i)).join('')}</div>
     <button class="btn" id="addQ">+ Adicionar pergunta</button>
@@ -996,6 +1028,7 @@ function renderEditor(el) {
         if (x.options.filter(o => o.trim()).length < 2) return toast(`Pergunta ${i + 1}: precisa de pelo menos 2 opções`);
         if (!x.correct.length || x.correct.some(k => !x.options[k] || !x.options[k].trim())) return toast(`Pergunta ${i + 1}: marca a resposta correta`);
       }
+      if (t === 'open' && !(x.accepted || []).length) return toast(`Pergunta ${i + 1}: escreve a resposta de referência (é obrigatória nas respostas livres).`, 6000);
       if (t === 'fill' && !fillBlanksOf(x.text).length) return toast(`Pergunta ${i + 1}: põe as palavras certas entre [[ ]] na frase, ex.: A capital é [[Lisboa]].`, 6000);
     }
     // escolha múltipla: remove opções vazias e reajusta índices das corretas
@@ -1037,7 +1070,7 @@ function qEditHtml(x, i) {
       <label class="muted" style="display:block;margin-top:8px">Palavras extra para baralhar (separadas por vírgulas)</label>
       <input type="text" class="qExtra" style="width:100%" value="${esc((x.options || []).join(', '))}" placeholder="ex.: Porto, Douro, Mondego">`;
   }
-  if (t === 'open') body = `<label class="muted" style="display:block;margin-top:8px">Resposta(s) modelo (opcional, separadas por ponto e vírgula): só te servem de referência. Cada resposta livre é sempre validada por ti, uma a uma, nos resultados.</label>
+  if (t === 'open') body = `<label class="muted" style="display:block;margin-top:8px"><b>Resposta de referência (obrigatória)</b> — se houver várias, separa-as por ponto e vírgula. Serve de referência na lista de soluções e quando validares; cada resposta livre é sempre validada por ti, uma a uma.</label>
       <input type="text" class="qAcc" style="width:100%" value="${esc((x.accepted || []).join('; '))}" placeholder="ex.: Lisboa; Lx">`;
   if (t === 'scale') body = `<div class="row" style="margin-top:8px"><label class="muted">1 =</label><input type="text" class="qSmin grow" value="${esc(x.scaleMin || '')}" placeholder="ex.: Nada">
       <label class="muted">5 =</label><input type="text" class="qSmax grow" value="${esc(x.scaleMax || '')}" placeholder="ex.: Muito"></div>
