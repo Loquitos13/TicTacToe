@@ -1134,10 +1134,11 @@ function aiSignals(q, a, peers) {
   if (hits.length) { sc += Math.min(24, hits.length * 8); why.push(`🗣️ Expressões típicas de IA: ${hits.slice(0, 5).map(h => '“' + h + '”').join(', ')}`); }
   // travessão (—) e meia-risca (–): quase nunca escritos à mão num telemóvel. O hífen (-) não conta,
   // nem a unir palavras ("guarda-chuva", "dá-me") nem solto.
-  const em = (txt.match(/\u2014/g) || []).length, en = (txt.match(/\u2013/g) || []).length;
-  if (em || en) {
-    sc += em + en >= 2 ? 15 : 10;
-    why.push(`➖ Usa ${[em ? `travessão (—) ×${em}` : '', en ? `meia-risca (–) ×${en}` : ''].filter(Boolean).join(' e ')} — raros em texto escrito no telemóvel (hífenes entre palavras não contam)`);
+  // o hífen solto entre espaços (" - ") é usado como meia-risca e também conta; o hífen a unir palavras não
+  const em = (txt.match(/\u2014/g) || []).length, en = (txt.match(/\u2013/g) || []).length, loose = (txt.match(/\S[ \t]+-[ \t]+(?=\S)/g) || []).length;
+  if (em || en || loose) {
+    sc += em + en + loose >= 2 ? 15 : 10;
+    why.push(`➖ Usa ${[em ? `travessão (—) ×${em}` : '', en ? `meia-risca (–) ×${en}` : '', loose ? `hífen solto como meia-risca ( - ) ×${loose}` : ''].filter(Boolean).join(' e ')} (hífenes a unir palavras não contam)`);
   }
   const fmt = [];
   if (/(^|\n)\s*([-•*]|\d+[.)])\s/.test(txt)) fmt.push('lista com marcadores');
