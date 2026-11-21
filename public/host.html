@@ -225,6 +225,7 @@ let lastPhaseKey = '', tickTimer = null;
 function next() { Sound.init(); socket.emit('host:next'); }
 const timed = () => S && S.settings.mode !== 'manual'; // por tempo ou automático
 const isAuto = () => S && S.settings.mode === 'auto';
+const pollOn = () => S && S.settings.showPoll !== false;
 const hiddenReveal = () => S && (S.settings.revealMode || 'each') !== 'each';
 // neste dispositivo, mostrar as respostas corretas? (o projetor fica sem elas; o portátil/telemóvel do formador com elas)
 let seeAnswers = false; try { seeAnswers = localStorage.getItem('aq_see_answers') === '1'; } catch {}
@@ -303,7 +304,7 @@ function renderGame(full) {
   if (ph === 'ready') runReady();
   const tu = $('.timeup'); if (tu) tu.addEventListener('animationend', () => tu.classList.add('hidden'));
   // sondagem: as barras e as percentagens sobem de 0% até ao valor (com som); na resposta correta já aparecem cheias
-  if (ph === 'closed' && firstPoll) growPoll(timed() ? 1700 : 700);
+  if (ph === 'closed' && firstPoll && pollOn()) growPoll(timed() ? 1700 : 700);
   else if (ph === 'closed' || ph === 'reveal') $$('.opt .fill').forEach(f => { f.style.transition = 'none'; f.style.width = f.dataset.w; });
 }
 
@@ -409,20 +410,21 @@ function resultsHtml(withAnswer, animate = false) {
   const byId = new Map(S.roster.map(s => [s.id, s]));
   const pct = c => total ? Math.round(c / total * 100) : 0;
   const privateMark = !withAnswer && hiddenReveal() && seeAnswers;
-  return `${withAnswer ? '' : `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">📊 Sondagem <small style="font-size:.5em;opacity:.8">· respostas fechadas</small></div>`}
+  const poll = pollOn(), who = poll && S.settings.showWho;
+  return `${withAnswer ? '' : poll ? `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">📊 Sondagem <small style="font-size:.5em;opacity:.8">· respostas fechadas</small></div>` : `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">🔒 Respostas fechadas</div>`}
     ${!withAnswer && timed() && !closedShown.has(S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
     <div class="question-title" style="font-size:clamp(1.3em,2.6vw,2.2em);margin-top:6px">${esc(q.text)}</div>
     <div class="opts" style="margin-top:10px">${q.options.map((o, i) => {
       const right = q.correct.includes(i);
-      return `<div class="opt opt-${i} ${withAnswer ? (right ? 'right' : 'dim') : 'slide-up'} ${privateMark && right ? 'right-private' : ''} ${S.settings.showWho ? 'has-who' : ''}" style="animation-delay:${withAnswer ? 0 : i * 100}ms">
-        <div class="fill" data-w="${pct(S.counts[i])}%"></div>
+      return `<div class="opt opt-${i} ${withAnswer ? (right ? 'right' : 'dim') : 'slide-up'} ${privateMark && right ? 'right-private' : ''} ${who ? 'has-who' : ''}" style="animation-delay:${withAnswer ? 0 : i * 100}ms">
+        ${poll ? `<div class="fill" data-w="${pct(S.counts[i])}%"></div>` : ''}
         <span class="letter">${LETTERS[i]}</span><span class="txt">${esc(o)}</span>
-        ${(withAnswer || privateMark) && right ? '<span class="tick">✔</span>' : ''}<span class="cnt"><span class="num" data-n="${S.counts[i]}">${animate ? 0 : S.counts[i]}</span> <small class="pc" data-p="${pct(S.counts[i])}" style="font-size:.55em;opacity:.85">${animate ? 0 : pct(S.counts[i])}%</small></span>
-        ${S.settings.showWho ? `<div class="who">${S.whoByOption[i].map(id => avatar(byId.get(id) || { name: '?' }, 'sm')).join('')}</div>` : ''}
+        ${(withAnswer || privateMark) && right ? '<span class="tick">✔</span>' : ''}${poll ? `<span class="cnt"><span class="num" data-n="${S.counts[i]}">${animate ? 0 : S.counts[i]}</span> <small class="pc" data-p="${pct(S.counts[i])}" style="font-size:.55em;opacity:.85">${animate ? 0 : pct(S.counts[i])}%</small></span>` : ''}
+        ${who ? `<div class="who">${S.whoByOption[i].map(id => avatar(byId.get(id) || { name: '?' }, 'sm')).join('')}</div>` : ''}
       </div>`;
     }).join('')}</div>
     ${privateMark ? `<p class="center private-note">👁 Só neste ecrã: ✔ marca a resposta correta. Os formandos não a veem.</p>` : ''}
-    <p class="center" style="font-size:1.3em;margin-top:22px">${withAnswer ? `✅ ${q.correct.reduce((a, i) => a + S.counts[i], 0)} acertaram · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
+    <p class="center" style="font-size:1.3em;margin-top:22px">${withAnswer && poll ? `✅ ${q.correct.reduce((a, i) => a + S.counts[i], 0)} acertaram · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
 }
 
 // ----- Pódio com bonecos a dançar -----
@@ -466,7 +468,8 @@ function controlsHtml() {
     <div class="info"><b id="autoInfo" style="color:#ffd93d"></b> <span id="ctlInfo">${ph === 'end' ? 'Sessão terminada — as respostas estão guardadas.' : `${connectedN()} ligados · espaço/→ avança`}</span></div>
     ${hiddenReveal() ? `<label class="switch" title="Só neste dispositivo. Deixa desligado no ecrã projetado."><input type="checkbox" id="setSee" ${seeAnswers ? 'checked' : ''}> 👁 Ver respostas corretas</label>` : ''}
     ${ph === 'end' && S.settings.revealMode === 'end' ? `<button class="btn small ${showAnswersList ? 'primary' : 'ghost'}" id="btnAnswers">${showAnswersList ? '🏆 Voltar ao pódio' : '📋 Mostrar respostas corretas'}</button>` : ''}
-    <label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>
+    <label class="switch" title="Mostrar quantos escolheram cada opção"><input type="checkbox" id="setPoll" ${pollOn() ? 'checked' : ''}> Sondagem</label>
+    ${pollOn() ? `<label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>` : ''}
     ${S.settings.noRanking || hiddenReveal() ? '' : `<label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>`}
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
@@ -485,7 +488,8 @@ function bindGame() {
   on('btnPlayers', playersDialog);
   on('btnAnswers', () => { showAnswersList = !showAnswersList; if (showAnswersList) Sound.play('revealCorrect'); renderGame(true); });
   const ss = $('#setSee'); if (ss) ss.onchange = e => { seeAnswers = e.target.checked; try { localStorage.setItem('aq_see_answers', seeAnswers ? '1' : '0'); } catch {} renderGame(true); };
-  $('#setWho').onchange = e => socket.emit('host:settings', { showWho: e.target.checked });
+  const sw = $('#setWho'); if (sw) sw.onchange = e => socket.emit('host:settings', { showWho: e.target.checked });
+  $('#setPoll').onchange = e => socket.emit('host:settings', { showPoll: e.target.checked });
   const sr = $('#setRank'); if (sr) sr.onchange = e => socket.emit('host:settings', { rankEach: e.target.checked });
   on('btnPause', () => socket.emit('host:settings', { paused: !S.settings.paused }));
   const sel = $('#urlSel');
@@ -548,9 +552,11 @@ function updateLive() {
   // redesenha só a barra de controlos (mantém as animações do palco)
   const old = $('.controls');
   if (old) { const tmp = document.createElement('div'); tmp.innerHTML = controlsHtml(); old.replaceWith(tmp.firstElementChild); bindGame(); }
-  if ((S.phase === 'closed' || S.phase === 'reveal') && $('.opt.has-who') == null !== !S.settings.showWho) {
-    // mudou a opção "quem respondeu": redesenha os resultados sem animação
-    const st = $('#stage'); const top = st.firstElementChild.outerHTML; st.innerHTML = top + resultsHtml(S.phase === 'reveal');
+  const wantWho = pollOn() && S.settings.showWho, hasWho = !!$('.opt.has-who'), hasPoll = !!$('.opt .fill');
+  if ((S.phase === 'closed' || S.phase === 'reveal') && $('.opt') && (wantWho !== hasWho || pollOn() !== hasPoll)) {
+    // mudou a opção "sondagem" ou "quem respondeu": redesenha os resultados sem animação
+    const st = $('#stage'); const top = st.firstElementChild.outerHTML;
+    st.innerHTML = top + (S.phase === 'reveal' && !showCorrectHere() ? hiddenRevealHtml() : resultsHtml(S.phase === 'reveal'));
     $$('.opt .fill').forEach(f => { f.style.transition = 'none'; f.style.width = f.dataset.w; });
   }
 }
@@ -624,6 +630,7 @@ function renderSetup(el) {
           <option value="end">Só o pódio final</option>
           <option value="none">Sem ranking (ninguém vê posições nem pódio)</option>
         </select>
+        <label class="switch"><input type="checkbox" id="sPoll" checked> 📊 Mostrar a sondagem (quantos escolheram cada opção) depois de cada pergunta</label>
         <label class="switch"><input type="checkbox" id="sWho"> Mostrar no ecrã quem respondeu o quê (fotos em cada opção)</label>
         <label class="switch"><input type="checkbox" id="sSpeed" checked> Pontos extra por responder depressa</label>
         <label class="switch"><input type="checkbox" id="sShuffle"> Baralhar a ordem das perguntas</label>
@@ -661,7 +668,7 @@ function renderSetup(el) {
     Sound.init();
     socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sReveal').value,
       rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
-      autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked } });
+      autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked } });
   };
 }
 

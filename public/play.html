@@ -248,7 +248,7 @@ function renderGameInner() {
   if (ph === 'closed') {
     if (!lastKey.startsWith('closed' + s.qIndex)) Sound.play('softEnd');
     return set('closed' + s.qIndex + state.answered, header() + qmeta() + `<div class="middle"><div class="big-emoji wiggle">${timedMode ? '⏰' : '🔒'}</div><h1>${timedMode ? 'Tempo esgotado!' : 'Respostas fechadas!'}</h1>
-      <p>${state.answered ? 'A tua resposta foi registada ✅' : 'Não respondeste a tempo 😬'}<br>📊 Olha para o ecrã: vem aí a sondagem<span class="dots"></span></p></div>`);
+      <p>${state.answered ? 'A tua resposta foi registada ✅' : 'Não respondeste a tempo 😬'}<br>${s.settings.showPoll === false ? 'Aguarda' : '📊 Olha para o ecrã: vem aí a sondagem'}<span class="dots"></span></p></div>`);
   }
   if ((ph === 'reveal' || ph === 'leaderboard') && (s.settings.revealMode || 'each') !== 'each') {
     const atEnd = s.settings.revealMode === 'end';

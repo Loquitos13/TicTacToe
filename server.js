@@ -253,7 +253,8 @@ function scheduleAuto() {
   session.autoAt = null;
   if (session.settings.mode !== 'auto' || session.settings.paused) return;
   const t = session.settings.autoTimes || {};
-  const ms = { closed: t.poll, reveal: t.reveal, leaderboard: t.board }[session.phase];
+  // sem sondagem, o ecrã "respostas fechadas" fica só 2 s
+  const ms = { closed: session.settings.showPoll === false ? 2 : t.poll, reveal: t.reveal, leaderboard: t.board }[session.phase];
   if (!ms) return;
   session.autoAt = Date.now() + ms * 1000;
   autoTimer = setTimeout(() => { autoTimer = null; advance(); }, ms * 1000);
@@ -573,6 +574,7 @@ io.on('connection', socket => {
       settings.paused = false;
       if (settings.noRanking) { settings.rankEach = false; settings.finalPodium = false; }
       if (!['each', 'end', 'never'].includes(settings.revealMode)) settings.revealMode = 'each';
+      settings.showPoll = settings.showPoll !== false;
       if (settings.revealMode !== 'each') settings.rankEach = false;
       const fixed = parseInt(settings && settings.fixedTime, 10);
       if (fixed >= 5) qs.forEach(q => q.time = Math.min(300, fixed));
@@ -598,6 +600,7 @@ io.on('connection', socket => {
       delete s.noRanking; delete s.revealMode;
       if (session.settings.noRanking) { delete s.rankEach; delete s.finalPodium; }
       if (session.settings.revealMode !== 'each') delete s.rankEach;
+      if ('showPoll' in s) s.showPoll = !!s.showPoll;
       Object.assign(session.settings, s);
       persistSession();
       if ('paused' in s || 'rankEach' in s) scheduleAuto();

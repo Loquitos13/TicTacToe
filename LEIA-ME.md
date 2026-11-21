@@ -88,6 +88,8 @@ Escolhes quando **mostrar as respostas corretas aos formandos**:
 Nos dois últimos casos **tu continuas a ver tudo**: liga **👁 Ver respostas corretas** na barra de baixo no teu portátil ou telemóvel (a opção correta fica marcada com ✔ na sondagem) (fica guardado só nesse dispositivo; deixa desligado no ecrã projetado) e tens sempre a grelha de resultados. Não há ranking depois de cada pergunta, porque mostraria quem acertou.
 Dica: podes abrir o painel do formador ao mesmo tempo no projetor e no teu telemóvel.
 
+Escolhes se queres **mostrar a sondagem** (barras com quantos escolheram cada opção). Sem sondagem, quando as respostas fecham aparece só "🔒 Respostas fechadas" e quantos responderam; a resposta correta é destacada sem números. Podes ligar/desligar a sondagem a qualquer momento na barra de baixo.
+
 E escolhes o **ranking**:
 - **Depois de cada pergunta e pódio final** (Top 5 com bonecos a dançar);
 - **Só o pódio final**;
