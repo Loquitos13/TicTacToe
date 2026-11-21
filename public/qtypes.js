@@ -23,6 +23,6 @@ function solutionText(q) {
   const t = qType(q);
   if (t === 'mc' || t === 'tf') return (q.correct || []).map(k => `${LETTERS[k]}) ${q.options[k]}`).join(' | ');
   if (t === 'fill') return fillBlanksOf(q.text).join(' · ');
-  if (t === 'open') return (q.accepted || []).length ? q.accepted.join(' · ') : 'Resposta livre (avaliada pelo formador)';
+  if (t === 'open') return (q.accepted || []).length ? 'Modelo: ' + q.accepted.join(' · ') + ' (validada pelo formador)' : 'Resposta livre (validada pelo formador)';
   return 'Escala 1–5 (sem resposta certa)';
 }

@@ -305,7 +305,7 @@ function renderGameInner() {
     const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : (t === 'fill' && state.right) ? 'part' : 'bad';
     const sol = state.solution || {};
     const solHtml = t === 'fill' ? `Palavras certas:<br>${(sol.blanks || []).map((w, i) => `${i + 1}. ${esc(w)}`).join('<br>')}`
-      : t === 'open' ? `Respostas aceites:<br>${(sol.accepted || []).map(esc).join(' · ')}`
+      : t === 'open' ? `Resposta modelo:<br>${(sol.accepted || []).map(esc).join(' · ')}`
       : `Resposta correta:<br>${(state.correct || []).map(i => optLabel(q.options, i)).join('<br>')}`;
     const key = 'rev' + s.qIndex + ph;
     const isNew = !lastKey.startsWith('rev' + s.qIndex);
@@ -328,7 +328,7 @@ function renderGameInner() {
         ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
       ${state.review ? `<h2 style="margin:10px 0 0">As respostas corretas</h2><div class="review">${state.review.map((r, i) => `
         <div class="rv-item ${r.mine == null ? 'none' : r.ok === true ? 'ok' : r.ok === false ? 'bad' : 'none'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
-          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? ((r.solution.accepted || []).length ? '✅ ' + r.solution.accepted.map(esc).join(' · ') : '📝 Avaliada pelo formador') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
+          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
           <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${r.type === 'mc' || r.type === 'tf' || !r.type ? optLabel(r.options, r.mine) : esc(r.mineText || '')} ${r.ok === true ? '✓' : r.ok === false ? '✗' : ''}`}</div></div>`).join('')}</div>` : ''}
       ${!state.review && m.score == null ? `<div class="result none" style="margin-top:6px"><div class="big-emoji">📨</div><h2>Respostas enviadas!</h2>
         <p>Respondeste a ${state.answeredCount ?? 0} de ${s.total} perguntas. As tuas respostas foram registadas.</p></div>` : ''}

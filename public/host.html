@@ -161,7 +161,24 @@
   .qedit .opt-row { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
   .qedit .opt-row input[type=text] { flex: 1; }
   .qedit .opt-row .letter { color: #fff; }
+  .sheet-link { color: inherit; text-decoration: none; } .sheet-link:hover { text-decoration: underline; }
+  .sheet { padding: 6px 0 20px; }
+  .sheet-head { display: flex; gap: 14px; align-items: center; margin-bottom: 12px; }
+  .sheet-tbl { width: 100%; border-collapse: collapse; font-size: .92em; }
+  .sheet-tbl th, .sheet-tbl td { border-bottom: 1px solid #eee; padding: 8px; text-align: left; vertical-align: top; }
+  .sheet-tbl th { background: #f6f3fb; }
+  .sheet-tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .page-break { height: 1px; background: #eee; margin: 24px 0; }
+  .validator { max-width: 760px; margin: 0 auto; }
+  .vbar { height: 8px; background: #eee; border-radius: 99px; overflow: hidden; margin-top: 10px; } .vbar div { height: 100%; background: var(--ok); }
+  .v-model { background: #f0fdf4; color: #166534; border-radius: 10px; padding: 8px 12px; margin-bottom: 10px; }
+  .v-who { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+  .v-answer { background: #f6f3fb; border-radius: 14px; padding: 18px; font-size: 1.4em; font-weight: 600; white-space: pre-wrap; word-break: break-word; }
+  .v-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; } .v-btns .btn { font-size: 1.2em; padding: 14px; }
   @media print {
+    .page-break { height: 0; margin: 0; background: none; break-after: page; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .sheet { break-inside: auto; } .sheet-tbl tr { break-inside: avoid; }
     body { background: #fff !important; color: #000; } body::before, body::after, nav, .noprint, .mute-btn { display: none !important; }
     .card { box-shadow: none; padding: 0; } .tbl-wrap { max-height: none; overflow: visible; border: 0; }
     table.res th, table.res td { position: static !important; }
@@ -532,10 +549,10 @@ function resultsOtherHtml(withAnswer, animate) {
         <span class="cnt"><span class="num" data-n="${f.right}">${animate ? 0 : f.right}</span> <small class="pc" data-p="${pct(f.right)}" style="font-size:.55em;opacity:.85">${animate ? 0 : pct(f.right)}%</small></span></div>`).join('')}</div>
       <p class="center" style="opacity:.85;margin:6px 0 0">Quantos acertaram em cada espaço</p>`;
   } else {
-    if (showSol && (q.accepted || []).length) body += `<div class="accepted">✅ Respostas aceites: <b>${q.accepted.map(esc).join(' · ')}</b></div>`;
+    if (showSol && (q.accepted || []).length) body += `<div class="accepted">💡 Resposta modelo: <b>${q.accepted.map(esc).join(' · ')}</b></div>`;
     if (poll) body += `<div class="open-list">${(S.openAnswers || []).map((a, i) => `<span class="open-ans slide-up ${showSol && a.correct === true ? 'ok' : showSol && a.correct === false ? 'bad' : ''}" style="animation-delay:${Math.min(i, 20) * 50}ms">${esc(a.text)}${a.count > 1 ? ` <b>×${a.count}</b>` : ''}</span>`).join('') || '<p class="center">Ainda sem respostas.</p>'}</div>`;
     else body += `<div class="open-hint">✍️ Respostas livres recebidas</div>`;
-    if (!(q.accepted || []).length) body += `<p class="center" style="opacity:.85">Avalias estas respostas na grelha de resultados (certa / errada).</p>`;
+    body += `<p class="center" style="opacity:.85">✍️ As respostas livres são validadas por ti, uma a uma, nos resultados.</p>`;
   }
   return `${withAnswer ? '' : `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">${poll ? '📊 Sondagem' : '🔒 Respostas fechadas'} <small style="font-size:.5em;opacity:.8">· respostas fechadas</small></div>`}
     ${!withAnswer && timed() && !closedShown.has(S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
@@ -1015,7 +1032,7 @@ function qEditHtml(x, i) {
       <label class="muted" style="display:block;margin-top:8px">Palavras extra para baralhar (separadas por vírgulas)</label>
       <input type="text" class="qExtra" style="width:100%" value="${esc((x.options || []).join(', '))}" placeholder="ex.: Porto, Douro, Mondego">`;
   }
-  if (t === 'open') body = `<label class="muted" style="display:block;margin-top:8px">Respostas aceites (opcional, separadas por ponto e vírgula). Sem elas, avalias tu cada resposta nos resultados.</label>
+  if (t === 'open') body = `<label class="muted" style="display:block;margin-top:8px">Resposta(s) modelo (opcional, separadas por ponto e vírgula): só te servem de referência. Cada resposta livre é sempre validada por ti, uma a uma, nos resultados.</label>
       <input type="text" class="qAcc" style="width:100%" value="${esc((x.accepted || []).join('; '))}" placeholder="ex.: Lisboa; Lx">`;
   if (t === 'scale') body = `<div class="row" style="margin-top:8px"><label class="muted">1 =</label><input type="text" class="qSmin grow" value="${esc(x.scaleMin || '')}" placeholder="ex.: Nada">
       <label class="muted">5 =</label><input type="text" class="qSmax grow" value="${esc(x.scaleMax || '')}" placeholder="ex.: Muito"></div>
@@ -1035,6 +1052,78 @@ function download(name, content, type) {
 }
 
 /* =================== RESULTADOS =================== */
+let lastResult = null;
+
+// ---------- Ficha de respostas individual (uma por formando; imprimível / PDF) ----------
+function sheetHtml(p) {
+  const { r, joined, score, asked, graded, ansText, cls } = lastResult;
+  let ok = 0, n = 0, pend = 0;
+  const rows = r.questions.map((q, i) => {
+    const t = qType(q), a = (r.answers[i] || {})[p.id];
+    if (graded(i)) { n++; if (a && a.correct === true) ok++; }
+    if (a && t === 'open' && a.correct == null) pend++;
+    const res = !asked.has(i) ? '<span class="tag none">não feita</span>' : !a ? `<span class="tag none">${joined.has(p.id) ? 'Sem resposta' : 'Ausente'}</span>`
+      : t === 'scale' ? '<span class="tag none">opinião</span>' : a.correct === true ? '<span class="tag ok">✓ Certa</span>' : a.correct === false ? (t === 'fill' && a.right ? `<span class="tag pend">${a.right}/${fillBlanksOf(q.text).length}</span>` : '<span class="tag bad">✗ Errada</span>') : '<span class="tag pend">❔ Por validar</span>';
+    return `<tr><td>${i + 1}</td><td><b>${esc(qTitle(q))}</b><br><small class="muted">${QTYPE_LABEL[t]}${t === 'mc' || t === 'tf' ? ' · ' + q.options.map((o, k) => `${LETTERS[k]}) ${esc(o)}`).join(' · ') : ''}</small></td>
+      <td>${t === 'scale' ? '—' : esc(solutionText(q))}</td><td>${a ? esc(ansText(q, a)) : ''}</td><td>${res}</td><td class="num">${a ? (a.points || 0) : 0}</td></tr>`;
+  }).join('');
+  return `<div class="sheet">
+    <div class="sheet-head">${avatar(p, 'lg')}<div class="grow"><div class="muted">${r.courseName ? '🎓 ' + esc(r.courseName) + ' · ' : ''}📝 ${esc(r.quizTitle)} · ${new Date(r.startedAt).toLocaleDateString('pt-PT')}</div>
+      <h2 style="margin:2px 0">${esc(p.name)}</h2>
+      <div><b>${ok}</b> de ${n} certas${n ? ` (${Math.round(ok / n * 100)}%)` : ''} · <b>${score[p.id] ?? 0}</b> pontos${pend ? ` · <span style="color:#854d0e">❔ ${pend} por validar</span>` : ''}</div></div></div>
+    <table class="sheet-tbl"><thead><tr><th>Nº</th><th>Pergunta</th><th>Resposta correta</th><th>Resposta do formando</th><th>Resultado</th><th>Pontos</th></tr></thead><tbody>${rows}</tbody></table>
+  </div>`;
+}
+function showSheets(people) {
+  const el = $('#tab-results');
+  el.innerHTML = `<div class="card"><div class="row noprint"><button class="btn small" id="backRes">← Voltar aos resultados</button><span class="grow"></span>
+    <button class="btn small primary" onclick="print()">🖨 Imprimir / guardar PDF</button></div>
+    ${people.map(sheetHtml).join('<div class="page-break"></div>')}</div>`;
+  $('#backRes').onclick = () => openResult(lastResult.r.id);
+  window.scrollTo(0, 0);
+}
+
+// ---------- Validar respostas livres, uma a uma ----------
+async function openValidator(id, reviewAll) {
+  const r = await api('GET', '/api/results/' + id);
+  const names = new Map([...r.roster.map(s => [s.id, s]), ...r.players.map(p => [p.studentId, { id: p.studentId, name: p.name, photo: p.photo }])]);
+  const items = [];
+  r.questions.forEach((q, i) => { if (qType(q) !== 'open') return; Object.entries(r.answers[i] || {}).forEach(([sid, a]) => { if (reviewAll || a.correct == null) items.push({ i, sid, q, a }); }); });
+  items.sort((x, y) => x.i - y.i || (names.get(x.sid)?.name || '').localeCompare(names.get(y.sid)?.name || '', 'pt'));
+  let k = 0;
+  const el = $('#tab-results');
+  const draw = () => {
+    if (!items.length || k >= items.length) {
+      el.innerHTML = `<div class="card center"><div style="font-size:60px">✅</div><h2>${items.length ? 'Todas as respostas livres foram validadas' : 'Não há respostas livres por validar'}</h2>
+        <button class="btn primary" id="vBack">Voltar aos resultados</button></div>`;
+      $('#vBack').onclick = () => openResult(id); return;
+    }
+    const it = items[k], p = names.get(it.sid) || { name: '?' };
+    el.innerHTML = `<div class="card validator">
+      <div class="row"><button class="btn small" id="vBack">← Resultados</button><span class="grow"></span><b>${k + 1} de ${items.length}</b></div>
+      <div class="vbar"><div style="width:${k / items.length * 100}%"></div></div>
+      <div class="muted" style="margin-top:12px">Pergunta ${it.i + 1}</div>
+      <h2 style="margin:4px 0 10px">${esc(it.q.text)}</h2>
+      ${(it.q.accepted || []).length ? `<div class="v-model">💡 Resposta modelo: <b>${it.q.accepted.map(esc).join(' · ')}</b>${it.a.suggest === true ? ' <span class="tag ok">coincide com o modelo</span>' : ''}</div>` : ''}
+      <div class="v-who">${avatar(p, 'sm')} <b>${esc(p.name)}</b> respondeu:</div>
+      <div class="v-answer">${esc(it.a.value)}</div>
+      ${it.a.correct != null ? `<p class="muted center">Já validada como <b>${it.a.correct ? '✓ Certa' : '✗ Errada'}</b> — podes alterar.</p>` : ''}
+      <div class="v-btns"><button class="btn danger" id="vNo">✗ Errada <small>(E)</small></button><button class="btn go" id="vYes">✓ Certa <small>(C)</small></button></div>
+      <div class="row" style="justify-content:space-between;margin-top:12px"><button class="btn small" id="vPrev" ${k ? '' : 'disabled'}>← Anterior</button><button class="btn small" id="vSkip">Saltar →</button></div>
+    </div>`;
+    const setMark = async val => {
+      try { await api('POST', `/api/results/${encodeURIComponent(id)}/mark`, { q: it.i, studentId: it.sid, correct: val }); } catch (e) { return toast(e.message); }
+      it.a.correct = val; Sound.play(val ? 'correct' : 'pop'); k++; draw();
+    };
+    $('#vYes').onclick = () => setMark(true); $('#vNo').onclick = () => setMark(false);
+    $('#vPrev').onclick = () => { k = Math.max(0, k - 1); draw(); };
+    $('#vSkip').onclick = () => { k++; draw(); };
+    $('#vBack').onclick = () => { document.onkeydown = null; openResult(id); };
+    document.onkeydown = e => { if (!$('.validator')) return (document.onkeydown = null); if (/^[cC]$/.test(e.key)) setMark(true); if (/^[eE]$/.test(e.key)) setMark(false); };
+  };
+  draw();
+}
+
 let resultsFilter = null;
 async function renderResultsList() {
   const el = $('#tab-results');
@@ -1061,12 +1150,12 @@ async function openResult(id) {
   const score = Object.fromEntries(r.players.map(p => [p.studentId, p.score]));
   const asked = new Set(r.asked);
   // só contam para "certas" as perguntas com resposta certa (escala e resposta livre por avaliar não contam)
-  const graded = i => { const q = r.questions[i], t = qType(q); return t === 'scale' ? false : t === 'open' ? ((q.accepted || []).length > 0 || Object.values(r.answers[i] || {}).some(a => a.correct != null)) : true; };
+  const graded = i => { const q = r.questions[i], t = qType(q); return t === 'scale' ? false : t === 'open' ? Object.values(r.answers[i] || {}).some(a => a.correct != null) : true; };
   const nAsked = r.asked.filter(graded).length;
   const stats = list.map(p => { let ok = 0; r.questions.forEach((q, i) => { const a = (r.answers[i] || {})[p.id]; if (a && a.correct === true) ok++; }); return ok; });
   const ansText = (q, a) => { const t = qType(q); return t === 'mc' || t === 'tf' ? `${LETTERS[a.option]}) ${q.options[a.option]}` : t === 'fill' ? (a.value || []).join(' · ') : String(a.value ?? ''); };
   const ansShort = (q, a) => { const t = qType(q); return t === 'mc' ? LETTERS[a.option] : t === 'tf' ? (a.option === 0 ? 'V' : 'F') : t === 'fill' ? `${a.right ?? 0}/${fillBlanksOf(q.text).length}` : t === 'scale' ? '★' + a.value : (String(a.value).length > 14 ? String(a.value).slice(0, 14) + '…' : String(a.value)); };
-  const corShort = q => { const t = qType(q); return t === 'mc' ? q.correct.map(k => LETTERS[k]).join('/') : t === 'tf' ? (q.correct[0] === 0 ? 'V' : 'F') : t === 'fill' ? fillBlanksOf(q.text).join(', ') : t === 'open' ? ((q.accepted || [])[0] || 'livre') : '1–5'; };
+  const corShort = q => { const t = qType(q); return t === 'mc' ? q.correct.map(k => LETTERS[k]).join('/') : t === 'tf' ? (q.correct[0] === 0 ? 'V' : 'F') : t === 'fill' ? fillBlanksOf(q.text).join(', ') : t === 'open' ? 'livre' : '1–5'; };
   const cls = a => a.correct === true ? 'ok' : a.correct === false ? 'bad' : 'pend';
   const mark = a => a.correct === true ? ' ✓' : a.correct === false ? ' ✗' : '';
   const cell = (p, q, i) => {
@@ -1077,6 +1166,8 @@ async function openResult(id) {
     return `<td class="${qType(q) === 'scale' ? '' : cls(a)}" title="${esc(ansText(q, a))} · ${(a.timeMs / 1000).toFixed(1)}s">${esc(ansShort(q, a))}${mark(a)}${pend ? ' ❔' : ''}</td>`;
   };
   const pending = r.questions.reduce((n, q, i) => n + (qType(q) === 'open' ? Object.values(r.answers[i] || {}).filter(a => a.correct == null).length : 0), 0);
+  const openTotal = r.questions.reduce((n, q, i) => n + (qType(q) === 'open' ? Object.values(r.answers[i] || {}).length : 0), 0);
+  lastResult = { r, list, joined, score, asked, graded, ansText, cls, mark };
   const avg = list.length && nAsked ? Math.round(stats.reduce((a, b) => a + b, 0) / (list.length * nAsked) * 100) : 0;
   el.innerHTML = `<div class="card">
     <div class="row noprint"><button class="btn small" id="back">← Voltar</button><span class="grow"></span>
@@ -1086,12 +1177,14 @@ async function openResult(id) {
     ${r.courseName ? `<div class="muted" style="margin-top:14px;font-weight:600">🎓 ${esc(r.courseName)}</div>` : ''}
     <h2 style="margin:${r.courseName ? 2 : 14}px 0 4px">${esc(r.quizTitle)}</h2>
     <p class="muted" style="margin-top:0">${new Date(r.startedAt).toLocaleString('pt-PT')} · ${list.length} alunos · ${nAsked} de ${r.questions.length} perguntas feitas · média de acerto ${avg}% ${r.endedAt ? '' : '· <b>sessão em curso</b>'}</p>
-    ${pending ? `<p class="pend-note">❔ Há <b>${pending}</b> resposta(s) livre(s) por avaliar — marca-as como certas ou erradas no detalhe por pergunta, em baixo.</p>` : ''}
+    ${openTotal ? `<div class="pend-note row"><span class="grow">${pending ? `❔ Há <b>${pending}</b> resposta(s) livre(s) por validar.` : `✅ Todas as ${openTotal} respostas livres estão validadas.`}</span>
+      <button class="btn small primary noprint" id="btnValidate">✍️ ${pending ? 'Validar respostas livres' : 'Rever validações'}</button></div>` : ''}
+    <div class="row noprint" style="margin:8px 0"><span class="muted grow">📄 Ficha individual: carrega no nome de um formando.</span><button class="btn small" id="btnAllSheets">🖨 Fichas de todos (uma por página)</button></div>
     <h3>Grelha: quem respondeu o quê</h3>
     <div class="tbl-wrap"><table class="res"><thead>
       <tr><th>Aluno</th>${r.questions.map((q, i) => `<th title="${esc(q.text)}">P${i + 1}</th>`).join('')}<th>Certas</th><th>%</th><th>Pontos</th></tr>
       <tr><th>Resposta correta</th>${r.questions.map(q => `<th style="color:var(--ok)" title="${esc(QTYPE_LABEL[qType(q)])}">${esc(corShort(q))}</th>`).join('')}<th></th><th></th><th></th></tr></thead>
-      <tbody>${list.map((p, j) => `<tr><td>${esc(p.name)}${p.homonym ? ' <small style="color:#b45309">⚠ nome repetido</small>' : (p.extra || p.guest) ? ' <small class="muted">(extra)</small>' : ''}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
+      <tbody>${list.map((p, j) => `<tr><td><a href="#" class="sheet-link" data-sheet="${esc(p.id)}" title="Abrir a ficha de respostas">📄 ${esc(p.name)}</a>${p.homonym ? ' <small style="color:#b45309">⚠ nome repetido</small>' : (p.extra || p.guest) ? ' <small class="muted">(extra)</small>' : ''}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
         <td><b>${stats[j]}</b>/${nAsked}</td><td>${nAsked ? Math.round(stats[j] / nAsked * 100) : 0}%</td><td>${score[p.id] ?? 0}</td></tr>`).join('')}</tbody></table></div>
     <h3 style="margin-top:28px">Detalhe por pergunta</h3>
     ${r.questions.map((q, i) => {
@@ -1101,7 +1194,7 @@ async function openResult(id) {
         ${t === 'mc' || t === 'tf' ? `<div class="muted" style="margin-bottom:6px">${q.options.map((o, k) => `${LETTERS[k]}) ${esc(o)}`).join(' · ')}</div>` : ''}
         ${t === 'fill' ? `<div class="muted" style="margin-bottom:6px">Palavras: ${bankOf(q).map(esc).join(', ')}</div>` : ''}
         ${t === 'scale' ? `<div class="muted" style="margin-bottom:6px">1 = ${esc(q.scaleMin || '')} · 5 = ${esc(q.scaleMax || '')}</div>` : ''}
-        <div style="margin-bottom:8px"><span class="tag ${t === 'scale' || (t === 'open' && !(q.accepted || []).length) ? 'none' : 'ok'}">${t === 'scale' || (t === 'open' && !(q.accepted || []).length) ? '' : 'Resposta correta: '}${esc(solutionText(q))}</span></div>
+        <div style="margin-bottom:8px"><span class="tag ${t === 'scale' || t === 'open' ? 'none' : 'ok'}">${t === 'scale' || t === 'open' ? '' : 'Resposta correta: '}${esc(solutionText(q))}</span></div>
         ${asked.has(i) ? list.map(p => { const a = ans[p.id]; return `<div class="ans-row">${avatar(p, 'sm')}<span style="min-width:200px">${esc(p.name)}</span>
           ${a ? `<span class="tag ${t === 'scale' ? 'none' : cls(a)}">${esc(ansText(q, a))}${mark(a)}${t === 'fill' ? ` (${a.right ?? 0}/${fillBlanksOf(q.text).length})` : ''}</span>
             ${t === 'open' ? `<span class="markers noprint"><button class="btn small ${a.correct === true ? 'go' : ''}" data-mark="1" data-q="${i}" data-s="${esc(p.id)}">✓ Certa</button><button class="btn small ${a.correct === false ? 'danger' : ''}" data-mark="0" data-q="${i}" data-s="${esc(p.id)}">✗ Errada</button></span>` : ''}
@@ -1110,6 +1203,9 @@ async function openResult(id) {
     }).join('')}
   </div>`;
   $('#back').onclick = renderResultsList;
+  const bv = $('#btnValidate'); if (bv) bv.onclick = () => openValidator(r.id, !pending);
+  $('#btnAllSheets').onclick = () => showSheets(list.filter(p => joined.has(p.id)));
+  $$('[data-sheet]').forEach(a => a.onclick = e => { e.preventDefault(); showSheets([list.find(p => p.id === a.dataset.sheet)]); });
   // avaliar respostas livres (clicar outra vez no mesmo botão volta a "por avaliar")
   $$('[data-mark]').forEach(b => b.onclick = async () => {
     const a = (r.answers[b.dataset.q] || {})[b.dataset.s], want = b.dataset.mark === '1';

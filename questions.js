@@ -3,8 +3,8 @@
 //  tf    — verdadeiro / falso
 //  fill  — completar espaços: o texto tem [[palavra]] em cada espaço; o formando escolhe as
 //          palavras de um banco (as certas + palavras extra que baralham)
-//  open  — resposta livre (escrita). Se houver "respostas aceites", é corrigida sozinha;
-//          senão fica "por avaliar" e o formador marca certa/errada nos resultados
+//  open  — resposta livre (escrita). É SEMPRE validada pelo formador, uma a uma, nos resultados.
+//          As "respostas modelo" (accepted) só servem de referência / sugestão
 //  scale — escala de 1 a 5 (opinião): não tem resposta certa nem pontos
 const TYPES = ['mc', 'tf', 'fill', 'open', 'scale'];
 const LETTERS = 'ABCDEF';
@@ -13,7 +13,8 @@ const BLANK_RE = /\[\[([^\]]+?)\]\]/g;
 
 function typeOf(q) { return TYPES.includes(q.type) ? q.type : 'mc'; }
 // é uma pergunta com resposta certa? (a escala e a resposta livre sem respostas aceites não são)
-function isGraded(q) { const t = typeOf(q); return t === 'scale' ? false : t === 'open' ? (q.accepted || []).length > 0 : true; }
+// (a resposta livre só passa a contar depois de o formador a validar)
+function isGraded(q) { const t = typeOf(q); return t !== 'scale' && t !== 'open'; }
 function blanksOf(text) { return [...String(text).matchAll(BLANK_RE)].map(m => m[1].trim()); }
 // texto da pergunta para mostrar (os espaços aparecem como ____)
 function displayText(q) { return typeOf(q) === 'fill' ? String(q.text).replace(BLANK_RE, '_____') : q.text; }
@@ -80,9 +81,9 @@ function grade(q, raw) {
   if (t === 'open') {
     const value = String(raw ?? '').trim().replace(/\s+/g, ' ').slice(0, 300);
     if (!value) return { error: 'Escreve a tua resposta.' };
-    if (!(q.accepted || []).length) return { entry: { value, correct: null, frac: 0 } }; // o formador avalia
-    const ok = q.accepted.some(a => norm(a) === norm(value));
-    return { entry: { value, correct: ok, frac: ok ? 1 : 0 } };
+    // fica por validar; se coincidir com uma resposta modelo, fica marcada como sugestão
+    const suggest = (q.accepted || []).length ? q.accepted.some(a => norm(a) === norm(value)) : null;
+    return { entry: { value, correct: null, frac: 0, suggest } };
   }
   return { error: 'Resposta inválida.' };
 }
@@ -107,7 +108,7 @@ function correctText(q) {
   const t = typeOf(q);
   if (t === 'mc' || t === 'tf') return q.correct.map(i => `${LETTERS[i]}) ${q.options[i]}`).join(' | ');
   if (t === 'fill') return q.blanks.join(' | ');
-  if (t === 'open') return (q.accepted || []).length ? q.accepted.join(' | ') : '(resposta livre — avaliada pelo formador)';
+  if (t === 'open') return (q.accepted || []).length ? 'Modelo: ' + q.accepted.join(' | ') + ' (validada pelo formador)' : '(resposta livre — validada pelo formador)';
   return '(escala 1–5 — sem resposta certa)';
 }
 function correctShort(q) {
