@@ -189,6 +189,15 @@ function render() {
       $('#retry').onclick = () => { joinStep = { kind: 'form' }; render(); };
     });
   }
+  if (roster.session.anonymous) {
+    // questionário anónimo: não se pede o nome
+    return set('anon', logo() + `<div class="middle"><div class="big-emoji wiggle">🕶️</div>
+      <h1 style="font-size:1.6em">Questionário anónimo</h1>
+      <p>Não precisas de dizer quem és: as tuas respostas não ficam associadas ao teu nome — nem o formador sabe quem respondeu o quê.</p>
+      <button class="btn primary" id="anonGo" style="width:100%;font-size:1.15em">Entrar 🚀</button></div>`, () => {
+      $('#anonGo').onclick = () => { Sound.init(); socket.emit('player:join', { name: '' }, joined); };
+    });
+  }
   set('form', logo() + `<form class="middle" id="joinForm" autocomplete="off">
       <div class="big-emoji wiggle">👋</div>
       <h1 style="font-size:1.6em">Escreve o teu nome completo</h1>
@@ -212,6 +221,7 @@ function set(key, html, bind) {
 
 function header() {
   const m = state.me;
+  if (state.session.settings.anonymous) return `<div class="bar"><span class="avatar sm" style="background:#334155">🕶</span><span class="name">Anónimo</span>${m.score == null ? '' : `<span class="score" id="score">${m.score} pts</span>`}</div>`;
   return `<div class="bar">${avatar(m, 'sm')}<span class="name">${esc(m.name)}</span>${m.score == null ? '' : `<span class="score" id="score">${m.score} pts</span>`}</div>`;
 }
 
@@ -229,6 +239,8 @@ function renderGameInner() {
   clearInterval(exClock);
   if (ph !== 'lobby') stopCamera();
   if (ph === 'lobby') {
+    if (s.settings.anonymous) return set('lobby-anon', header() + `<div class="middle"><div class="big-emoji bounce">🕶️</div><h1>Estás dentro! 🎉</h1>
+      <p>Participas de forma <b>anónima</b>.<br>Olha para o ecrã do formador — o questionário vai começar<span class="dots"></span></p></div>`);
     return set('lobby' + state.me.studentId + (state.me.photo || ''), header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1><p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
       <button class="btn ghost" id="notMe" style="margin-top:10px">Não sou ${esc(state.me.name)}</button></div>`, () => {
       $('#notMe').onclick = () => socket.emit('player:leave', res => {
@@ -319,10 +331,12 @@ function renderGameInner() {
     return;
   }
   if (ph === 'end') {
-    const m = state.me;
+    const m = { ...state.me };
+    // sem perguntas com resposta certa (ex.: inquérito de satisfação) não faz sentido mostrar pontos
+    if (state.gradedTotal === 0) { m.score = null; m.position = null; }
     const isNew = !lastKey.startsWith('end');
-    const podium = s.settings.finalPodium && m.position <= 5;
-    set('end', header() + `<div class="middle">${podium ? `<div class="pop-in">${dancer(m, ['jump', 'disco', 'wave', 'sway', 'robot'][m.position - 1], ['#ffd93d', '#e5e7eb', '#f4a261', '#7dd3fc', '#c4b5fd'][m.position - 1], m.position === 1)}</div>` : avatar(m, 'xl pop-in')}<h1>Terminou! 🏁</h1>
+    const podium = s.settings.finalPodium && m.position != null && m.position <= 5;
+    set('end', header() + `<div class="middle">${podium ? `<div class="pop-in">${dancer(m, ['jump', 'disco', 'wave', 'sway', 'robot'][m.position - 1], ['#ffd93d', '#e5e7eb', '#f4a261', '#7dd3fc', '#c4b5fd'][m.position - 1], m.position === 1)}</div>` : s.settings.anonymous ? '<div class="big-emoji pop-in">🕶️</div>' : avatar(m, 'xl pop-in')}<h1>Terminou! 🏁</h1>
       ${m.score != null || m.position != null ? `<div class="card" style="width:100%">
         ${m.score != null ? `<div style="font-size:2.4em;font-weight:700">${m.score} pts</div><div class="muted">${m.correct} de ${state.gradedTotal ?? s.total} respostas certas</div>` : ''}
         ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
@@ -330,7 +344,7 @@ function renderGameInner() {
         <div class="rv-item ${r.mine == null ? 'none' : r.ok === true ? 'ok' : r.ok === false ? 'bad' : 'none'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
           <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
           <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${r.type === 'mc' || r.type === 'tf' || !r.type ? optLabel(r.options, r.mine) : esc(r.mineText || '')} ${r.ok === true ? '✓' : r.ok === false ? '✗' : ''}`}</div></div>`).join('')}</div>` : ''}
-      ${!state.review && m.score == null ? `<div class="result none" style="margin-top:6px"><div class="big-emoji">📨</div><h2>Respostas enviadas!</h2>
+      ${(!state.review || !state.review.some(r => r.graded || r.ok != null)) && m.score == null ? `<div class="result none" style="margin-top:6px"><div class="big-emoji">📨</div><h2>Respostas enviadas!</h2>
         <p>Respondeste a ${state.answeredCount ?? 0} de ${s.total} perguntas. As tuas respostas foram registadas.</p></div>` : ''}
       <p>Obrigado por participares! 💜</p></div>`);
     if (isNew) { Sound.play('fanfare'); Confetti.burst(200); }
@@ -346,6 +360,7 @@ function rankBox() {
 let photo = { step: 'ask', data: null, stream: null, fallback: false };
 const photoKey = () => 'aq_photo_' + state.session.id + '_' + state.me.studentId;
 function needPhotoStep() {
+  if (state.session.settings.anonymous) return false; // anónimo: sem fotografia
   if (state.me.photo) return false;            // já tem fotografia (do formador ou tirada agora)
   try { if (localStorage.getItem(photoKey())) return false; } catch {}
   return photo.step !== 'done';

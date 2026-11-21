@@ -93,6 +93,7 @@ function persistSession() {
     roster: session.roster,
     players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, joinedAt: p.joinedAt })),
     code: session.code,
+    anonymous: !!session.settings.anonymous,
     submitted: session.submitted || null,
     answers: session.answers,
     asked: session.asked,
@@ -225,7 +226,7 @@ function rosterForPlayers(sk) {
   if (!session) return { session: null };
   if (!codeOk(sk && sk.data.code)) return { session: null, badCode: !!(sk && sk.data.code) };
   // só a informação da sessão: a lista da turma (nomes e fotos) não é enviada a quem entra
-  return { session: { id: session.id, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase } };
+  return { session: { id: session.id, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase, anonymous: !!session.settings.anonymous } };
 }
 
 // Nomes comparados sem acentos, maiúsculas ou espaços a mais ("joao goncalves" = "João Gonçalves").
@@ -496,6 +497,7 @@ function cleanQuiz(q) {
   const courseId = db.courses.find(c => c.id === q.courseId) ? q.courseId : (db.courses[0] || {}).id;
   return {
     id: q.id || uid(), courseId, title: String(q.title || 'Sem título').trim(),
+    anonymous: !!q.anonymous, // respostas anónimas: não se pede o nome nem se guarda quem respondeu
     questions: (q.questions || []).map(x => Q.cleanQuestion(x, uid, savePhoto)).filter(Boolean),
   };
 }
@@ -529,7 +531,7 @@ app.get('/api/results', auth, (req, res) => {
   const list = files.map(f => {
     try {
       const r = JSON.parse(fs.readFileSync(path.join(RESULTS, f), 'utf8'));
-      return { id: r.id, quizTitle: r.quizTitle, courseName: r.courseName || '', startedAt: r.startedAt, endedAt: r.endedAt, players: r.players.length, questions: r.questions.length };
+      return { id: r.id, quizTitle: r.quizTitle, courseName: r.courseName || '', anonymous: !!r.anonymous, startedAt: r.startedAt, endedAt: r.endedAt, players: r.players.length, questions: r.questions.length };
     } catch { return null; }
   }).filter(Boolean).sort((a, b) => b.startedAt - a.startedAt);
   res.json(list);
@@ -706,7 +708,10 @@ io.on('connection', socket => {
       if (settings.revealMode !== 'each') settings.rankEach = false;
       const fixed = parseInt(settings && settings.fixedTime, 10);
       if (fixed >= 5) qs.forEach(q => q.time = Math.min(300, fixed));
-      const roster = db.students.filter(s => !studentIds || studentIds.includes(s.id)).map(s => ({ ...s }));
+      // anónimo: nenhuma ligação à turma (sem nomes, fotos nem ranking)
+      settings.anonymous = !!quiz.anonymous;
+      if (settings.anonymous) { settings.noRanking = true; settings.rankEach = false; settings.finalPodium = false; settings.showWho = false; }
+      const roster = settings.anonymous ? [] : db.students.filter(s => !studentIds || studentIds.includes(s.id)).map(s => ({ ...s }));
       assignShortNames(roster);
       session = {
         id: new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '_' + uid(4),
@@ -760,6 +765,7 @@ io.on('connection', socket => {
     socket.on('host:addStudent', guard((name, cb) => {
       if (typeof cb !== 'function') cb = () => {};
       if (!session) return cb({ error: 'Não há sessão ativa' });
+      if (session.settings.anonymous) return cb({ error: 'Questionário anónimo: não há lista de formandos.' });
       name = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 80);
       if (!name) return cb({ error: 'Escreve o nome completo' });
       if (db.students.some(x => norm(x.name) === norm(name)) || session.roster.some(x => norm(x.name) === norm(name))) return cb({ error: `Já existe um formando chamado "${name}".` });
@@ -827,6 +833,13 @@ io.on('connection', socket => {
     const { name } = (data && typeof data === 'object') ? data : {};
     if (!codeOk(socket.data.code)) return cb({ error: 'Código da sessão inválido ou sessão terminada. Lê de novo o QR code.' });
     if (me && session.players[me.studentId] === me) return cb({ error: 'Já entraste neste dispositivo.' });
+    if (session.settings.anonymous) {
+      // cada dispositivo é um participante anónimo com um código aleatório (não fica registado quem é)
+      let code; do { code = Array.from(crypto.randomBytes(3), b => CODE_ABC[b % CODE_ABC.length]).join(''); } while (session.roster.some(r => r.name.endsWith('#' + code)));
+      const st = { id: 'a' + uid(8), name: 'Anónimo #' + code, short: '#' + code, photo: null, anon: true };
+      session.roster.push(st);
+      return attach(newPlayer(st), cb);
+    }
     if (typeof name !== 'string' || !name.trim() || name.length > 80) return cb({ error: 'Escreve o teu nome completo.' });
     const T = norm(name).split(' ').filter(Boolean);
     if (!T.length) return cb({ error: 'Escreve o teu nome completo.' });
@@ -853,6 +866,7 @@ io.on('connection', socket => {
   socket.on('player:photo', (dataUrl, cb) => {
     if (typeof cb !== 'function') cb = () => {};
     if (!session || !me || me.socketId !== socket.id) return cb({ error: 'Pedido inválido.' });
+    if (session.settings.anonymous) return cb({ error: 'Este questionário é anónimo.' });
     if (typeof dataUrl !== 'string' || dataUrl.length > 400000 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(dataUrl)) return cb({ error: 'Fotografia inválida.' });
     const url = savePhoto(dataUrl);
     if (!url) return cb({ error: 'Fotografia inválida.' });

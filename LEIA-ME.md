@@ -66,6 +66,8 @@ Segurança:
    5=Muito
    ```
 
+**🕶️ Questionário anónimo:** no editor, liga **Respostas anónimas** (ex.: inquéritos de satisfação). Ao abrir a sala aparece o aviso e não é preciso escolher formandos. Os formandos entram só com o QR code e carregam em **Entrar** — sem nome nem fotografia; cada telemóvel aparece como "Anónimo #código". A app não guarda nomes, fotos nem qualquer ligação à lista da turma, por isso ninguém (nem tu) sabe quem respondeu o quê. Não há ranking, pódio nem fotos de quem respondeu; a grelha, as fichas, o Excel, a validação das respostas livres e a lista de soluções funcionam por participante anónimo.
+
 **📋 Lista de soluções:** em Questionários, o botão **📋 Soluções** de cada questionário mostra todas as perguntas com a resposta correta **destacada a verde**: todas as opções (a correta marcada), a frase completa nos espaços, a resposta de referência das respostas livres e a escala 1–5 com as legendas. Podes **imprimir / guardar PDF** ou descarregar em **Word** (A4 vertical).
 
 ## 4. Durante a sessão

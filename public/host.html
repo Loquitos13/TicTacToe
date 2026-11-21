@@ -116,6 +116,8 @@
   .open-ans { background: #fff; color: var(--ink); border-radius: 14px; padding: 8px 14px; font-size: 1.2em; font-weight: 600; }
   .open-ans.ok { background: #dcfce7; color: #166534; } .open-ans.bad { opacity: .55; }
   .accepted { background: #dcfce7; color: #166534; border-radius: 14px; padding: 10px 16px; text-align: center; font-size: 1.3em; margin-bottom: 10px; }
+  .anon-note { background: #f1f5f9; color: #334155; border-radius: 10px; padding: 8px 12px; margin: 0; }
+  .anon-opt { background: #f1f5f9; border-radius: 10px; padding: 8px 12px; margin-top: 10px; }
   .big-msg { text-align: center; font-size: 3em; font-weight: 700; margin: 10px 0; }
   .board { max-width: 900px; width: 100%; margin: 10px auto; display: flex; flex-direction: column; gap: 12px; }
   .board .r { display: flex; align-items: center; gap: 16px; background: #fff; color: var(--ink); border-radius: 18px; padding: 10px 18px; font-size: 1.4em; font-weight: 600; }
@@ -391,12 +393,14 @@ function lobbyHtml() {
         </div></details>
     </div>
     <div>
-      <div class="row"><div class="count-big" id="joinCount">${connectedN()}</div><div style="font-size:1.3em">de <span id="rosterN">${S.roster.length}</span> alunos<br>já entraram</div></div>
+      <div class="row"><div class="count-big" id="joinCount">${connectedN()}</div><div style="font-size:1.3em">${S.settings.anonymous ? `participantes<br>anónimos já entraram` : `de <span id="rosterN">${S.roster.length}</span> alunos<br>já entraram`}</div></div>
       <div class="joined" id="joined" style="margin-top:20px">${joinedHtml()}</div>
     </div></div>`;
 }
 function joinedHtml() {
   const joined = new Map(S.players.map(p => [p.studentId, p]));
+  if (S.settings.anonymous) return S.roster.map(s => { const p = joined.get(s.id);
+    return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}" data-photo=""><span class="avatar lg" style="background:#334155">🕶️</span><span>${esc(s.short || 'Anónimo')}</span></div>`; }).join('');
   return S.roster.map(s => {
     const p = joined.get(s.id);
     return `<div class="p ${p && p.connected ? 'pop-in' : 'off'}" data-id="${s.id}" data-photo="${esc(s.photo || '')}">${avatar(s, 'lg')}<span title="${esc(s.name)}">${esc(s.short || s.name)}</span></div>`;
@@ -617,7 +621,7 @@ function controlsHtml() {
     ${hiddenReveal() && !isExamMode() ? `<label class="switch" title="Só neste dispositivo. Deixa desligado no ecrã projetado."><input type="checkbox" id="setSee" ${seeAnswers ? 'checked' : ''}> 👁 Ver respostas corretas</label>` : ''}
     ${ph === 'end' && S.settings.revealEnd ? `<button class="btn small ${showAnswersList ? 'primary' : 'ghost'}" id="btnAnswers">${showAnswersList ? '🏆 Voltar ao pódio' : '📋 Mostrar respostas corretas'}</button>` : ''}
     ${isExamMode() ? '' : `<label class="switch" title="Mostrar quantos escolheram cada opção"><input type="checkbox" id="setPoll" ${pollOn() ? 'checked' : ''}> Sondagem</label>`}
-    ${pollOn() ? `<label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>` : ''}
+    ${pollOn() && !S.settings.anonymous ? `<label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>` : ''}
     ${S.settings.noRanking || hiddenReveal() ? '' : `<label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>`}
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
@@ -756,6 +760,7 @@ function renderSetup(el) {
         <select id="sCourse">${withQ.map(c => `<option value="${c.id}" ${c.id === selCourse ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
         <label>Questionário</label>
         <select id="sQuiz"></select>
+        <p class="anon-note" id="anonNote" hidden>🕶️ <b>Questionário anónimo:</b> os formandos entram só com o QR code, sem nome nem fotografia, e os resultados ficam por "Anónimo #código". Não há ranking nem pódio.</p>
         <label>Como avançam as perguntas? <small class="muted">(aplica-se a todo o quiz)</small></label>
         <div class="modes">
           <label class="mode"><input type="radio" name="sMode" value="manual" checked><span><b>🎮 Manual</b><small>Tu abres cada pergunta e decides quando fechar. Depois mostras a sondagem, a resposta correta e o ranking ao teu ritmo.</small></span></label>
@@ -805,9 +810,20 @@ function renderSetup(el) {
   const go = $('#sGo');
   const fillQuiz = () => {
     const cid = $('#sCourse').value; try { localStorage.setItem('aq_course', cid); } catch {}
-    $('#sQuiz').innerHTML = qz.filter(q => q.courseId === cid).map(q => `<option value="${q.id}">${esc(q.title)} (${q.questions.length} perguntas)</option>`).join('');
+    $('#sQuiz').innerHTML = qz.filter(q => q.courseId === cid).map(q => `<option value="${q.id}">${q.anonymous ? '🕶️ ' : ''}${esc(q.title)} (${q.questions.length} perguntas)</option>`).join('');
+    syncAnon();
   };
-  $('#sCourse').onchange = fillQuiz; fillQuiz();
+  // questionário anónimo: sem ranking, sem "quem respondeu" e sem escolher formandos
+  const syncAnon = () => {
+    const qq = qz.find(x => x.id === $('#sQuiz').value), anon = !!(qq && qq.anonymous);
+    $('#anonNote').hidden = !anon;
+    $('#sRanking').disabled = anon; if (anon) $('#sRanking').value = 'none';
+    $('#sWho').disabled = anon; if (anon) $('#sWho').checked = false;
+    const turma = $('.chips'); if (turma) turma.style.opacity = anon ? .35 : 1;
+  };
+  $('#sQuiz').onchange = syncAnon;
+  fillQuiz();
+  $('#sCourse').onchange = fillQuiz;
   const syncSetup = () => {
     const m = $('[name=sMode]:checked').value;
     $('#timeRow').hidden = m === 'manual' || m === 'exam'; $('#autoRow').hidden = m !== 'auto'; $('#examRow').hidden = m !== 'exam';
@@ -829,7 +845,8 @@ function renderSetup(el) {
   if ($('#allOn')) { $('#allOn').onclick = () => $$('.sStu').forEach(c => c.checked = true); $('#allOff').onclick = () => $$('.sStu').forEach(c => c.checked = false); }
   go.onclick = () => {
     const ids = $$('.sStu').filter(c => c.checked).map(c => c.value);
-    if (!ids.length) return toast('Escolhe pelo menos um aluno');
+    const anonQ = (qz.find(x => x.id === $('#sQuiz').value) || {}).anonymous;
+    if (!ids.length && !anonQ) return toast('Escolhe pelo menos um aluno');
     Sound.init();
     socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sRevEach').checked ? 'each' : ($('#sRevEnd').checked ? 'end' : 'never'), revealEnd: $('#sRevEnd').checked,
       rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
@@ -919,7 +936,7 @@ function renderQuizzes() {
         <button class="btn small primary" data-newq="${c.id}">+ Questionário</button>
         <label class="btn small">Importar JSON<input type="file" accept=".json" data-imp="${c.id}" hidden></label>
         <button class="btn small" data-ren="${c.id}">✏️ Renomear</button><button class="btn small danger" data-cdel="${c.id}" title="Apagar curso">✕</button></div>
-      <div class="list" style="margin-top:12px">${qs.map(q => `<div class="item"><div class="grow"><b>${esc(q.title)}</b><br><small class="muted">${q.questions.length} perguntas</small></div>
+      <div class="list" style="margin-top:12px">${qs.map(q => `<div class="item"><div class="grow"><b>${esc(q.title)}</b>${q.anonymous ? ' <span class="tag none">🕶️ anónimo</span>' : ''}<br><small class="muted">${q.questions.length} perguntas</small></div>
         <button class="btn small" data-edit="${q.id}">Editar</button><button class="btn small" data-dup="${q.id}">Duplicar</button>
         <button class="btn small" data-key="${q.id}">📋 Soluções</button><button class="btn small" data-exp="${q.id}">Exportar</button><button class="btn small danger" data-del="${q.id}">✕</button></div>`).join('') || '<p class="muted" style="margin:0">Ainda sem questionários neste curso.</p>'}</div></div>`; }).join('')}`;
   const after = async () => { await reloadCQ(); renderQuizzes(); };
@@ -964,6 +981,7 @@ function renderEditor(el) {
   const q = editing;
   el.innerHTML = `<div class="card">
     <div class="row"><label class="muted">🎓 Curso</label><select id="qCourse">${courses.map(c => `<option value="${c.id}" ${c.id === q.courseId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+    <label class="switch anon-opt"><input type="checkbox" id="qAnon" ${q.anonymous ? 'checked' : ''}> 🕶️ <b>Respostas anónimas</b> — não se pede o nome nem a fotografia; ninguém (nem tu) sabe quem respondeu o quê. Sem ranking nem pódio.</label>
     <div class="row" style="margin-top:10px"><input type="text" id="qTitle" class="grow" value="${esc(q.title)}" style="font-size:1.3em;font-weight:600">
       <button class="btn ghost" id="cancelEd" style="color:var(--ink);background:#eee">Cancelar</button><button class="btn primary" id="saveEd">💾 Guardar</button></div>
     <details style="margin:14px 0"><summary style="cursor:pointer;font-weight:600">⚡ Importar perguntas de texto (rápido)</summary>
@@ -981,7 +999,7 @@ function renderEditor(el) {
     <button class="btn" id="addQ">+ Adicionar pergunta</button>
   </div>`;
   const sync = () => {
-    q.title = $('#qTitle').value; q.courseId = $('#qCourse').value;
+    q.title = $('#qTitle').value; q.courseId = $('#qCourse').value; q.anonymous = $('#qAnon').checked;
     $$('.qedit').forEach((box, i) => {
       const x = q.questions[i], t = qType(x);
       x.type = t; x.text = $('.qText', box).value; x.time = +$('.qTime', box).value || 20;
@@ -1240,7 +1258,7 @@ async function renderResultsList() {
   el.innerHTML = `<div class="card"><div class="row"><h2 class="grow" style="margin:0">📊 Sessões realizadas</h2>
     <label class="muted">Curso</label><select id="rFilter"><option value="__all">Todos os cursos</option>${cnames.map(n => `<option value="${esc(n)}" ${n === f ? 'selected' : ''}>${esc(n || 'Sem curso')}</option>`).join('')}</select></div>
     <div class="list" style="margin-top:14px">${list.map(r => `<div class="item"><div class="grow"><b>${r.courseName ? `<span class="muted" style="font-weight:500">🎓 ${esc(r.courseName)} ·</span> ` : ''}${esc(r.quizTitle)}</b><br>
-    <small class="muted">${new Date(r.startedAt).toLocaleString('pt-PT')} · ${r.players} participantes · ${r.questions} perguntas ${r.endedAt ? '' : '· <b>em curso / não terminada</b>'}</small></div>
+    <small class="muted">${new Date(r.startedAt).toLocaleString('pt-PT')} · ${r.players} participantes${r.anonymous ? ' (🕶️ anónimo)' : ''} · ${r.questions} perguntas ${r.endedAt ? '' : '· <b>em curso / não terminada</b>'}</small></div>
     <button class="btn small primary" data-open="${r.id}">Ver grelha</button><button class="btn small danger" data-rm="${r.id}">✕</button></div>`).join('') || '<p class="muted">Ainda não há sessões.</p>'}</div></div>`;
   $('#rFilter').onchange = e => { resultsFilter = e.target.value === '__all' ? null : e.target.value; renderResultsList(); };
   $$('[data-open]').forEach(b => b.onclick = () => openResult(b.dataset.open));
