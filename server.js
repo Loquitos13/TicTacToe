@@ -279,9 +279,11 @@ function advance() {
   if (ph === 'lobby') return startQuestion(0);
   if (ph === 'ready') return openQuestion();
   if (ph === 'question') return closeQuestion();
-  if (ph === 'closed') return setPhase('reveal');
+  // quando as respostas corretas não são mostradas aos formandos, depois da sondagem segue logo para a próxima
+  const skipReveal = (session.settings.revealMode || 'each') !== 'each';
+  if (ph === 'closed' && !skipReveal) return setPhase('reveal');
   if (ph === 'reveal' && session.settings.rankEach) return setPhase('leaderboard');
-  if (ph === 'reveal' || ph === 'leaderboard') {
+  if (ph === 'reveal' || ph === 'leaderboard' || (ph === 'closed' && skipReveal)) {
     if (session.qIndex + 1 < session.questions.length) return startQuestion(session.qIndex + 1);
     session.endedAt = Date.now();
     return setPhase('end');

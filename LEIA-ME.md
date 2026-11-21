@@ -82,10 +82,10 @@ Ao abrir a sala escolhes **como avançam as perguntas** (vale para o quiz inteir
 
 Escolhes quando **mostrar as respostas corretas aos formandos**:
 - **Depois de cada pergunta** — cada um vê no telemóvel se acertou e qual era a correta.
-- **Só no fim** — durante o quiz o telemóvel só diz "Resposta registada" (sem certo/errado nem pontuação). No fim, cada formando vê a lista de todas as perguntas com a resposta correta e a sua, e tu tens o botão **📋 Mostrar respostas corretas** para as projetar.
-- **Nunca** — os formandos nunca veem as respostas corretas nem a pontuação.
+- **Só no fim** — durante o quiz não há o passo da resposta correta: depois da sondagem segue logo para a pergunta seguinte, e o telemóvel não mostra certo/errado nem pontuação. No fim, cada formando vê a lista de todas as perguntas com a resposta correta e a sua, e tu tens o botão **📋 Mostrar respostas corretas** para as projetar.
+- **Nunca** — igual, mas no fim também não são mostradas: os formandos nunca veem as respostas corretas nem a pontuação.
 
-Nos dois últimos casos **tu continuas a ver tudo**: liga **👁 Ver respostas corretas** na barra de baixo no teu portátil ou telemóvel (fica guardado só nesse dispositivo; deixa desligado no ecrã projetado) e tens sempre a grelha de resultados. Não há ranking depois de cada pergunta, porque mostraria quem acertou.
+Nos dois últimos casos **tu continuas a ver tudo**: liga **👁 Ver respostas corretas** na barra de baixo no teu portátil ou telemóvel (a opção correta fica marcada com ✔ na sondagem) (fica guardado só nesse dispositivo; deixa desligado no ecrã projetado) e tens sempre a grelha de resultados. Não há ranking depois de cada pergunta, porque mostraria quem acertou.
 Dica: podes abrir o painel do formador ao mesmo tempo no projetor e no teu telemóvel.
 
 E escolhes o **ranking**:

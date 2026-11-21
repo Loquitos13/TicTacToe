@@ -221,9 +221,10 @@ function renderGameInner() {
   if (ph === 'question') {
     const q = state.question;
     if (state.answered) {
-      return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">🤞</div><h1>Resposta enviada!</h1>
+      const revealLater = (s.settings.revealMode || 'each') !== 'each';
+      return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">${revealLater ? '✅' : '🤞'}</div><h1>Resposta enviada!</h1>
         <div class="ans opt-${state.myOption}" style="min-height:auto;width:100%"><span class="letter">${LETTERS[state.myOption]}</span>${esc(q.options[state.myOption])}</div>
-        <p>Vamos ver se acertaste<span class="dots"></span></p></div>`);
+        <p>${revealLater ? 'Aguarda a próxima pergunta' : 'Vamos ver se acertaste'}<span class="dots"></span></p></div>`);
     }
     set('q' + s.qIndex, header() + qmeta() + `<div class="qtext slide-up">${esc(q.text)}</div>${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
       ${timedMode ? '<div class="timebar"><div id="tb"></div></div>' : '<p class="center" style="margin:10px 0;opacity:.85">👆 Escolhe a tua resposta</p>'}

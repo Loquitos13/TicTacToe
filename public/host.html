@@ -83,6 +83,7 @@
   .ready-n { width: 160px; height: 160px; border-radius: 50%; background: #ffd93d; color: var(--ink); display: grid; place-items: center; font-size: 5em; font-weight: 700; box-shadow: 0 0 0 14px rgba(255,217,61,.25); }
   .timeup { position: fixed; inset: 0; display: grid; place-items: center; font-size: clamp(3em, 9vw, 7em); font-weight: 700; background: rgba(43,16,85,.85); z-index: 40; animation: timeup 1.8s ease forwards; pointer-events: none; }
   @keyframes timeup { 0% { opacity: 0; transform: scale(1.4); } 15% { opacity: 1; transform: scale(1); } 75% { opacity: 1; } 100% { opacity: 0; } }
+  .opt.right-private { outline: 4px dashed #ffd93d; outline-offset: 3px; }
   .private-note { margin-top: 10px; display: inline-block; width: 100%; color: #ffd93d; font-weight: 600; }
   .answers-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; max-width: 1200px; width: 100%; margin: 0 auto; }
   .al-item { background: #fff; color: var(--ink); border-radius: 18px; padding: 16px 18px; }
@@ -407,18 +408,20 @@ function resultsHtml(withAnswer, animate = false) {
   const q = S.question, total = S.answeredIds.length, max = Math.max(1, ...S.counts);
   const byId = new Map(S.roster.map(s => [s.id, s]));
   const pct = c => total ? Math.round(c / total * 100) : 0;
+  const privateMark = !withAnswer && hiddenReveal() && seeAnswers;
   return `${withAnswer ? '' : `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">📊 Sondagem <small style="font-size:.5em;opacity:.8">· respostas fechadas</small></div>`}
     ${!withAnswer && timed() && !closedShown.has(S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
     <div class="question-title" style="font-size:clamp(1.3em,2.6vw,2.2em);margin-top:6px">${esc(q.text)}</div>
     <div class="opts" style="margin-top:10px">${q.options.map((o, i) => {
       const right = q.correct.includes(i);
-      return `<div class="opt opt-${i} ${withAnswer ? (right ? 'right' : 'dim') : 'slide-up'} ${S.settings.showWho ? 'has-who' : ''}" style="animation-delay:${withAnswer ? 0 : i * 100}ms">
+      return `<div class="opt opt-${i} ${withAnswer ? (right ? 'right' : 'dim') : 'slide-up'} ${privateMark && right ? 'right-private' : ''} ${S.settings.showWho ? 'has-who' : ''}" style="animation-delay:${withAnswer ? 0 : i * 100}ms">
         <div class="fill" data-w="${pct(S.counts[i])}%"></div>
         <span class="letter">${LETTERS[i]}</span><span class="txt">${esc(o)}</span>
-        ${withAnswer && right ? '<span class="tick">✔</span>' : ''}<span class="cnt"><span class="num" data-n="${S.counts[i]}">${animate ? 0 : S.counts[i]}</span> <small class="pc" data-p="${pct(S.counts[i])}" style="font-size:.55em;opacity:.85">${animate ? 0 : pct(S.counts[i])}%</small></span>
+        ${(withAnswer || privateMark) && right ? '<span class="tick">✔</span>' : ''}<span class="cnt"><span class="num" data-n="${S.counts[i]}">${animate ? 0 : S.counts[i]}</span> <small class="pc" data-p="${pct(S.counts[i])}" style="font-size:.55em;opacity:.85">${animate ? 0 : pct(S.counts[i])}%</small></span>
         ${S.settings.showWho ? `<div class="who">${S.whoByOption[i].map(id => avatar(byId.get(id) || { name: '?' }, 'sm')).join('')}</div>` : ''}
       </div>`;
     }).join('')}</div>
+    ${privateMark ? `<p class="center private-note">👁 Só neste ecrã: ✔ marca a resposta correta. Os formandos não a veem.</p>` : ''}
     <p class="center" style="font-size:1.3em;margin-top:22px">${withAnswer ? `✅ ${q.correct.reduce((a, i) => a + S.counts[i], 0)} acertaram · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
 }
 
@@ -452,7 +455,8 @@ function endHtml() {
 function controlsHtml() {
   const ph = S.phase, last = S.qIndex + 1 >= S.total;
   const label = {
-    lobby: '▶ Começar quiz', ready: '⏩ Abrir já', question: timed() ? '⏹ Terminar tempo' : '⏹ Fechar respostas', closed: '✅ Mostrar resposta correta',
+    lobby: '▶ Começar quiz', ready: '⏩ Abrir já', question: timed() ? '⏹ Terminar tempo' : '⏹ Fechar respostas',
+    closed: hiddenReveal() ? (last ? '🏁 Resultados finais' : '➡ Próxima pergunta') : '✅ Mostrar resposta correta',
     reveal: S.settings.rankEach ? '🏆 Ranking' : (last ? '🏁 Resultados finais' : '➡ Próxima pergunta'),
     leaderboard: last ? '🏁 Resultados finais' : '➡ Próxima pergunta',
   }[ph];
