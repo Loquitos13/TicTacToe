@@ -83,6 +83,12 @@
   .ready-n { width: 160px; height: 160px; border-radius: 50%; background: #ffd93d; color: var(--ink); display: grid; place-items: center; font-size: 5em; font-weight: 700; box-shadow: 0 0 0 14px rgba(255,217,61,.25); }
   .timeup { position: fixed; inset: 0; display: grid; place-items: center; font-size: clamp(3em, 9vw, 7em); font-weight: 700; background: rgba(43,16,85,.85); z-index: 40; animation: timeup 1.8s ease forwards; pointer-events: none; }
   @keyframes timeup { 0% { opacity: 0; transform: scale(1.4); } 15% { opacity: 1; transform: scale(1); } 75% { opacity: 1; } 100% { opacity: 0; } }
+  .private-note { margin-top: 10px; display: inline-block; width: 100%; color: #ffd93d; font-weight: 600; }
+  .answers-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; max-width: 1200px; width: 100%; margin: 0 auto; }
+  .al-item { background: #fff; color: var(--ink); border-radius: 18px; padding: 16px 18px; }
+  .al-q { font-weight: 600; font-size: 1.15em; margin-bottom: 8px; }
+  .al-a { font-weight: 700; font-size: 1.15em; display: flex; flex-direction: column; gap: 6px; }
+  .al-a .letter { color: #fff; margin-right: 6px; }
   .big-msg { text-align: center; font-size: 3em; font-weight: 700; margin: 10px 0; }
   .board { max-width: 900px; width: 100%; margin: 10px auto; display: flex; flex-direction: column; gap: 12px; }
   .board .r { display: flex; align-items: center; gap: 16px; background: #fff; color: var(--ink); border-radius: 18px; padding: 10px 18px; font-size: 1.4em; font-weight: 600; }
@@ -218,6 +224,10 @@ let lastPhaseKey = '', tickTimer = null;
 function next() { Sound.init(); socket.emit('host:next'); }
 const timed = () => S && S.settings.mode !== 'manual'; // por tempo ou automático
 const isAuto = () => S && S.settings.mode === 'auto';
+const hiddenReveal = () => S && (S.settings.revealMode || 'each') !== 'each';
+// neste dispositivo, mostrar as respostas corretas? (o projetor fica sem elas; o portátil/telemóvel do formador com elas)
+let seeAnswers = false; try { seeAnswers = localStorage.getItem('aq_see_answers') === '1'; } catch {}
+const showCorrectHere = () => !hiddenReveal() || seeAnswers;
 const connectedN = () => S.players.filter(p => p.connected).length;
 
 function onState(prev) {
@@ -225,6 +235,7 @@ function onState(prev) {
   const changed = key !== lastPhaseKey;
   lastPhaseKey = key;
   if (changed) phaseSound(prev);
+  if (!S || S.phase !== 'end') showAnswersList = false;
   if (tab === 'game') renderGame(changed);
   runAutoInfo();
 }
@@ -243,7 +254,7 @@ function phaseSound(prev) {
     }
   }
   if (ph === 'closed') { Sound.stopMusic(0.8); Sound.play('softEnd'); }
-  if (ph === 'reveal') { Sound.stopMusic(); Sound.play('revealCorrect'); }
+  if (ph === 'reveal') { Sound.stopMusic(); Sound.play(showCorrectHere() ? 'revealCorrect' : 'pop'); }
   if (ph === 'leaderboard') {
     // aplausos ao entrar o pódio; quando acabam começa a música de festa (em loop até à próxima pergunta)
     Sound.stopMusic(); Sound.play('cheer', CHEER_S);
@@ -281,9 +292,9 @@ function renderGame(full) {
   if (ph === 'question') html += questionHtml();
   const firstPoll = ph === 'closed' && !closedShown.has(S.qIndex);
   if (ph === 'closed') { html += resultsHtml(false, firstPoll); closedShown.add(S.qIndex); }
-  if (ph === 'reveal') html += resultsHtml(true);
+  if (ph === 'reveal') html += showCorrectHere() ? resultsHtml(true) + (hiddenReveal() ? `<p class="center private-note">👁 Só neste ecrã: os formandos não veem a resposta correta.</p>` : '') : hiddenRevealHtml();
   if (ph === 'leaderboard') html += `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Top 5</div>` + podiumHtml(S.ranking.slice(0, 5), false);
-  if (ph === 'end') html += endHtml();
+  if (ph === 'end') html += (showAnswersList ? answersListHtml() : endHtml());
   html += `</div>` + controlsHtml();
   el.innerHTML = html;
   bindGame();
@@ -361,6 +372,19 @@ function questionHtml() {
 }
 
 // withAnswer=false → sondagem (só quantos escolheram cada opção); true → destaca a correta
+// passo "resposta correta" num ecrã projetado quando as respostas não são mostradas à turma
+function hiddenRevealHtml() {
+  const atEnd = S.settings.revealMode === 'end';
+  return resultsHtml(false).replace(/<div class="big-msg[^>]*>📊 Sondagem[\s\S]*?<\/div>/, '').replace('<div class="timeup">⏰ Tempo esgotado!</div>', '') +
+    `<p class="center" style="font-size:1.5em;font-weight:600;margin-top:4px">${atEnd ? '🤫 As respostas corretas vão ser mostradas no fim!' : '📨 Respostas registadas.'}</p>`;
+}
+// fim do quiz no modo "só no fim": lista de todas as perguntas com a resposta correta
+function answersListHtml() {
+  return `<div class="big-msg slide-up" style="font-size:2.2em;margin:0 0 8px">✅ As respostas corretas</div><div class="answers-list">${S.allQuestions.map((q, i) => `
+    <div class="al-item slide-up" style="animation-delay:${Math.min(i, 12) * 80}ms"><div class="al-q">${i + 1}. ${esc(q.text)}</div>
+    <div class="al-a">${q.correct.map(k => `<div><span class="letter" style="background:var(--${'abcdef'[k]})">${LETTERS[k]}</span> ${esc(q.options[k])}</div>`).join('')}</div></div>`).join('')}</div>`;
+}
+let showAnswersList = false;
 const closedShown = new Set();
 const POLL_MS = 1600;
 function growPoll(delay) {
@@ -436,8 +460,10 @@ function controlsHtml() {
   return `<div class="controls noprint">
     ${isAuto() && ph !== 'end' && ph !== 'lobby' ? `<button class="btn small ghost" id="btnPause">${S.settings.paused ? '▶ Retomar' : '⏸ Pausar'}</button>` : ''}
     <div class="info"><b id="autoInfo" style="color:#ffd93d"></b> <span id="ctlInfo">${ph === 'end' ? 'Sessão terminada — as respostas estão guardadas.' : `${connectedN()} ligados · espaço/→ avança`}</span></div>
+    ${hiddenReveal() ? `<label class="switch" title="Só neste dispositivo. Deixa desligado no ecrã projetado."><input type="checkbox" id="setSee" ${seeAnswers ? 'checked' : ''}> 👁 Ver respostas corretas</label>` : ''}
+    ${ph === 'end' && S.settings.revealMode === 'end' ? `<button class="btn small ${showAnswersList ? 'primary' : 'ghost'}" id="btnAnswers">${showAnswersList ? '🏆 Voltar ao pódio' : '📋 Mostrar respostas corretas'}</button>` : ''}
     <label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>
-    ${S.settings.noRanking ? '' : `<label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>`}
+    ${S.settings.noRanking || hiddenReveal() ? '' : `<label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>`}
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
     ${ph !== 'end' ? `<button class="btn small danger" id="btnEnd">Terminar</button>` : ''}
@@ -453,6 +479,8 @@ function bindGame() {
   on('btnGrid', () => { showTab('results'); openResult(S.id); });
   on('btnFs', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
   on('btnPlayers', playersDialog);
+  on('btnAnswers', () => { showAnswersList = !showAnswersList; if (showAnswersList) Sound.play('revealCorrect'); renderGame(true); });
+  const ss = $('#setSee'); if (ss) ss.onchange = e => { seeAnswers = e.target.checked; try { localStorage.setItem('aq_see_answers', seeAnswers ? '1' : '0'); } catch {} renderGame(true); };
   $('#setWho').onchange = e => socket.emit('host:settings', { showWho: e.target.checked });
   const sr = $('#setRank'); if (sr) sr.onchange = e => socket.emit('host:settings', { rankEach: e.target.checked });
   on('btnPause', () => socket.emit('host:settings', { paused: !S.settings.paused }));
@@ -579,6 +607,13 @@ function renderSetup(el) {
             <label id="tBoardL">🏆 Ranking <span class="num-in"><input type="number" id="tBoard" min="2" max="120" value="8"> s</span></label>
           </div>
         </div>
+        <label>✅ Mostrar as respostas corretas aos formandos</label>
+        <select id="sReveal">
+          <option value="each">Depois de cada pergunta</option>
+          <option value="end">Só no fim (todas de uma vez)</option>
+          <option value="never">Nunca</option>
+        </select>
+        <p class="muted" id="revealNote" hidden style="margin:-2px 0 0">Tu continuas a ver tudo: a resposta correta de cada pergunta (no teu ecrã, se ligares "👁 Ver respostas corretas") e a grelha de resultados. Os telemóveis não mostram certo/errado nem pontuação durante o quiz, e não há ranking depois de cada pergunta.</p>
         <label>🏆 Ranking</label>
         <select id="sRanking">
           <option value="each">Depois de cada pergunta (Top 5) e pódio final</option>
@@ -607,15 +642,20 @@ function renderSetup(el) {
   const syncSetup = () => {
     const m = $('[name=sMode]:checked').value;
     $('#timeRow').hidden = m === 'manual'; $('#autoRow').hidden = m !== 'auto';
+    const rv = $('#sReveal').value, eachOpt = $('#sRanking option[value=each]');
+    eachOpt.disabled = rv !== 'each';
+    if (rv !== 'each' && $('#sRanking').value === 'each') $('#sRanking').value = 'end';
+    $('#revealNote').hidden = rv === 'each';
     $('#tBoardL').hidden = $('#sRanking').value !== 'each';
   };
+  $('#sReveal').onchange = syncSetup;
   $$('[name=sMode]').forEach(r => r.onchange = syncSetup); $('#sRanking').onchange = syncSetup; syncSetup();
   if ($('#allOn')) { $('#allOn').onclick = () => $$('.sStu').forEach(c => c.checked = true); $('#allOff').onclick = () => $$('.sStu').forEach(c => c.checked = false); }
   go.onclick = () => {
     const ids = $$('.sStu').filter(c => c.checked).map(c => c.value);
     if (!ids.length) return toast('Escolhe pelo menos um aluno');
     Sound.init();
-    socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value,
+    socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sReveal').value,
       rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
       autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked } });
   };
@@ -633,14 +673,14 @@ function renderStudents() {
       <h2>➕ Adicionar aluno</h2>
       <form id="addStu" class="list">
         <div class="row"><div id="prev">${avatar({ name: '?' }, 'lg')}</div>
-          <label class="btn small">📷 Foto<input type="file" accept="image/*" id="stuPhoto" hidden></label></div>
+          <label class="btn small">📷 Foto<input type="file" accept="image/*,.heic,.heif" id="stuPhoto" hidden></label></div>
         <input type="text" id="stuName" placeholder="Nome do aluno" required>
         <button class="btn primary">Adicionar</button>
       </form>
       <hr style="border:0;border-top:1px solid #eee;margin:20px 0">
       <h3 style="margin:0 0 6px">📁 Adicionar vários de uma vez</h3>
       <p class="muted" style="margin-top:0">Escolhe várias fotos — o nome de cada ficheiro passa a ser o nome do aluno (ex.: <i>Ana Silva.jpg</i>). Podes corrigir os nomes antes de guardar.</p>
-      <label class="btn small">Escolher fotos<input type="file" accept="image/*" multiple id="bulk" hidden></label>
+      <label class="btn small">Escolher fotos<input type="file" accept="image/*,.heic,.heif" multiple id="bulk" hidden></label>
       <div id="bulkList" class="list" style="margin-top:10px"></div>
       <h3 style="margin:20px 0 6px">📋 Ou colar lista de nomes</h3>
       <textarea id="names" rows="4" style="width:100%" placeholder="Um nome por linha (podes juntar as fotos depois)"></textarea>
@@ -650,7 +690,7 @@ function renderStudents() {
       <h2>👥 Turma (${students.length})</h2>
       <div class="list" id="stuList">${students.map(s => `<div class="item" data-id="${s.id}">${avatar(s)}
         <input type="text" value="${esc(s.name)}" class="grow stuEdit" style="min-width:0">
-        <label class="btn small" title="Mudar foto">📷<input type="file" accept="image/*" class="stuNewPhoto" hidden></label>
+        <label class="btn small" title="Mudar foto">📷<input type="file" accept="image/*,.heic,.heif" class="stuNewPhoto" hidden></label>
         <button class="btn small danger stuDel" title="Remover">✕</button></div>`).join('') || '<p class="muted">Sem alunos ainda.</p>'}</div>
     </div></div>`;
   let photo = null;
@@ -786,7 +826,7 @@ function qEditHtml(x, i) {
       <label class="switch" title="Resposta correta"><input type="checkbox" class="qCor" ${x.correct.includes(k) ? 'checked' : ''}> correta</label>
       <button class="btn small qOptDel" data-k="${k}" title="Remover opção">−</button></div>`).join('')}
     <div class="row" style="margin-top:6px"><button class="btn small qAddOpt">+ Opção</button><button class="btn small qTF">Verdadeiro/Falso</button>
-    <label class="btn small">🖼 Imagem<input type="file" accept="image/*" class="qImg" hidden></label></div></div>`;
+    <label class="btn small">🖼 Imagem<input type="file" accept="image/*,.heic,.heif" class="qImg" hidden></label></div></div>`;
 }
 function download(name, content, type) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);

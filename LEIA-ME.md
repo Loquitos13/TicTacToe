@@ -71,6 +71,7 @@ Exemplo com Ana Maria Silva, Ana Rita Silva, Ana Costa e João Gonçalves:
 - **Tirar fotografia:** o telemóvel pede autorização para usar a câmara; a imagem aparece num quadro com um círculo para centrar a cara. Depois de tirar, aparece a foto num círculo (e no boneco) tal como vai ficar, com o botão **🔄 Repetir** ao lado. Pode **usar esta fotografia** ou **não querer fotografia**.
 - **Escolher da galeria:** em qualquer passo pode, em vez disso, escolher uma fotografia já guardada no telemóvel ou no computador. Na pré-visualização tem, ao lado do círculo, **🔄 Repetir** (câmara) e **📁 Galeria** (escolher outra).
 - **Agora não:** entra logo na sala de espera, com as iniciais.
+- Aceita fotografias do iPhone (**HEIC/HEIF**), além de JPG, PNG, WebP e GIF; são convertidas na própria app (também nas fotos que tu adicionas na lista de alunos).
 - A fotografia só é usada nesta sessão (não muda a ficha do aluno) e substitui logo as iniciais no teu ecrã.
 - A câmara dentro da página só funciona em **https** (ex.: com o túnel `cloudflared`) ou em `localhost`. Numa ligação `http://` pela rede local, a app abre automaticamente a câmara do próprio telemóvel em alternativa.
 
@@ -78,6 +79,14 @@ Ao abrir a sala escolhes **como avançam as perguntas** (vale para o quiz inteir
 - **🎮 Manual** — a pergunta fica aberta até tu carregares em `Fechar respostas`.
 - **⏱ Por tempo** — cada pergunta tem tempo limite (o de cada pergunta ou um tempo igual para todas). Quando chega a 0 (ou todos respondem) deixa de aceitar respostas e passa sozinha para a sondagem.
 - **🤖 Totalmente automático** — tudo por tempo: tempo para responder, sondagem, resposta correta e ranking (segundos configuráveis ao abrir a sala), passagem para a pergunta seguinte e pódio final. Só carregas em `Começar`. Durante o quiz tens **⏸ Pausar / ▶ Retomar**, e o botão amarelo avança logo se não quiseres esperar.
+
+Escolhes quando **mostrar as respostas corretas aos formandos**:
+- **Depois de cada pergunta** — cada um vê no telemóvel se acertou e qual era a correta.
+- **Só no fim** — durante o quiz o telemóvel só diz "Resposta registada" (sem certo/errado nem pontuação). No fim, cada formando vê a lista de todas as perguntas com a resposta correta e a sua, e tu tens o botão **📋 Mostrar respostas corretas** para as projetar.
+- **Nunca** — os formandos nunca veem as respostas corretas nem a pontuação.
+
+Nos dois últimos casos **tu continuas a ver tudo**: liga **👁 Ver respostas corretas** na barra de baixo no teu portátil ou telemóvel (fica guardado só nesse dispositivo; deixa desligado no ecrã projetado) e tens sempre a grelha de resultados. Não há ranking depois de cada pergunta, porque mostraria quem acertou.
+Dica: podes abrir o painel do formador ao mesmo tempo no projetor e no teu telemóvel.
 
 E escolhes o **ranking**:
 - **Depois de cada pergunta e pódio final** (Top 5 com bonecos a dançar);

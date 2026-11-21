@@ -119,6 +119,7 @@ function hostView() {
       total: session.questions.length, settings: session.settings,
       question: q, remainingMs: session.deadline ? Math.max(0, session.deadline - Date.now()) : 0,
       autoMs: session.autoAt ? Math.max(0, session.autoAt - Date.now()) : 0,
+      allQuestions: session.phase === 'end' ? session.asked.slice().sort((x, y) => x - y).map(i => session.questions[i]) : null,
       counts, whoByOption, answeredIds: Object.keys(ans),
       players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, connected: !!p.socketId })),
       roster: session.roster,
@@ -140,14 +141,19 @@ function playerView(p) {
   const rank = Object.values(session.players).map(x => ({ studentId: x.studentId, name: x.name, s: scoreOf(x) }))
     .sort((a, b) => b.s - a.s || a.name.localeCompare(b.name));
   const pos = rank.findIndex(r => r.studentId === p.studentId) + 1;
+  // Quando mostrar as respostas corretas aos formandos: 'each' (depois de cada pergunta),
+  // 'end' (só no fim) ou 'never' (nunca). O formador vê sempre tudo.
+  const rv = session.settings.revealMode || 'each', isEnd = session.phase === 'end';
+  const showScore = rv === 'each' || (rv === 'end' && isEnd); // a pontuação denunciaria as respostas certas
+  const showPos = !session.settings.noRanking && (rv === 'each' || isEnd);
   const v = {
     session: { id: session.id, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase, qIndex: session.qIndex, total: session.questions.length, settings: session.settings },
     me: {
       studentId: p.studentId, name: p.name, photo: p.photo,
       // "sem ranking": ninguém recebe posições
-      position: session.settings.noRanking ? null : pos, of: session.settings.noRanking ? null : rank.length,
-      score: scoreOf(p),
-      correct: Object.entries(session.answers).filter(([i, a]) => !(hideCurrent && +i === session.qIndex) && a[p.studentId] && a[p.studentId].correct).length,
+      position: showPos ? pos : null, of: showPos ? rank.length : null,
+      score: showScore ? scoreOf(p) : null,
+      correct: showScore ? Object.entries(session.answers).filter(([i, a]) => !(hideCurrent && +i === session.qIndex) && a[p.studentId] && a[p.studentId].correct).length : null,
     },
     answered: !!mine, myOption: mine ? mine.option : null,
   };
@@ -155,7 +161,14 @@ function playerView(p) {
     v.question = { text: q.text, options: q.options, time: q.time, image: q.image || null };
     v.remainingMs = session.deadline ? Math.max(0, session.deadline - Date.now()) : 0;
   }
-  if (q && ['reveal', 'leaderboard'].includes(session.phase)) {
+  // no fim (modo "só no fim"): todas as perguntas, a resposta correta e a resposta do formando
+  if (isEnd && rv === 'end') {
+    v.review = session.asked.map(i => {
+      const qq = session.questions[i], a = (session.answers[i] || {})[p.studentId];
+      return { text: qq.text, options: qq.options, correct: qq.correct, mine: a ? a.option : null, ok: a ? a.correct : false };
+    });
+  }
+  if (q && rv === 'each' && ['reveal', 'leaderboard'].includes(session.phase)) {
     v.correct = q.correct;
     v.wasCorrect = mine ? mine.correct : false;
     v.points = mine ? mine.points : 0;
@@ -315,6 +328,8 @@ function allAnswered() {
 const app = express();
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+// conversor de fotografias do iPhone (HEIC → JPEG), carregado só quando é preciso
+app.get('/vendor/heic2any.min.js', (req, res) => res.sendFile(path.join(__dirname, 'node_modules/heic2any/dist/heic2any.min.js'), { maxAge: '7d' }));
 app.use('/uploads', express.static(UPLOADS, { maxAge: '1h' }));
 // mantém o código da sessão (?c=...) ao redirecionar
 app.get('/', (req, res) => { const q = req.originalUrl.indexOf('?'); res.redirect('/play.html' + (q >= 0 ? req.originalUrl.slice(q) : '')); });
@@ -555,6 +570,8 @@ io.on('connection', socket => {
       settings.autoTimes = { poll: sec(at.poll, 5), reveal: sec(at.reveal, 6), board: sec(at.board, 8) };
       settings.paused = false;
       if (settings.noRanking) { settings.rankEach = false; settings.finalPodium = false; }
+      if (!['each', 'end', 'never'].includes(settings.revealMode)) settings.revealMode = 'each';
+      if (settings.revealMode !== 'each') settings.rankEach = false;
       const fixed = parseInt(settings && settings.fixedTime, 10);
       if (fixed >= 5) qs.forEach(q => q.time = Math.min(300, fixed));
       const roster = db.students.filter(s => !studentIds || studentIds.includes(s.id)).map(s => ({ ...s }));
@@ -576,7 +593,9 @@ io.on('connection', socket => {
     socket.on('host:settings', guard(s => {
       if (!session) return;
       delete s.mode; delete s.autoTimes; // o modo e os tempos ficam fixos durante toda a sessão
-      delete s.noRanking; if (session.settings.noRanking) { delete s.rankEach; delete s.finalPodium; }
+      delete s.noRanking; delete s.revealMode;
+      if (session.settings.noRanking) { delete s.rankEach; delete s.finalPodium; }
+      if (session.settings.revealMode !== 'each') delete s.rankEach;
       Object.assign(session.settings, s);
       persistSession();
       if ('paused' in s || 'rankEach' in s) scheduleAuto();

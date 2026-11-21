@@ -19,9 +19,21 @@ function muteButton() {
   document.body.appendChild(b);
 }
 // Reduz uma imagem para JPEG quadrado (para fotos dos alunos)
-function resizeImage(file, size = 320, square = true) {
+// Fotografias do iPhone (HEIC/HEIF): o Safari abre-as diretamente; nos outros browsers
+// são convertidas para JPEG na própria página (o conversor só é carregado quando é preciso).
+const isHeic = f => /image\/hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name || '');
+let heicLib = null;
+function loadHeic() {
+  if (window.heic2any) return Promise.resolve(window.heic2any);
+  return heicLib ||= new Promise((res, rej) => {
+    const s = document.createElement('script'); s.src = '/vendor/heic2any.min.js';
+    s.onload = () => res(window.heic2any); s.onerror = () => { heicLib = null; rej(new Error('conversor HEIC')); };
+    document.head.appendChild(s);
+  });
+}
+function drawResized(blob, size, square) {
   return new Promise((res, rej) => {
-    const img = new Image(); const url = URL.createObjectURL(file);
+    const img = new Image(); const url = URL.createObjectURL(blob);
     img.onload = () => {
       const c = document.createElement('canvas');
       let sx = 0, sy = 0, sw = img.width, sh = img.height, w, h;
@@ -30,8 +42,25 @@ function resizeImage(file, size = 320, square = true) {
       c.width = w; c.height = h; c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
       URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.85));
     };
-    img.onerror = rej; img.src = url;
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('imagem')); };
+    img.src = url;
   });
+}
+// Reduz uma imagem para JPEG (quadrado para as fotos dos alunos). Aceita JPG, PNG, WebP, GIF e HEIC/HEIF.
+async function resizeImage(file, size = 320, square = true) {
+  try { return await drawResized(file, size, square); }
+  catch (e) {
+    if (!isHeic(file)) {
+      // alguns iPhones enviam HEIC sem tipo nem extensão: confirma pela assinatura do ficheiro
+      const head = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+      const sig = String.fromCharCode(...head.slice(4, 12));
+      if (!/ftyp(heic|heix|hevc|heim|heis|mif1|msf1)/.test(sig)) throw e;
+    }
+    const conv = await loadHeic();
+    let out = await conv({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+    if (Array.isArray(out)) out = out[0];
+    return drawResized(out, size, square);
+  }
 }
 
 // Boneco simples a dançar com a foto/iniciais do aluno na cabeça.

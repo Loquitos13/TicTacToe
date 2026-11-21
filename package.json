@@ -1,7 +1,7 @@
 {
   "name": "quiz-formacao",
   "version": "1.0.0",
-  "description": "Quiz ao vivo para forma\u00e7\u00f5es (formador + alunos via QR code)",
+  "description": "Quiz ao vivo para formações (formador + alunos via QR code)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.22.3",
+    "heic2any": "^0.0.4",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.4"
   }

@@ -30,6 +30,10 @@
   .prev-circle { width: min(52vw, 200px); aspect-ratio: 1; border-radius: 50%; object-fit: cover; border: 5px solid #fff; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
   .retake { padding: 12px 14px; line-height: 1.2; width: 100%; }
   .retake-col { display: flex; flex-direction: column; gap: 10px; }
+  .review { display: flex; flex-direction: column; gap: 10px; width: 100%; text-align: left; }
+  .rv-item { background: #fff; color: var(--ink); border-radius: 14px; padding: 12px 14px; border-left: 6px solid #bbb; }
+  .rv-item.ok { border-left-color: var(--ok); } .rv-item.bad { border-left-color: var(--bad); }
+  .rv-q { font-weight: 600; } .rv-a { color: #166534; font-weight: 600; margin-top: 4px; } .rv-m { color: var(--muted); font-size: .92em; margin-top: 2px; }
   .list-names { display: flex; flex-direction: column; gap: 10px; width: 100%; }
   .name-btn { width: 100%; font-size: 1.1em; }
   .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
@@ -180,13 +184,13 @@ function set(key, html, bind) {
 
 function header() {
   const m = state.me;
-  return `<div class="bar">${avatar(m, 'sm')}<span class="name">${esc(m.name)}</span><span class="score" id="score">${m.score} pts</span></div>`;
+  return `<div class="bar">${avatar(m, 'sm')}<span class="name">${esc(m.name)}</span>${m.score == null ? '' : `<span class="score" id="score">${m.score} pts</span>`}</div>`;
 }
 
 let prevPhase = '';
 function renderGame() {
   renderGameInner();
-  const sc = $('#score'); if (sc) sc.textContent = state.me.score + ' pts';
+  const sc = $('#score'); if (sc && state.me.score != null) sc.textContent = state.me.score + ' pts';
 }
 function renderGameInner() {
   const s = state.session, ph = s.phase;
@@ -245,6 +249,15 @@ function renderGameInner() {
     return set('closed' + s.qIndex + state.answered, header() + qmeta() + `<div class="middle"><div class="big-emoji wiggle">${timedMode ? '⏰' : '🔒'}</div><h1>${timedMode ? 'Tempo esgotado!' : 'Respostas fechadas!'}</h1>
       <p>${state.answered ? 'A tua resposta foi registada ✅' : 'Não respondeste a tempo 😬'}<br>📊 Olha para o ecrã: vem aí a sondagem<span class="dots"></span></p></div>`);
   }
+  if ((ph === 'reveal' || ph === 'leaderboard') && (s.settings.revealMode || 'each') !== 'each') {
+    const atEnd = s.settings.revealMode === 'end';
+    return set('rv-hidden' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="result none pop-in">
+      <div class="big-emoji">${state.answered ? '📨' : '😴'}</div>
+      <h2>${state.answered ? 'Resposta registada' : 'Sem resposta'}</h2>
+      ${state.answered ? `<div class="correct-box">A tua resposta: ${LETTERS[state.myOption]}) ${esc(state.question.options[state.myOption])}</div>` : ''}
+      <p style="margin-top:12px">${atEnd ? 'As respostas corretas são mostradas no fim do quiz. 🤫' : 'Nesta avaliação as respostas corretas não são mostradas.'}</p>
+      </div><p>Aguarda a próxima pergunta<span class="dots"></span></p></div>`);
+  }
   if (ph === 'reveal' || ph === 'leaderboard') {
     const q = state.question;
     const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : 'bad';
@@ -264,9 +277,13 @@ function renderGameInner() {
     const isNew = !lastKey.startsWith('end');
     const podium = s.settings.finalPodium && m.position <= 5;
     set('end', header() + `<div class="middle">${podium ? `<div class="pop-in">${dancer(m, ['jump', 'disco', 'wave', 'sway', 'robot'][m.position - 1], ['#ffd93d', '#e5e7eb', '#f4a261', '#7dd3fc', '#c4b5fd'][m.position - 1], m.position === 1)}</div>` : avatar(m, 'xl pop-in')}<h1>Terminou! 🏁</h1>
-      <div class="card" style="width:100%"><div style="font-size:2.4em;font-weight:700">${m.score} pts</div>
-      <div class="muted">${m.correct} de ${s.total} respostas certas</div>
-      ${s.settings.finalPodium || showRank ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>
+      ${m.score != null || m.position != null ? `<div class="card" style="width:100%">
+        ${m.score != null ? `<div style="font-size:2.4em;font-weight:700">${m.score} pts</div><div class="muted">${m.correct} de ${state.review ? state.review.length : s.total} respostas certas</div>` : ''}
+        ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
+      ${state.review ? `<h2 style="margin:10px 0 0">As respostas corretas</h2><div class="review">${state.review.map((r, i) => `
+        <div class="rv-item ${r.mine == null ? 'none' : r.ok ? 'ok' : 'bad'}"><div class="rv-q">${i + 1}. ${esc(r.text)}</div>
+          <div class="rv-a">✅ ${r.correct.map(k => `${LETTERS[k]}) ${esc(r.options[k])}`).join(' | ')}</div>
+          <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${LETTERS[r.mine]}) ${esc(r.options[r.mine])} ${r.ok ? '✓' : '✗'}`}</div></div>`).join('')}</div>` : ''}
       <p>Obrigado por participares! 💜</p></div>`);
     if (isNew) { Sound.play('fanfare'); Confetti.burst(200); }
   }
@@ -312,13 +329,13 @@ function capture() {
   stopCamera(); Sound.play('sent'); photo.step = 'preview'; lastKey = ''; render();
 }
 // escolher uma fotografia guardada no telemóvel/computador (galeria / ficheiros)
-const galleryBtn = (id, label, cls = 'btn ghost') => `<label class="${cls}" style="text-align:center;${cls === 'btn' ? 'width:100%' : ''}">${label}<input type="file" accept="image/*" id="${id}" hidden></label>`;
+const galleryBtn = (id, label, cls = 'btn ghost') => `<label class="${cls}" style="text-align:center;${cls === 'btn' ? 'width:100%' : ''}">${label}<input type="file" accept="image/*,.heic,.heif" id="${id}" hidden></label>`;
 function bindFile(id) {
   const inp = $('#' + id); if (!inp) return;
   inp.onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
     try { photo.data = await resizeImage(f, 360); }
-    catch { e.target.value = ''; return toast('Não foi possível abrir esta imagem. Escolhe uma fotografia em JPG ou PNG.', 4500); }
+    catch { e.target.value = ''; return toast('Não foi possível abrir esta imagem. Experimenta outra fotografia.', 4500); }
     stopCamera(); photo.step = 'preview'; lastKey = ''; render();
   };
 }
@@ -342,7 +359,7 @@ function renderPhotoStep() {
       return set('ph-fb', header() + `<div class="middle"><div class="big-emoji">📷</div>
         <h1 style="font-size:1.4em">Abre a câmara do telemóvel</h1>
         <p>Não foi possível usar a câmara dentro da página. Toca no botão para tirar a fotografia com a câmara do telemóvel.</p>
-        <label class="btn primary" style="width:100%;text-align:center">📸 Abrir câmara<input type="file" accept="image/*" capture="user" id="phFile" hidden></label>
+        <label class="btn primary" style="width:100%;text-align:center">📸 Abrir câmara<input type="file" accept="image/*,.heic,.heif" capture="user" id="phFile" hidden></label>
         ${galleryBtn('phGal', '📁 Escolher da galeria', 'btn')}
         <button class="btn ghost" id="phNo">Continuar sem fotografia</button></div>`, () => {
         bindFile('phFile'); bindFile('phGal');
