@@ -103,6 +103,19 @@
   .ex-bar { height: 8px; background: rgba(255,255,255,.25); border-radius: 99px; overflow: hidden; margin: 6px 0 4px; }
   .ex-bar div { height: 100%; background: #ffd93d; transition: width .4s; }
   .phones-note { background: rgba(255,217,61,.18); border: 2px solid #ffd93d; border-radius: 14px; padding: 8px 14px; text-align: center; font-size: 1.05em; margin: 6px 0; }
+  .fill-sentence { background: #fff; color: var(--ink); border-radius: 20px; padding: 22px 26px; font-size: clamp(1.3em, 2.6vw, 2.1em); font-weight: 600; line-height: 1.9; text-align: center; margin: 6px 0 14px; }
+  .blank { display: inline-block; min-width: 3.2em; border-bottom: 4px solid var(--d); color: var(--d); text-align: center; margin: 0 4px; padding: 0 6px; line-height: 1.3; }
+  .blank.ok { color: #166534; border-color: var(--ok); background: #dcfce7; border-radius: 8px 8px 0 0; }
+  .bank { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+  .chip-w { background: rgba(255,255,255,.2); border: 2px solid rgba(255,255,255,.5); padding: 8px 16px; border-radius: 999px; font-size: 1.3em; font-weight: 600; }
+  .open-hint { background: rgba(255,255,255,.15); border-radius: 18px; padding: 26px; text-align: center; font-size: 1.6em; font-weight: 600; }
+  .scale-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .scale-box { border-radius: 20px; font-size: 3em; font-weight: 700; text-align: center; padding: 18px 0; }
+  .scale-labels { display: flex; justify-content: space-between; font-size: 1.2em; margin-top: 10px; opacity: .9; }
+  .open-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 8px; max-height: 46vh; overflow: auto; }
+  .open-ans { background: #fff; color: var(--ink); border-radius: 14px; padding: 8px 14px; font-size: 1.2em; font-weight: 600; }
+  .open-ans.ok { background: #dcfce7; color: #166534; } .open-ans.bad { opacity: .55; }
+  .accepted { background: #dcfce7; color: #166534; border-radius: 14px; padding: 10px 16px; text-align: center; font-size: 1.3em; margin-bottom: 10px; }
   .big-msg { text-align: center; font-size: 3em; font-weight: 700; margin: 10px 0; }
   .board { max-width: 900px; width: 100%; margin: 10px auto; display: flex; flex-direction: column; gap: 12px; }
   .board .r { display: flex; align-items: center; gap: 16px; background: #fff; color: var(--ink); border-radius: 18px; padding: 10px 18px; font-size: 1.4em; font-weight: 600; }
@@ -135,6 +148,10 @@
   td.ok { background: #dcfce7 !important; color: #166534; font-weight: 600; }
   td.bad { background: #fee2e2 !important; color: #991b1b; font-weight: 600; }
   td.none { color: #999; }
+  td.pend { background: #fef9c3 !important; color: #854d0e; font-weight: 600; }
+  .tag.pend { background: #fef9c3; color: #854d0e; }
+  .pend-note { background: #fef9c3; color: #854d0e; border-radius: 10px; padding: 8px 12px; }
+  .markers { display: inline-flex; gap: 6px; }
   .qdetail { border: 1px solid #eee; border-radius: 12px; padding: 14px; margin: 12px 0; break-inside: avoid; }
   .qdetail h4 { margin: 0 0 6px; }
   .qdetail .ans-row { display: flex; gap: 8px; align-items: center; padding: 3px 0; }
@@ -180,6 +197,7 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="common.js"></script>
+<script src="qtypes.js"></script>
 <script src="sound.js"></script>
 <script>
 let PW = sessionStorage.getItem('aq_pw') || '';
@@ -418,14 +436,27 @@ function questionHtml() {
        <circle id="ringC" cx="50" cy="50" r="44" stroke="#ffd93d" stroke-width="10" fill="none" stroke-linecap="round" stroke-dasharray="276.5" stroke-dashoffset="0"/></svg>
        <div class="n" id="ringN">${Math.ceil(S.remainingMs / 1000)}</div></div>`
     : `<div class="live-pill"><span class="dot"></span> Pergunta aberta</div>`;
-  return phonesNote() + `<div class="question-title slide-up">${esc(q.text)}</div>
+  return phonesNote() + `<div class="question-title slide-up">${qType(q) === 'fill' ? '✏️ Completa os espaços' : esc(q.text)}</div>
     ${q.image ? `<img class="qimage" src="${esc(q.image)}">` : ''}
     <div class="qmid">${left}
       <div class="progress-wrap"><div class="progress"><div id="ansBar" style="width:${of ? n / of * 100 : 0}%"></div></div>
         <div id="allDone" class="all-done ${of && n >= of ? '' : 'hidden'}">✅ Todos responderam!</div></div>
       <div class="answered-box"><b id="ansN">${n}</b>respostas<br><small id="ansOf">de ${of}</small></div>
     </div>
-    <div class="opts">${q.options.map((o, i) => `<div class="opt opt-${i} pop-in" style="animation-delay:${i * 90}ms"><span class="letter">${LETTERS[i]}</span><span class="txt">${esc(o)}</span></div>`).join('')}</div>`;
+    ${questionBodyHtml(q)}`;
+}
+// corpo da pergunta conforme o tipo
+function questionBodyHtml(q) {
+  const t = qType(q);
+  if (t === 'fill') return `<div class="fill-sentence pop-in">${sentenceHtml(fillPartsOf(q.text), i => `<span class="blank">${i + 1}</span>`)}</div>
+    <div class="bank">${bankOf(q).map((w, i) => `<span class="chip-w pop-in" style="animation-delay:${i * 60}ms">${esc(w)}</span>`).join('')}</div>`;
+  if (t === 'open') return `<div class="open-hint pop-in">✍️ Resposta livre — cada formando escreve a sua resposta no telemóvel</div>`;
+  if (t === 'scale') return scaleRowHtml(q);
+  return `<div class="opts">${q.options.map((o, i) => `<div class="opt opt-${i} pop-in" style="animation-delay:${i * 90}ms"><span class="letter">${LETTERS[i]}</span><span class="txt">${esc(o)}</span></div>`).join('')}</div>`;
+}
+function scaleRowHtml(q) {
+  return `<div class="scale-row">${[1, 2, 3, 4, 5].map((n, i) => `<div class="scale-box opt-${i} pop-in" style="animation-delay:${i * 80}ms">${n}</div>`).join('')}</div>
+    ${q.scaleMin || q.scaleMax ? `<div class="scale-labels"><span>1 = ${esc(q.scaleMin || '')}</span><span>5 = ${esc(q.scaleMax || '')}</span></div>` : ''}`;
 }
 
 // withAnswer=false → sondagem (só quantos escolheram cada opção); true → destaca a correta
@@ -438,8 +469,8 @@ function hiddenRevealHtml() {
 // fim do quiz no modo "só no fim": lista de todas as perguntas com a resposta correta
 function answersListHtml() {
   return `<div class="big-msg slide-up" style="font-size:2.2em;margin:0 0 8px">✅ As respostas corretas</div><div class="answers-list">${S.allQuestions.map((q, i) => `
-    <div class="al-item slide-up" style="animation-delay:${Math.min(i, 12) * 80}ms"><div class="al-q">${i + 1}. ${esc(q.text)}</div>
-    <div class="al-a">${q.correct.map(k => `<div><span class="letter" style="background:var(--${'abcdef'[k]})">${LETTERS[k]}</span> ${esc(q.options[k])}</div>`).join('')}</div></div>`).join('')}</div>`;
+    <div class="al-item slide-up" style="animation-delay:${Math.min(i, 12) * 80}ms"><div class="al-q">${i + 1}. ${esc(qTitle(q))}</div>
+    <div class="al-a">${['mc', 'tf'].includes(qType(q)) ? q.correct.map(k => `<div><span class="letter" style="background:var(--${'abcdef'[k]})">${LETTERS[k]}</span> ${esc(q.options[k])}</div>`).join('') : `<div>${esc(solutionText(q))}</div>`}</div></div>`).join('')}</div>`;
 }
 let showAnswersList = false;
 const closedShown = new Set();
@@ -461,7 +492,11 @@ function growPoll(delay) {
   }, delay);
 }
 function resultsHtml(withAnswer, animate = false) {
-  const q = S.question, total = S.answeredIds.length, max = Math.max(1, ...S.counts);
+  const t = qType(S.question);
+  if (t === 'fill' || t === 'open') return resultsOtherHtml(withAnswer, animate);
+  // escala: as 5 "opções" são os valores 1..5 e não há resposta certa
+  const q = t === 'scale' ? { ...S.question, options: ['1', '2', '3', '4', '5'], correct: [] } : S.question;
+  const total = S.answeredIds.length, max = Math.max(1, ...S.counts);
   const byId = new Map(S.roster.map(s => [s.id, s]));
   const pct = c => total ? Math.round(c / total * 100) : 0;
   const privateMark = !withAnswer && hiddenReveal() && seeAnswers;
@@ -469,17 +504,45 @@ function resultsHtml(withAnswer, animate = false) {
   return `${withAnswer ? '' : poll ? `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">📊 Sondagem <small style="font-size:.5em;opacity:.8">· respostas fechadas</small></div>` : `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">🔒 Respostas fechadas</div>`}
     ${!withAnswer && timed() && !closedShown.has(S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
     <div class="question-title" style="font-size:clamp(1.3em,2.6vw,2.2em);margin-top:6px">${esc(q.text)}</div>
+    ${t === 'scale' && (q.scaleMin || q.scaleMax) ? `<div class="scale-labels" style="margin-top:0">${'<span>1 = ' + esc(q.scaleMin || '') + '</span><span>5 = ' + esc(q.scaleMax || '') + '</span>'}</div>` : ''}
     <div class="opts" style="margin-top:10px">${q.options.map((o, i) => {
       const right = q.correct.includes(i);
-      return `<div class="opt opt-${i} ${withAnswer ? (right ? 'right' : 'dim') : 'slide-up'} ${privateMark && right ? 'right-private' : ''} ${who ? 'has-who' : ''}" style="animation-delay:${withAnswer ? 0 : i * 100}ms">
+      return `<div class="opt opt-${i} ${withAnswer && t !== 'scale' ? (right ? 'right' : 'dim') : 'slide-up'} ${privateMark && right ? 'right-private' : ''} ${who ? 'has-who' : ''}" style="animation-delay:${withAnswer ? 0 : i * 100}ms">
         ${poll ? `<div class="fill" data-w="${pct(S.counts[i])}%"></div>` : ''}
-        <span class="letter">${LETTERS[i]}</span><span class="txt">${esc(o)}</span>
+        <span class="letter">${t === 'scale' ? '★' : LETTERS[i]}</span><span class="txt">${esc(o)}</span>
         ${(withAnswer || privateMark) && right ? '<span class="tick">✔</span>' : ''}${poll ? `<span class="cnt"><span class="num" data-n="${S.counts[i]}">${animate ? 0 : S.counts[i]}</span> <small class="pc" data-p="${pct(S.counts[i])}" style="font-size:.55em;opacity:.85">${animate ? 0 : pct(S.counts[i])}%</small></span>` : ''}
         ${who ? `<div class="who">${S.whoByOption[i].map(id => avatar(byId.get(id) || { name: '?' }, 'sm')).join('')}</div>` : ''}
       </div>`;
     }).join('')}</div>
     ${privateMark ? `<p class="center private-note">👁 Só neste ecrã: ✔ marca a resposta correta. Os formandos não a veem.</p>` : ''}
-    <p class="center" style="font-size:1.3em;margin-top:22px">${withAnswer && poll ? `✅ ${q.correct.reduce((a, i) => a + S.counts[i], 0)} acertaram · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
+    <p class="center" style="font-size:1.3em;margin-top:22px">${t === 'scale' && poll && S.scaleAvg != null ? `⭐ Média ${S.scaleAvg.toFixed(1).replace('.', ',')} · ` : ''}${withAnswer && poll && t !== 'scale' ? `✅ ${q.correct.reduce((a, i) => a + S.counts[i], 0)} acertaram · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
+}
+// completar espaços e resposta livre
+function resultsOtherHtml(withAnswer, animate) {
+  const q = S.question, t = qType(q), total = S.answeredIds.length, poll = pollOn();
+  const showSol = withAnswer || (hiddenReveal() && seeAnswers);
+  const pct = c => total ? Math.round(c / total * 100) : 0;
+  let body = '';
+  if (t === 'fill') {
+    const blanks = fillBlanksOf(q.text);
+    body = `<div class="fill-sentence">${sentenceHtml(fillPartsOf(q.text), i => showSol ? `<span class="blank ok">${esc(blanks[i])}</span>` : `<span class="blank">${i + 1}</span>`)}</div>`;
+    if (poll) body += `<div class="opts" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">${(S.fillStats || []).map((f, i) => `
+      <div class="opt opt-${i % 6} slide-up" style="animation-delay:${i * 100}ms"><div class="fill" data-w="${pct(f.right)}%"></div>
+        <span class="letter">${i + 1}</span><span class="txt">${showSol ? esc(f.word) : 'Espaço ' + (i + 1)}</span>
+        <span class="cnt"><span class="num" data-n="${f.right}">${animate ? 0 : f.right}</span> <small class="pc" data-p="${pct(f.right)}" style="font-size:.55em;opacity:.85">${animate ? 0 : pct(f.right)}%</small></span></div>`).join('')}</div>
+      <p class="center" style="opacity:.85;margin:6px 0 0">Quantos acertaram em cada espaço</p>`;
+  } else {
+    if (showSol && (q.accepted || []).length) body += `<div class="accepted">✅ Respostas aceites: <b>${q.accepted.map(esc).join(' · ')}</b></div>`;
+    if (poll) body += `<div class="open-list">${(S.openAnswers || []).map((a, i) => `<span class="open-ans slide-up ${showSol && a.correct === true ? 'ok' : showSol && a.correct === false ? 'bad' : ''}" style="animation-delay:${Math.min(i, 20) * 50}ms">${esc(a.text)}${a.count > 1 ? ` <b>×${a.count}</b>` : ''}</span>`).join('') || '<p class="center">Ainda sem respostas.</p>'}</div>`;
+    else body += `<div class="open-hint">✍️ Respostas livres recebidas</div>`;
+    if (!(q.accepted || []).length) body += `<p class="center" style="opacity:.85">Avalias estas respostas na grelha de resultados (certa / errada).</p>`;
+  }
+  return `${withAnswer ? '' : `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">${poll ? '📊 Sondagem' : '🔒 Respostas fechadas'} <small style="font-size:.5em;opacity:.8">· respostas fechadas</small></div>`}
+    ${!withAnswer && timed() && !closedShown.has(S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
+    <div class="question-title" style="font-size:clamp(1.3em,2.6vw,2.2em);margin-top:6px">${t === 'fill' ? '✏️ Completa os espaços' : esc(q.text)}</div>
+    ${body}
+    ${!withAnswer && hiddenReveal() && seeAnswers ? `<p class="center private-note">👁 Só neste ecrã: a solução está visível. Os formandos não a veem.</p>` : ''}
+    <p class="center" style="font-size:1.3em;margin-top:16px">${withAnswer && t === 'fill' ? `✅ ${Object.keys(S.lastPoints || {}).filter(id => (S.lastPoints[id] || 0) > 0).length} com pelo menos uma certa · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
 }
 
 // ----- Pódio com bonecos a dançar -----
@@ -841,7 +904,7 @@ function renderQuizzes() {
   $$('[data-exp]').forEach(b => b.onclick = () => { const q = quizzes.find(q => q.id === b.dataset.exp); download(q.title + '.json', JSON.stringify(q, null, 2), 'application/json'); });
   $$('[data-imp]').forEach(inp => inp.onchange = async e => { try { const q = JSON.parse(await e.target.files[0].text()); delete q.id; q.courseId = inp.dataset.imp; await api('POST', '/api/quizzes', q); toast('Importado'); after(); } catch (err) { toast('Ficheiro inválido'); } });
 }
-const blankQ = () => ({ text: '', options: ['', '', '', ''], correct: [0], time: 20 });
+const blankQ = () => ({ type: 'mc', text: '', options: ['', '', '', ''], correct: [0], time: 20 });
 
 function renderEditor(el) {
   const q = editing;
@@ -850,8 +913,15 @@ function renderEditor(el) {
     <div class="row" style="margin-top:10px"><input type="text" id="qTitle" class="grow" value="${esc(q.title)}" style="font-size:1.3em;font-weight:600">
       <button class="btn ghost" id="cancelEd" style="color:var(--ink);background:#eee">Cancelar</button><button class="btn primary" id="saveEd">💾 Guardar</button></div>
     <details style="margin:14px 0"><summary style="cursor:pointer;font-weight:600">⚡ Importar perguntas de texto (rápido)</summary>
-      <p class="muted">Uma pergunta por bloco, separados por linha em branco. Primeira linha = pergunta; linhas seguintes = opções; marca a correta com <b>*</b> no início. Opcional: <code>[30s]</code> no fim da pergunta para o tempo.</p>
-      <textarea id="bulkQ" rows="8" style="width:100%" placeholder="Qual é a capital de Portugal? [20s]&#10;Porto&#10;*Lisboa&#10;Coimbra&#10;Faro&#10;&#10;O sol é uma estrela.&#10;*Verdadeiro&#10;Falso"></textarea>
+      <p class="muted">Uma pergunta por bloco, separados por linha em branco. Primeira linha = pergunta; opcional <code>[30s]</code> no fim para o tempo.</p>
+      <ul class="muted" style="margin-top:0">
+        <li><b>Escolha múltipla:</b> linhas seguintes = opções; marca a(s) correta(s) com <b>*</b>.</li>
+        <li><b>Verdadeiro/Falso:</b> opções <code>*Verdadeiro</code> e <code>Falso</code> (ou o contrário).</li>
+        <li><b>Completar espaços:</b> põe cada palavra certa entre <code>[[ ]]</code> na frase; na linha seguinte, palavras extra separadas por vírgulas (opcional).</li>
+        <li><b>Resposta livre:</b> acaba a pergunta com <code>[livre]</code>; linhas com <b>*</b> = respostas aceites (opcional).</li>
+        <li><b>Escala 1–5:</b> acaba a pergunta com <code>[escala]</code>; opcional <code>1=Nada</code> e <code>5=Muito</code> nas linhas seguintes.</li>
+      </ul>
+      <textarea id="bulkQ" rows="10" style="width:100%" placeholder="Qual é a capital de Portugal? [20s]&#10;Porto&#10;*Lisboa&#10;Coimbra&#10;&#10;O sol é uma estrela.&#10;*Verdadeiro&#10;Falso&#10;&#10;A capital de Portugal é [[Lisboa]] e fica junto ao rio [[Tejo]].&#10;Porto, Douro, Mondego&#10;&#10;Dá um exemplo de escuta ativa. [livre]&#10;&#10;Gostaste da formação? [escala]&#10;1=Nada&#10;5=Muito"></textarea>
       <button class="btn small" id="parseQ">Adicionar estas perguntas</button></details>
     <div id="qList">${q.questions.map((x, i) => qEditHtml(x, i)).join('')}</div>
     <button class="btn" id="addQ">+ Adicionar pergunta</button>
@@ -859,58 +929,106 @@ function renderEditor(el) {
   const sync = () => {
     q.title = $('#qTitle').value; q.courseId = $('#qCourse').value;
     $$('.qedit').forEach((box, i) => {
-      const x = q.questions[i];
-      x.text = $('.qText', box).value; x.time = +$('.qTime', box).value || 20;
-      x.options = $$('.qOpt', box).map(o => o.value);
-      x.correct = $$('.qCor', box).map((c, k) => c.checked ? k : -1).filter(k => k >= 0);
+      const x = q.questions[i], t = qType(x);
+      x.type = t; x.text = $('.qText', box).value; x.time = +$('.qTime', box).value || 20;
+      if (t === 'mc') { x.options = $$('.qOpt', box).map(o => o.value); x.correct = $$('.qCor', box).map((c, k) => c.checked ? k : -1).filter(k => k >= 0); }
+      if (t === 'tf') { x.options = ['Verdadeiro', 'Falso']; x.correct = [$('.qTFc:checked', box) ? +$('.qTFc:checked', box).value : 0]; }
+      if (t === 'fill') { x.options = $('.qExtra', box).value.split(',').map(w => w.trim()).filter(Boolean); x.correct = []; }
+      if (t === 'open') { x.accepted = $('.qAcc', box).value.split(';').map(w => w.trim()).filter(Boolean); x.options = []; x.correct = []; }
+      if (t === 'scale') { x.scaleMin = $('.qSmin', box).value; x.scaleMax = $('.qSmax', box).value; x.options = []; x.correct = []; }
     });
   };
   $('#cancelEd').onclick = () => { editing = null; renderQuizzes(); };
   $('#addQ').onclick = () => { sync(); q.questions.push(blankQ()); renderQuizzes(); $$('.qText').pop().focus(); };
   $('#parseQ').onclick = () => {
     sync();
-    const blocks = $('#bulkQ').value.split(/\n\s*\n/).map(b => b.split('\n').map(l => l.trim()).filter(Boolean)).filter(b => b.length >= 3);
+    const blocks = $('#bulkQ').value.split(/\n\s*\n/).map(b => b.split('\n').map(l => l.trim()).filter(Boolean)).filter(b => b.length >= 1);
+    let added = 0;
     for (const b of blocks) {
       let text = b[0], time = 20; const m = /\[(\d+)\s*s?\]\s*$/.exec(text); if (m) { time = +m[1]; text = text.replace(m[0], '').trim(); }
-      const opts = b.slice(1).slice(0, 6); const correct = opts.map((o, i) => o.startsWith('*') ? i : -1).filter(i => i >= 0);
-      q.questions.push({ text, time, options: opts.map(o => o.replace(/^\*\s*/, '')), correct: correct.length ? correct : [0] });
+      const rest = b.slice(1);
+      let x = null;
+      if (/\[livre\]\s*$/i.test(text)) x = { type: 'open', text: text.replace(/\[livre\]\s*$/i, '').trim(), accepted: rest.filter(l => l.startsWith('*')).map(l => l.slice(1).trim()) };
+      else if (/\[escala\]\s*$/i.test(text)) {
+        const lab = n => ((rest.find(l => l.startsWith(n + '=')) || '').split('=')[1] || '').trim();
+        x = { type: 'scale', text: text.replace(/\[escala\]\s*$/i, '').trim(), scaleMin: lab(1), scaleMax: lab(5) };
+      } else if (fillBlanksOf(text).length) x = { type: 'fill', text, options: rest.join(',').split(',').map(w => w.trim()).filter(Boolean) };
+      else if (rest.length === 2 && rest.every(o => /^\*?\s*(verdadeiro|falso)$/i.test(o))) {
+        const c = rest.findIndex(o => o.startsWith('*')); const vIdx = rest.findIndex(o => /verdadeiro/i.test(o));
+        x = { type: 'tf', text, options: ['Verdadeiro', 'Falso'], correct: [c >= 0 && rest[c] && /falso/i.test(rest[c]) ? 1 : 0] };
+      } else if (rest.length >= 2) {
+        const opts = rest.slice(0, 6); const correct = opts.map((o, i) => o.startsWith('*') ? i : -1).filter(i => i >= 0);
+        x = { type: 'mc', text, options: opts.map(o => o.replace(/^\*\s*/, '')), correct: correct.length ? correct : [0] };
+      }
+      if (x) { q.questions.push({ options: [], correct: [], ...x, time }); added++; }
     }
-    q.questions = q.questions.filter(x => x.text || x.options.some(Boolean));
-    toast(blocks.length + ' perguntas adicionadas'); renderQuizzes();
+    q.questions = q.questions.filter(x => x.text || (x.options || []).some(Boolean));
+    toast(added + ' perguntas adicionadas'); renderQuizzes();
   };
   $('#saveEd').onclick = async () => {
     sync();
     for (const [i, x] of q.questions.entries()) {
-      const filled = x.options.filter(o => o.trim());
+      const t = qType(x);
       if (!x.text.trim()) return toast(`Pergunta ${i + 1}: falta o texto`);
-      if (filled.length < 2) return toast(`Pergunta ${i + 1}: precisa de pelo menos 2 opções`);
-      if (!x.correct.length || x.correct.some(k => !x.options[k] || !x.options[k].trim())) return toast(`Pergunta ${i + 1}: marca a resposta correta`);
+      if (t === 'mc') {
+        if (x.options.filter(o => o.trim()).length < 2) return toast(`Pergunta ${i + 1}: precisa de pelo menos 2 opções`);
+        if (!x.correct.length || x.correct.some(k => !x.options[k] || !x.options[k].trim())) return toast(`Pergunta ${i + 1}: marca a resposta correta`);
+      }
+      if (t === 'fill' && !fillBlanksOf(x.text).length) return toast(`Pergunta ${i + 1}: põe as palavras certas entre [[ ]] na frase, ex.: A capital é [[Lisboa]].`, 6000);
     }
-    // remove opções vazias e reajusta índices das corretas
-    q.questions.forEach(x => { const map = []; const opts = []; x.options.forEach((o, k) => { if (o.trim()) { map[k] = opts.length; opts.push(o); } }); x.correct = x.correct.map(k => map[k]); x.options = opts; });
+    // escolha múltipla: remove opções vazias e reajusta índices das corretas
+    q.questions.filter(x => qType(x) === 'mc').forEach(x => { const map = []; const opts = []; x.options.forEach((o, k) => { if (o.trim()) { map[k] = opts.length; opts.push(o); } }); x.correct = x.correct.map(k => map[k]); x.options = opts; });
     const saved = await api('POST', '/api/quizzes', q); await reloadCQ(); editing = null; toast('Guardado: ' + saved.title); renderQuizzes();
   };
   $$('.qedit').forEach((box, i) => {
     $('.qDel', box).onclick = () => { sync(); q.questions.splice(i, 1); renderQuizzes(); };
     $('.qUp', box).onclick = () => { sync(); if (i > 0) { [q.questions[i - 1], q.questions[i]] = [q.questions[i], q.questions[i - 1]]; renderQuizzes(); } };
-    $('.qAddOpt', box).onclick = () => { sync(); if (q.questions[i].options.length < 6) q.questions[i].options.push(''); renderQuizzes(); };
-    $('.qTF', box).onclick = () => { sync(); Object.assign(q.questions[i], { options: ['Verdadeiro', 'Falso'], correct: [0] }); renderQuizzes(); };
+    const ao = $('.qAddOpt', box); if (ao) ao.onclick = () => { sync(); if (q.questions[i].options.length < 6) q.questions[i].options.push(''); renderQuizzes(); };
+    $('.qType', box).onchange = e => {
+      sync(); const x = q.questions[i], t = e.target.value; x.type = t;
+      if (t === 'tf') Object.assign(x, { options: ['Verdadeiro', 'Falso'], correct: [0] });
+      if (t === 'mc' && (x.options || []).length < 2) Object.assign(x, { options: ['', '', '', ''], correct: [0] });
+      if (t === 'fill') Object.assign(x, { options: [], correct: [] });
+      renderQuizzes();
+    };
+    const tx = $('.qText', box), pv = $('.fillPrev', box);
+    if (pv) tx.oninput = () => { const b = fillBlanksOf(tx.value); pv.innerHTML = b.length ? `${b.length} espaço(s): ${b.map(w => `<b>${esc(w)}</b>`).join(', ')}` : '⚠ Ainda sem espaços: escreve a palavra certa entre [[ ]]'; };
     $('.qImg', box).onchange = async e => { const f = e.target.files[0]; if (!f) return; sync(); q.questions[i].image = await resizeImage(f, 900, false); renderQuizzes(); };
     const rm = $('.qImgDel', box); if (rm) rm.onclick = () => { sync(); q.questions[i].image = null; renderQuizzes(); };
     $$('.qOptDel', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; const k = +b.dataset.k; if (x.options.length <= 2) return; x.options.splice(k, 1); x.correct = x.correct.filter(c => c !== k).map(c => c > k ? c - 1 : c); if (!x.correct.length) x.correct = [0]; renderQuizzes(); });
   });
 }
 function qEditHtml(x, i) {
-  return `<div class="qedit"><div class="row"><b>Pergunta ${i + 1}</b><span class="grow"></span>
-    <label class="muted">⏱ <input type="number" class="qTime" value="${x.time}" min="5" max="300" style="width:80px"> s</label>
-    <button class="btn small qUp" title="Subir">↑</button><button class="btn small danger qDel" title="Apagar">✕</button></div>
-    <textarea class="qText" rows="2" style="width:100%;margin-top:8px" placeholder="Escreve a pergunta…">${esc(x.text)}</textarea>
-    ${x.image ? `<div class="row"><img src="${esc(x.image)}" style="max-height:100px;border-radius:8px"><button class="btn small qImgDel">Remover imagem</button></div>` : ''}
-    ${x.options.map((o, k) => `<div class="opt-row"><span class="letter" style="background:var(--${'abcdef'[k]})">${LETTERS[k]}</span><input type="text" class="qOpt" value="${esc(o)}" placeholder="Opção ${LETTERS[k]}">
+  const t = qType(x);
+  let body = '';
+  if (t === 'mc') body = `${x.options.map((o, k) => `<div class="opt-row"><span class="letter" style="background:var(--${'abcdef'[k]})">${LETTERS[k]}</span><input type="text" class="qOpt" value="${esc(o)}" placeholder="Opção ${LETTERS[k]}">
       <label class="switch" title="Resposta correta"><input type="checkbox" class="qCor" ${x.correct.includes(k) ? 'checked' : ''}> correta</label>
       <button class="btn small qOptDel" data-k="${k}" title="Remover opção">−</button></div>`).join('')}
-    <div class="row" style="margin-top:6px"><button class="btn small qAddOpt">+ Opção</button><button class="btn small qTF">Verdadeiro/Falso</button>
-    <label class="btn small">🖼 Imagem<input type="file" accept="image/*,.heic,.heif" class="qImg" hidden></label></div></div>`;
+    <div class="row" style="margin-top:6px"><button class="btn small qAddOpt">+ Opção</button></div>`;
+  if (t === 'tf') body = `<div class="row" style="margin-top:8px"><span class="muted">Resposta correta:</span>
+      <label class="switch"><input type="radio" class="qTFc" name="tf${i}" value="0" ${(x.correct || [0])[0] !== 1 ? 'checked' : ''}> Verdadeiro</label>
+      <label class="switch"><input type="radio" class="qTFc" name="tf${i}" value="1" ${(x.correct || [0])[0] === 1 ? 'checked' : ''}> Falso</label></div>`;
+  if (t === 'fill') {
+    const b = fillBlanksOf(x.text);
+    body = `<p class="muted" style="margin:6px 0">Escreve a frase e põe cada palavra certa entre <b>[[ ]]</b>. Ex.: <code>A capital de Portugal é [[Lisboa]] e fica junto ao rio [[Tejo]].</code></p>
+      <div class="muted fillPrev">${b.length ? `${b.length} espaço(s): ${b.map(w => `<b>${esc(w)}</b>`).join(', ')}` : '⚠ Ainda sem espaços: escreve a palavra certa entre [[ ]]'}</div>
+      <label class="muted" style="display:block;margin-top:8px">Palavras extra para baralhar (separadas por vírgulas)</label>
+      <input type="text" class="qExtra" style="width:100%" value="${esc((x.options || []).join(', '))}" placeholder="ex.: Porto, Douro, Mondego">`;
+  }
+  if (t === 'open') body = `<label class="muted" style="display:block;margin-top:8px">Respostas aceites (opcional, separadas por ponto e vírgula). Sem elas, avalias tu cada resposta nos resultados.</label>
+      <input type="text" class="qAcc" style="width:100%" value="${esc((x.accepted || []).join('; '))}" placeholder="ex.: Lisboa; Lx">`;
+  if (t === 'scale') body = `<div class="row" style="margin-top:8px"><label class="muted">1 =</label><input type="text" class="qSmin grow" value="${esc(x.scaleMin || '')}" placeholder="ex.: Nada">
+      <label class="muted">5 =</label><input type="text" class="qSmax grow" value="${esc(x.scaleMax || '')}" placeholder="ex.: Muito"></div>
+      <p class="muted" style="margin:6px 0 0">Escala de opinião: não tem resposta certa nem dá pontos.</p>`;
+  return `<div class="qedit"><div class="row"><b>Pergunta ${i + 1}</b>
+    <select class="qType">${Object.entries(QTYPE_LABEL).map(([k, v]) => `<option value="${k}" ${k === t ? 'selected' : ''}>${v}</option>`).join('')}</select>
+    <span class="grow"></span>
+    <label class="muted">⏱ <input type="number" class="qTime" value="${x.time}" min="5" max="300" style="width:80px"> s</label>
+    <button class="btn small qUp" title="Subir">↑</button><button class="btn small danger qDel" title="Apagar">✕</button></div>
+    <textarea class="qText" rows="2" style="width:100%;margin-top:8px" placeholder="${t === 'fill' ? 'A capital de Portugal é [[Lisboa]].' : 'Escreve a pergunta…'}">${esc(x.text)}</textarea>
+    ${x.image ? `<div class="row"><img src="${esc(x.image)}" style="max-height:100px;border-radius:8px"><button class="btn small qImgDel">Remover imagem</button></div>` : ''}
+    ${body}
+    <div class="row" style="margin-top:6px"><label class="btn small">🖼 Imagem<input type="file" accept="image/*,.heic,.heif" class="qImg" hidden></label></div></div>`;
 }
 function download(name, content, type) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([content], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -941,14 +1059,24 @@ async function openResult(id) {
   const list = [...people.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt'));
   const joined = new Set(r.players.map(p => p.studentId));
   const score = Object.fromEntries(r.players.map(p => [p.studentId, p.score]));
-  const asked = new Set(r.asked); const nAsked = r.asked.length;
-  const stats = list.map(p => { let ok = 0; r.questions.forEach((q, i) => { const a = (r.answers[i] || {})[p.id]; if (a && a.correct) ok++; }); return ok; });
+  const asked = new Set(r.asked);
+  // só contam para "certas" as perguntas com resposta certa (escala e resposta livre por avaliar não contam)
+  const graded = i => { const q = r.questions[i], t = qType(q); return t === 'scale' ? false : t === 'open' ? ((q.accepted || []).length > 0 || Object.values(r.answers[i] || {}).some(a => a.correct != null)) : true; };
+  const nAsked = r.asked.filter(graded).length;
+  const stats = list.map(p => { let ok = 0; r.questions.forEach((q, i) => { const a = (r.answers[i] || {})[p.id]; if (a && a.correct === true) ok++; }); return ok; });
+  const ansText = (q, a) => { const t = qType(q); return t === 'mc' || t === 'tf' ? `${LETTERS[a.option]}) ${q.options[a.option]}` : t === 'fill' ? (a.value || []).join(' · ') : String(a.value ?? ''); };
+  const ansShort = (q, a) => { const t = qType(q); return t === 'mc' ? LETTERS[a.option] : t === 'tf' ? (a.option === 0 ? 'V' : 'F') : t === 'fill' ? `${a.right ?? 0}/${fillBlanksOf(q.text).length}` : t === 'scale' ? '★' + a.value : (String(a.value).length > 14 ? String(a.value).slice(0, 14) + '…' : String(a.value)); };
+  const corShort = q => { const t = qType(q); return t === 'mc' ? q.correct.map(k => LETTERS[k]).join('/') : t === 'tf' ? (q.correct[0] === 0 ? 'V' : 'F') : t === 'fill' ? fillBlanksOf(q.text).join(', ') : t === 'open' ? ((q.accepted || [])[0] || 'livre') : '1–5'; };
+  const cls = a => a.correct === true ? 'ok' : a.correct === false ? 'bad' : 'pend';
+  const mark = a => a.correct === true ? ' ✓' : a.correct === false ? ' ✗' : '';
   const cell = (p, q, i) => {
     if (!asked.has(i)) return `<td class="none">—</td>`;
     const a = (r.answers[i] || {})[p.id];
     if (!a) return `<td class="none">${joined.has(p.id) ? 'sem resp.' : 'ausente'}</td>`;
-    return `<td class="${a.correct ? 'ok' : 'bad'}" title="${esc(q.options[a.option])} · ${(a.timeMs / 1000).toFixed(1)}s">${LETTERS[a.option]} ${a.correct ? '✓' : '✗'}</td>`;
+    const pend = qType(q) === 'open' && a.correct == null;
+    return `<td class="${qType(q) === 'scale' ? '' : cls(a)}" title="${esc(ansText(q, a))} · ${(a.timeMs / 1000).toFixed(1)}s">${esc(ansShort(q, a))}${mark(a)}${pend ? ' ❔' : ''}</td>`;
   };
+  const pending = r.questions.reduce((n, q, i) => n + (qType(q) === 'open' ? Object.values(r.answers[i] || {}).filter(a => a.correct == null).length : 0), 0);
   const avg = list.length && nAsked ? Math.round(stats.reduce((a, b) => a + b, 0) / (list.length * nAsked) * 100) : 0;
   el.innerHTML = `<div class="card">
     <div class="row noprint"><button class="btn small" id="back">← Voltar</button><span class="grow"></span>
@@ -958,24 +1086,37 @@ async function openResult(id) {
     ${r.courseName ? `<div class="muted" style="margin-top:14px;font-weight:600">🎓 ${esc(r.courseName)}</div>` : ''}
     <h2 style="margin:${r.courseName ? 2 : 14}px 0 4px">${esc(r.quizTitle)}</h2>
     <p class="muted" style="margin-top:0">${new Date(r.startedAt).toLocaleString('pt-PT')} · ${list.length} alunos · ${nAsked} de ${r.questions.length} perguntas feitas · média de acerto ${avg}% ${r.endedAt ? '' : '· <b>sessão em curso</b>'}</p>
+    ${pending ? `<p class="pend-note">❔ Há <b>${pending}</b> resposta(s) livre(s) por avaliar — marca-as como certas ou erradas no detalhe por pergunta, em baixo.</p>` : ''}
     <h3>Grelha: quem respondeu o quê</h3>
     <div class="tbl-wrap"><table class="res"><thead>
       <tr><th>Aluno</th>${r.questions.map((q, i) => `<th title="${esc(q.text)}">P${i + 1}</th>`).join('')}<th>Certas</th><th>%</th><th>Pontos</th></tr>
-      <tr><th>Resposta correta</th>${r.questions.map(q => `<th style="color:var(--ok)">${q.correct.map(k => LETTERS[k]).join('/')}</th>`).join('')}<th></th><th></th><th></th></tr></thead>
+      <tr><th>Resposta correta</th>${r.questions.map(q => `<th style="color:var(--ok)" title="${esc(QTYPE_LABEL[qType(q)])}">${esc(corShort(q))}</th>`).join('')}<th></th><th></th><th></th></tr></thead>
       <tbody>${list.map((p, j) => `<tr><td>${esc(p.name)}${p.homonym ? ' <small style="color:#b45309">⚠ nome repetido</small>' : (p.extra || p.guest) ? ' <small class="muted">(extra)</small>' : ''}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
         <td><b>${stats[j]}</b>/${nAsked}</td><td>${nAsked ? Math.round(stats[j] / nAsked * 100) : 0}%</td><td>${score[p.id] ?? 0}</td></tr>`).join('')}</tbody></table></div>
     <h3 style="margin-top:28px">Detalhe por pergunta</h3>
     ${r.questions.map((q, i) => {
       const ans = r.answers[i] || {};
-      return `<div class="qdetail"><h4>P${i + 1}. ${esc(q.text)} ${asked.has(i) ? '' : '<span class="tag none">não feita</span>'}</h4>
-        <div class="muted" style="margin-bottom:6px">${q.options.map((o, k) => `${LETTERS[k]}) ${esc(o)}`).join(' · ')}</div>
-        <div style="margin-bottom:8px"><span class="tag ok">Resposta correta: ${q.correct.map(k => `${LETTERS[k]}) ${esc(q.options[k])}`).join(' | ')}</span></div>
+      const t = qType(q);
+      return `<div class="qdetail"><h4>P${i + 1}. ${esc(qTitle(q))} <span class="tag none">${QTYPE_LABEL[t]}</span> ${asked.has(i) ? '' : '<span class="tag none">não feita</span>'}</h4>
+        ${t === 'mc' || t === 'tf' ? `<div class="muted" style="margin-bottom:6px">${q.options.map((o, k) => `${LETTERS[k]}) ${esc(o)}`).join(' · ')}</div>` : ''}
+        ${t === 'fill' ? `<div class="muted" style="margin-bottom:6px">Palavras: ${bankOf(q).map(esc).join(', ')}</div>` : ''}
+        ${t === 'scale' ? `<div class="muted" style="margin-bottom:6px">1 = ${esc(q.scaleMin || '')} · 5 = ${esc(q.scaleMax || '')}</div>` : ''}
+        <div style="margin-bottom:8px"><span class="tag ${t === 'scale' || (t === 'open' && !(q.accepted || []).length) ? 'none' : 'ok'}">${t === 'scale' || (t === 'open' && !(q.accepted || []).length) ? '' : 'Resposta correta: '}${esc(solutionText(q))}</span></div>
         ${asked.has(i) ? list.map(p => { const a = ans[p.id]; return `<div class="ans-row">${avatar(p, 'sm')}<span style="min-width:200px">${esc(p.name)}</span>
-          ${a ? `<span class="tag ${a.correct ? 'ok' : 'bad'}">${LETTERS[a.option]}) ${esc(q.options[a.option])} ${a.correct ? '✓' : '✗'}</span><small class="muted">${(a.timeMs / 1000).toFixed(1)} s</small>` : `<span class="tag none">${joined.has(p.id) ? 'Sem resposta' : 'Ausente'}</span>`}</div>`; }).join('') : ''}
+          ${a ? `<span class="tag ${t === 'scale' ? 'none' : cls(a)}">${esc(ansText(q, a))}${mark(a)}${t === 'fill' ? ` (${a.right ?? 0}/${fillBlanksOf(q.text).length})` : ''}</span>
+            ${t === 'open' ? `<span class="markers noprint"><button class="btn small ${a.correct === true ? 'go' : ''}" data-mark="1" data-q="${i}" data-s="${esc(p.id)}">✓ Certa</button><button class="btn small ${a.correct === false ? 'danger' : ''}" data-mark="0" data-q="${i}" data-s="${esc(p.id)}">✗ Errada</button></span>` : ''}
+            <small class="muted">${(a.timeMs / 1000).toFixed(1)} s</small>` : `<span class="tag none">${joined.has(p.id) ? 'Sem resposta' : 'Ausente'}</span>`}</div>`; }).join('') : ''}
       </div>`;
     }).join('')}
   </div>`;
   $('#back').onclick = renderResultsList;
+  // avaliar respostas livres (clicar outra vez no mesmo botão volta a "por avaliar")
+  $$('[data-mark]').forEach(b => b.onclick = async () => {
+    const a = (r.answers[b.dataset.q] || {})[b.dataset.s], want = b.dataset.mark === '1';
+    const val = a && a.correct === want ? null : want;
+    try { await api('POST', `/api/results/${encodeURIComponent(r.id)}/mark`, { q: +b.dataset.q, studentId: b.dataset.s, correct: val }); } catch (e) { return toast(e.message); }
+    const y = window.scrollY; await openResult(r.id); window.scrollTo(0, y);
+  });
   // descarrega com a palavra-passe no cabeçalho (nunca no endereço)
   $$('[data-csv]').forEach(b => b.onclick = async () => {
     const res = await fetch(`/api/results/${encodeURIComponent(r.id)}/csv?type=${b.dataset.csv}`, { headers: { 'x-host-password': PW } });

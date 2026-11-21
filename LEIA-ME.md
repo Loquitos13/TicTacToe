@@ -32,13 +32,38 @@ Segurança:
 ## 3. Preparar
 1. **👥 Alunos** — adiciona nome + fotografia (um a um, várias fotos de uma vez em que o nome do ficheiro passa a ser o nome, ou uma lista de nomes colada).
 2. **📝 Questionários** — cria primeiro um **curso** (ex.: "Técnico de Vendas") e depois os questionários desse curso (cada curso pode ter vários, ex.: "Módulo 1", "Avaliação final"). Um questionário pode mudar de curso no editor; um curso só pode ser apagado quando já não tiver questionários.
-   Nas perguntas: 2 a 6 opções (2 a 6 opções, uma ou mais corretas, tempo por pergunta, imagem opcional).
-   Podes colar várias perguntas de uma vez em texto, com a resposta correta marcada com `*`:
+   Cada pergunta tem um **tipo** (escolhe no topo da pergunta), tempo próprio e imagem opcional:
+   | Tipo | Como se responde | Correção |
+   |---|---|---|
+   | **Escolha múltipla** | 2 a 6 opções (A–F) | uma ou mais corretas |
+   | **Verdadeiro / Falso** | dois botões | marcas qual é a certa |
+   | **Completar espaços** | a frase tem espaços; o formando toca nas palavras para os preencher | cada palavra certa entre `[[ ]]`, ex.: `A capital é [[Lisboa]].` + palavras extra para baralhar. Pontos proporcionais às palavras certas |
+   | **Resposta livre** | escreve o texto | com "respostas aceites" é corrigida sozinha (sem maiúsculas/acentos); sem elas, avalias tu na grelha (✓ Certa / ✗ Errada) |
+   | **Escala 1–5** | botões 1 a 5 (com legenda opcional) | opinião: sem resposta certa nem pontos; mostra a média |
+
+   Podes colar várias perguntas de uma vez em texto (uma por bloco, separadas por linha em branco):
    ```
    Qual é a capital de Portugal? [20s]
    Porto
    *Lisboa
    Coimbra
+
+   O sol é uma estrela.
+   *Verdadeiro
+   Falso
+
+   A capital de Portugal é [[Lisboa]] e fica junto ao rio [[Tejo]].
+   Porto, Douro, Mondego
+
+   Dá um exemplo de escuta ativa. [livre]
+
+   Diz uma cor da bandeira. [livre]
+   *verde
+   *vermelho
+
+   Gostaste da formação? [escala]
+   1=Nada
+   5=Muito
    ```
 
 ## 4. Durante a sessão
@@ -116,6 +141,7 @@ Se um aluno mudou de telemóvel: **👥 Alunos** (na barra de baixo) → **Liber
 Se um aluno fechar o browser sem querer, volta a abrir o link e entra automaticamente com o mesmo nome.
 
 ## 5. Resultados
+As respostas livres sem "respostas aceites" aparecem como **❔ por avaliar**: no detalhe por pergunta marca cada uma como **✓ Certa** ou **✗ Errada** (carregar outra vez no mesmo botão volta a "por avaliar"); a pontuação e as contas atualizam-se. A escala 1–5 e as respostas por avaliar não contam para a % de acerto.
 **📊 Resultados** (podes filtrar por curso) → **Ver grelha**:
 - Grelha aluno × pergunta, com a linha da resposta correta, ✓/✗, total de certas, % e pontos.
 - Detalhe por pergunta: pergunta, opções, resposta correta e a resposta de cada aluno (com o tempo que demorou).

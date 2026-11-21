@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const os = require('os');
 const QRCode = require('qrcode');
 const { Server } = require('socket.io');
+const Q = require('./questions'); // tipos de pergunta
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const DATA_DIR = path.join(__dirname, 'data');
@@ -112,8 +113,16 @@ function hostView() {
   if (!session) return { session: null };
   const q = currentQ();
   const ans = q ? answersFor(session.qIndex) : {};
-  const counts = q ? q.options.map((_, i) => Object.values(ans).filter(a => a.option === i).length) : [];
-  const whoByOption = q ? q.options.map((_, i) => Object.entries(ans).filter(([, a]) => a.option === i).map(([sid]) => sid)) : [];
+  const qt = q ? Q.typeOf(q) : null;
+  // escolha múltipla / V-F: por opção; escala: por valor 1..5
+  const slots = !q ? [] : qt === 'scale' ? [1, 2, 3, 4, 5] : (qt === 'mc' || qt === 'tf') ? q.options.map((_, i) => i) : [];
+  const pick = a => qt === 'scale' ? a.value : a.option;
+  const counts = slots.map(v => Object.values(ans).filter(a => pick(a) === v).length);
+  const whoByOption = slots.map(v => Object.entries(ans).filter(([, a]) => pick(a) === v).map(([sid]) => sid));
+  const extra = {};
+  if (qt === 'fill') extra.fillStats = q.blanks.map((w, b) => ({ word: w, right: Object.values(ans).filter(a => Q.norm((a.value || [])[b]) === Q.norm(w)).length }));
+  if (qt === 'open') { const m = new Map(); Object.values(ans).forEach(a => { const k = Q.norm(a.value); const e = m.get(k) || { text: a.value, count: 0, correct: a.correct }; e.count++; m.set(k, e); }); extra.openAnswers = [...m.values()].sort((a, b) => b.count - a.count).slice(0, 40); }
+  if (qt === 'scale') { const vals = Object.values(ans).map(a => a.value); extra.scaleAvg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null; }
   const examProgress = isExam() ? Object.fromEntries(Object.values(session.players).map(p => [p.studentId, {
     answered: session.questions.filter((_, i) => (session.answers[i] || {})[p.studentId]).length,
     submitted: !!(session.submitted || {})[p.studentId],
@@ -126,7 +135,7 @@ function hostView() {
       question: q, remainingMs: session.deadline ? Math.max(0, session.deadline - Date.now()) : 0,
       autoMs: session.autoAt ? Math.max(0, session.autoAt - Date.now()) : 0,
       allQuestions: session.phase === 'end' ? session.asked.slice().sort((x, y) => x - y).map(i => session.questions[i]) : null,
-      counts, whoByOption, answeredIds: Object.keys(ans),
+      counts, whoByOption, answeredIds: Object.keys(ans), ...extra,
       players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, connected: !!p.socketId })),
       roster: session.roster,
       ranking: ranking(),
@@ -162,35 +171,39 @@ function playerView(p) {
       score: showScore ? scoreOf(p) : null,
       correct: showScore ? Object.entries(session.answers).filter(([i, a]) => !(hideCurrent && +i === session.qIndex) && a[p.studentId] && a[p.studentId].correct).length : null,
     },
-    answered: !!mine, myOption: mine ? mine.option : null,
+    answered: !!mine, myOption: mine ? mine.option : null, myValue: mine ? mine.value : null,
   };
   if (session.phase === 'exam') {
     v.exam = {
-      questions: session.questions.map(qq => ({ text: qq.text, options: qq.options, image: qq.image || null })),
-      mine: Object.fromEntries(session.questions.map((_, i) => [i, ((session.answers[i] || {})[p.studentId] || {}).option]).filter(([, o]) => o != null)),
+      questions: session.questions.map(qq => Q.publicQuestion(qq, false)),
+      mine: Object.fromEntries(session.questions.map((qq, i) => { const a = (session.answers[i] || {})[p.studentId]; return [i, a ? (a.option ?? a.value) : null]; }).filter(([, o]) => o != null)),
       remainingMs: Math.max(0, session.deadline - Date.now()),
       submitted: !!(session.submitted || {})[p.studentId],
     };
   }
   if (q && ['ready', 'question', 'closed', 'reveal', 'leaderboard'].includes(session.phase)) {
     // "esconder as perguntas nos telemóveis": só vão as letras; o texto está no ecrã do formador
-    const hide = !!session.settings.hideOnPhones;
-    v.question = hide ? { text: '', options: q.options.map(() => ''), time: q.time, image: null, hidden: true }
-      : { text: q.text, options: q.options, time: q.time, image: q.image || null };
+    v.question = Q.publicQuestion(q, !!session.settings.hideOnPhones);
     v.remainingMs = session.deadline ? Math.max(0, session.deadline - Date.now()) : 0;
   }
   // no fim (modo "só no fim"): todas as perguntas, a resposta correta e a resposta do formando
   if (isEnd) v.answeredCount = session.asked.filter(i => (session.answers[i] || {})[p.studentId]).length;
+  // perguntas que contam para "certas" (a escala e a resposta livre por avaliar não contam)
+  if (isEnd) v.gradedTotal = session.asked.filter(i => Q.isGraded(session.questions[i]) || Object.values(session.answers[i] || {}).some(a => a.correct != null)).length;
   if (isEnd && revealEnd) {
     v.review = session.asked.map(i => {
       const qq = session.questions[i], a = (session.answers[i] || {})[p.studentId];
-      const hide = !!session.settings.hideOnPhones;
-      return { text: hide ? '' : qq.text, options: hide ? qq.options.map(() => '') : qq.options, correct: qq.correct, mine: a ? a.option : null, ok: a ? a.correct : false };
+      const hide = !!session.settings.hideOnPhones, t = Q.typeOf(qq);
+      return { type: t, text: hide ? '' : Q.displayText(qq), options: hide ? qq.options.map(() => '') : qq.options, correct: qq.correct, solution: Q.solutionOf(qq), graded: Q.isGraded(qq),
+        mine: a ? (a.option ?? a.value) : null, ok: a ? a.correct : false, right: a ? a.right : null, mineText: a ? Q.answerText(qq, a) : null };
     });
   }
   if (q && rv === 'each' && ['reveal', 'leaderboard'].includes(session.phase)) {
     v.correct = q.correct;
-    v.wasCorrect = mine ? mine.correct : false;
+    v.solution = Q.solutionOf(q);
+    v.graded = Q.isGraded(q);
+    v.wasCorrect = mine ? mine.correct : false; // null = por avaliar / sem resposta certa
+    v.right = mine ? mine.right : null;
     v.points = mine ? mine.points : 0;
   }
   return v;
@@ -311,6 +324,11 @@ function endExam() {
   clearTimeout(timer); timer = null;
   session.deadline = null; session.endedAt = Date.now(); session.phase = 'end';
   persistSession(); broadcast();
+}
+function pointsFor(q, entry, timeMs, speed) {
+  if (!entry.frac) return 0;
+  const base = speed ? Math.round(1000 * (1 - Math.min(timeMs, q.time * 1000) / (q.time * 1000) / 2)) : 1000;
+  return Math.round(base * entry.frac);
 }
 function examRecompute(p) { p.score = session.questions.reduce((t, _, i) => t + (((session.answers[i] || {})[p.studentId] || {}).points || 0), 0); }
 
@@ -463,13 +481,7 @@ function cleanQuiz(q) {
   const courseId = db.courses.find(c => c.id === q.courseId) ? q.courseId : (db.courses[0] || {}).id;
   return {
     id: q.id || uid(), courseId, title: String(q.title || 'Sem título').trim(),
-    questions: (q.questions || []).map(x => ({
-      id: x.id || uid(), text: String(x.text || '').trim(),
-      options: (x.options || []).map(o => String(o).trim()).filter(Boolean).slice(0, 6),
-      correct: (x.correct || []).map(Number),
-      time: Math.max(5, Math.min(300, parseInt(x.time, 10) || 20)),
-      image: x.image && String(x.image).startsWith('data:') ? savePhoto(x.image) : (x.image || null),
-    })).filter(x => x.text && x.options.length >= 2),
+    questions: (q.questions || []).map(x => Q.cleanQuestion(x, uid, savePhoto)).filter(Boolean),
   };
 }
 app.get('/api/quizzes', auth, (req, res) => res.json(db.quizzes));
@@ -519,8 +531,9 @@ function participants(r) {
   r.players.forEach(p => { if (!map.has(p.studentId)) map.set(p.studentId, { id: p.studentId, name: p.name }); });
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt'));
 }
-function answerText(q, a) { return a == null ? '' : L(a.option) + ') ' + q.options[a.option]; }
-function correctText(q) { return q.correct.map(i => L(i) + ') ' + q.options[i]).join(' | '); }
+const answerText = (q, a) => a == null ? '' : Q.answerText(q, a);
+const correctText = q => Q.correctText(q);
+const okText = (q, a) => Q.typeOf(q) === 'scale' ? '—' : a.correct === true ? 'Sim' : a.correct === false ? 'Não' : 'Por avaliar';
 
 app.get('/api/results/:id/csv', auth, (req, res) => {
   const f = resultFile(path.basename(req.params.id));
@@ -532,31 +545,34 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
   let rows;
   if (req.query.type === 'grelha') {
     rows = [['Curso', r.courseName || ''], ['Questionário', r.quizTitle], ['Data', new Date(r.startedAt).toLocaleString('pt-PT')], []];
-    rows.push(['Aluno', ...r.questions.map((q, i) => 'P' + (i + 1)), 'Certas', 'Total perguntas', '% acerto', 'Pontos']);
-    rows.push(['RESPOSTA CORRETA', ...r.questions.map(q => q.correct.map(L).join('/')), '', '', '', '']);
+    rows.push(['Aluno', ...r.questions.map((q, i) => 'P' + (i + 1)), 'Certas', 'Perguntas avaliadas', '% acerto', 'Pontos']);
+    rows.push(['RESPOSTA CORRETA', ...r.questions.map(q => Q.correctShort(q)), '', '', '', '']);
+    // conta só as perguntas com resposta certa (a escala e a resposta livre por avaliar não contam)
+    const gradedIdx = r.asked.filter(i => Q.isGraded(r.questions[i]) || Object.values(r.answers[i] || {}).some(a => a.correct != null));
     for (const p of people) {
       let ok = 0;
       const cells = r.questions.map((q, i) => {
         const a = (r.answers[i] || {})[p.id];
         if (!r.asked.includes(i)) return '(não feita)';
         if (!a) return joined.has(p.id) ? 'Sem resposta' : 'Ausente';
-        if (a.correct) ok++;
-        return L(a.option) + (a.correct ? ' ✓' : ' ✗');
+        if (a.correct === true) ok++;
+        return Q.answerShort(q, a) + (a.correct === true ? ' ✓' : a.correct === false ? ' ✗' : Q.typeOf(q) === 'open' ? ' ?' : '');
       });
-      const n = r.asked.length;
+      const n = gradedIdx.length;
       rows.push([p.name, ...cells, ok, n, n ? Math.round(ok / n * 100) + '%' : '', score[p.id] ?? 0]);
     }
   } else {
     rows = [['Curso', 'Questionário', 'Nº', 'Pergunta', 'Opções', 'Resposta correta', 'Aluno', 'Resposta dada', 'Correta?', 'Tempo (s)', 'Pontos']];
     r.questions.forEach((q, i) => {
-      const opts = q.options.map((o, k) => L(k) + ') ' + o).join(' | ');
+      const t = Q.typeOf(q);
+      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'scale' ? 'Escala 1–5' : 'Resposta livre';
       for (const p of people) {
         const a = (r.answers[i] || {})[p.id];
         let given, ok = '';
         if (!r.asked.includes(i)) given = '(pergunta não feita)';
         else if (!a) given = joined.has(p.id) ? 'Sem resposta' : 'Ausente';
-        else { given = answerText(q, a); ok = a.correct ? 'Sim' : 'Não'; }
-        rows.push([r.courseName || '', r.quizTitle, i + 1, q.text, opts, correctText(q), p.name, given, ok || (r.asked.includes(i) ? 'Não' : ''), a ? (a.timeMs / 1000).toFixed(1).replace('.', ',') : '', a ? a.points : 0]);
+        else { given = answerText(q, a); ok = okText(q, a); }
+        rows.push([r.courseName || '', r.quizTitle, i + 1, Q.displayText(q), opts, correctText(q), p.name, given, ok || (r.asked.includes(i) ? 'Não' : ''), a ? (a.timeMs / 1000).toFixed(1).replace('.', ',') : '', a ? a.points : 0]);
       }
     });
   }
@@ -565,6 +581,24 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${safe}_${date}_${req.query.type === 'grelha' ? 'grelha' : 'detalhado'}.csv"`);
   res.send(toCsv(rows));
+});
+
+// O formador marca uma resposta livre como certa / errada (ou volta a "por avaliar")
+app.post('/api/results/:id/mark', auth, (req, res) => {
+  const id = path.basename(req.params.id), f = resultFile(id);
+  if (!fs.existsSync(f)) return res.status(404).end();
+  const r = session && session.id === id ? null : JSON.parse(fs.readFileSync(f, 'utf8'));
+  const src = r || session; // sessão a decorrer: altera em memória e grava
+  const i = parseInt(req.body.q, 10), sid = String(req.body.studentId || ''), val = req.body.correct;
+  const qq = src.questions[i], a = qq && (src.answers[i] || {})[sid];
+  if (!a || Q.typeOf(qq) !== 'open') return res.status(400).json({ error: 'Resposta não encontrada' });
+  const before = a.points || 0;
+  a.correct = val === true ? true : val === false ? false : null;
+  a.points = a.correct ? 1000 : 0; a.frac = a.correct ? 1 : 0; a.markedBy = 'formador';
+  const players = r ? r.players : Object.values(session.players);
+  const pl = players.find(x => x.studentId === sid); if (pl) pl.score = (pl.score || 0) - before + a.points;
+  if (r) { fs.writeFileSync(f, JSON.stringify(r, null, 2)); } else { persistSession(); broadcast(); }
+  res.json({ ok: true });
 });
 
 // QR code + endereço para os alunos
@@ -806,10 +840,11 @@ io.on('connection', socket => {
     if (!session || !me || me.socketId !== socket.id || session.players[me.studentId] !== me) return cb({ error: 'Não identificado' });
     if (session.phase !== 'exam' || Date.now() > session.deadline) return cb({ error: 'O tempo terminou.' });
     if ((session.submitted || {})[me.studentId]) return cb({ error: 'Já entregaste.' });
-    const i = parseInt(data && data.q, 10), option = parseInt(data && data.option, 10), qq = session.questions[i];
-    if (!qq || !(option >= 0 && option < qq.options.length)) return cb({ error: 'Pedido inválido.' });
-    const correct = qq.correct.includes(option);
-    answersFor(i)[me.studentId] = { option, timeMs: Date.now() - session.examStart, correct, points: correct ? 1000 : 0, at: Date.now() };
+    const i = parseInt(data && data.q, 10), qq = session.questions[i];
+    if (!qq) return cb({ error: 'Pedido inválido.' });
+    const g = Q.grade(qq, data.value !== undefined ? data.value : data.option);
+    if (g.error) return cb({ error: g.error });
+    answersFor(i)[me.studentId] = { ...g.entry, timeMs: Date.now() - session.examStart, points: pointsFor(qq, g.entry, 0, false), at: Date.now() };
     examRecompute(me);
     persistSession(); cb({ ok: true }); broadcast();
   });
@@ -829,15 +864,15 @@ io.on('connection', socket => {
     if (!session || !me || session.players[me.studentId] !== me || me.socketId !== socket.id) return cb && cb({ error: 'Não identificado' });
     if (session.phase !== 'question') return cb && cb({ error: 'Tempo esgotado' });
     const q = currentQ();
-    option = parseInt(option, 10);
-    if (!(option >= 0 && option < q.options.length)) return;
     const ans = answersFor(session.qIndex);
     if (ans[me.studentId]) return cb && cb({ error: 'Já respondeste' });
+    // resposta: número (escolha múltipla, V/F, escala), lista de palavras (completar) ou texto (livre)
+    const raw = option && typeof option === 'object' && !Array.isArray(option) ? option.value : option;
+    const g = Q.grade(q, raw);
+    if (g.error) return cb({ error: g.error });
     const timeMs = Date.now() - session.questionStartedAt;
-    const correct = q.correct.includes(option);
-    let points = 0;
-    if (correct) points = session.settings.speedPoints ? Math.round(1000 * (1 - Math.min(timeMs, q.time * 1000) / (q.time * 1000) / 2)) : 1000;
-    ans[me.studentId] = { option, timeMs, correct, points, at: Date.now() };
+    const points = pointsFor(q, g.entry, timeMs, session.settings.speedPoints);
+    ans[me.studentId] = { ...g.entry, timeMs, points, at: Date.now() };
     me.score += points;
     persistSession();
     cb && cb({ ok: true });

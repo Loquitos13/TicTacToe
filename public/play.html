@@ -50,6 +50,16 @@
   .on-screen { background: rgba(255,255,255,.95); color: var(--ink); border-radius: 16px; padding: 14px 16px; text-align: center; font-size: 1.05em; line-height: 1.4; }
   .letters-only .ans { font-size: 3.2em; }
   .letters-only .ans .letter { background: transparent; width: auto; height: auto; }
+  .scale-btns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .scale-btns .ans { min-height: 90px; font-size: 2.2em; padding: 0; }
+  .scale-labels { display: flex; justify-content: space-between; font-size: .9em; opacity: .9; margin-top: 6px; }
+  .open-in { width: 100%; border-radius: 14px; border: 0; padding: 12px; font-size: 1.1em; resize: vertical; }
+  .fill-phone { background: #fff; color: var(--ink); border-radius: 16px; padding: 14px; font-size: 1.15em; font-weight: 600; line-height: 2.1; text-align: center; }
+  .slot { min-width: 3.4em; border: 0; border-bottom: 3px solid var(--d); background: #f1edf8; color: var(--d); font-weight: 700; border-radius: 8px 8px 0 0; padding: 2px 8px; margin: 0 3px; font-size: .95em; }
+  .slot.filled { background: #ede9fe; color: var(--ink); }
+  .wbank { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .wchip { background: #fff; color: var(--ink); border-radius: 999px; padding: 10px 16px; font-weight: 700; font-size: 1.05em; box-shadow: 0 3px 0 rgba(0,0,0,.2); }
+  .wchip:active { transform: translateY(2px); }
   .list-names { display: flex; flex-direction: column; gap: 10px; width: 100%; }
   .name-btn { width: 100%; font-size: 1.1em; }
   .people { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
@@ -74,6 +84,7 @@
   .result { border-radius: 24px; padding: 28px 18px; width: 100%; }
   .result.ok { background: var(--ok); }
   .result.bad { background: var(--bad); }
+  .result.part { background: var(--c); }
   .result.none { background: rgba(0,0,0,.25); }
   .result h2 { font-size: 2.2em; margin: 6px 0; }
   .correct-box { background: rgba(255,255,255,.95); color: var(--ink); padding: 12px 16px; border-radius: 14px; margin-top: 12px; font-weight: 600; }
@@ -91,6 +102,7 @@
 </main>
 <script src="/socket.io/socket.io.js"></script>
 <script src="common.js"></script>
+<script src="qtypes.js"></script>
 <script src="sound.js"></script>
 <script>
 // Volume baixo nos telemóveis: o formador não controla o som dos dispositivos dos alunos
@@ -240,20 +252,22 @@ function renderGameInner() {
     const q = state.question;
     if (state.answered) {
       const revealLater = (s.settings.revealMode || 'each') !== 'each';
-      return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">${revealLater ? '✅' : '🤞'}</div><h1>Resposta enviada!</h1>
-        <div class="ans opt-${state.myOption}" style="min-height:auto;width:100%"><span class="letter">${LETTERS[state.myOption]}</span>${esc(q.options[state.myOption] || '')}</div>
-        <p>${revealLater ? 'Aguarda a próxima pergunta' : 'Vamos ver se acertaste'}<span class="dots"></span></p></div>`);
+      const t = q.type || 'mc', mineV = t === 'mc' || t === 'tf' ? state.myOption : state.myValue;
+      return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">${revealLater || t === 'scale' ? '✅' : '🤞'}</div><h1>Resposta enviada!</h1>
+        ${t === 'mc' || t === 'tf' ? `<div class="ans opt-${state.myOption}" style="min-height:auto;width:100%"><span class="letter">${LETTERS[state.myOption]}</span>${esc(q.options[state.myOption] || '')}</div>` : `<div class="correct-box" style="width:100%">${answerSummary(q, mineV)}</div>`}
+        <p>${revealLater || t === 'scale' || t === 'open' ? 'Aguarda a próxima pergunta' : 'Vamos ver se acertaste'}<span class="dots"></span></p></div>`);
     }
-    set('q' + s.qIndex, header() + qmeta() + `${q.hidden ? onScreenNote : `<div class="qtext slide-up">${esc(q.text)}</div>`}${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
-      ${timedMode ? '<div class="timebar"><div id="tb"></div></div>' : '<p class="center" style="margin:10px 0;opacity:.85">👆 Escolhe a tua resposta</p>'}
-      <div class="answers ${q.options.length === 2 ? 'n2' : ''} ${q.hidden ? 'letters-only' : ''}">${q.options.map((o, i) => `<button class="ans opt-${i} pop-in" style="animation-delay:${i * 70}ms" data-i="${i}"><span class="letter">${LETTERS[i]}</span>${esc(o)}</button>`).join('')}</div>`, () => {
-      $$('.ans').forEach(b => b.onclick = () => {
-        const i = +b.dataset.i;
-        $$('.ans').forEach(x => x.disabled = true);
-        socket.emit('player:answer', i, res => {
-          if (res && res.error) { toast(res.error); $$('.ans').forEach(x => x.disabled = false); return; }
+    const w = answerWidget(q, null, false), t = q.type || 'mc';
+    const hint = { mc: '👆 Escolhe a tua resposta', tf: '👆 Verdadeiro ou falso?', scale: '👆 Escolhe de 1 a 5', fill: '✏️ Completa os espaços', open: '✍️ Escreve a tua resposta' }[t];
+    set('q' + s.qIndex, header() + qmeta() + `${q.hidden ? onScreenNote : t === 'fill' && q.parts ? '' : `<div class="qtext slide-up">${esc(q.text)}</div>`}${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
+      ${timedMode ? '<div class="timebar"><div id="tb"></div></div>' : `<p class="center" style="margin:10px 0;opacity:.85">${hint}</p>`}
+      ${w.html}`, () => {
+      w.bind((value, btn) => {
+        $$('#app button').forEach(x => x.disabled = true);
+        socket.emit('player:answer', { value }, res => {
+          if (res && res.error) { toast(res.error); $$('#app button').forEach(x => x.disabled = false); return; }
           Sound.play('sent'); navigator.vibrate && navigator.vibrate(40);
-          state.answered = true; state.myOption = i; render();
+          state.answered = true; if (t === 'mc' || t === 'tf') state.myOption = value; else state.myValue = value; render();
         });
       });
     });
@@ -277,16 +291,29 @@ function renderGameInner() {
       <p style="margin-top:12px">${atEnd ? 'As respostas corretas são mostradas no fim do quiz. 🤫' : 'Nesta avaliação as respostas corretas não são mostradas.'}</p>
       </div><p>Aguarda a próxima pergunta<span class="dots"></span></p></div>`);
   }
+  if ((ph === 'reveal' || ph === 'leaderboard') && state.answered && (state.graded === false || state.wasCorrect == null)) {
+    // escala (opinião) ou resposta livre por avaliar: não há certo/errado agora
+    const q = state.question, sc = (q.type || 'mc') === 'scale';
+    set('rev-neutral' + s.qIndex + ph, header() + qmeta() + `<div class="middle"><div class="result none pop-in">
+      <div class="big-emoji">${sc ? '⭐' : '📝'}</div><h2>${sc ? 'Obrigado pela tua opinião!' : 'Resposta registada'}</h2>
+      <div class="correct-box">${answerSummary(q, state.myValue)}</div>
+      ${sc ? '' : '<p style="margin-top:10px">O formador vai avaliar a tua resposta.</p>'}</div>${ph === 'leaderboard' ? rankBox() : ''}</div>`);
+    return;
+  }
   if (ph === 'reveal' || ph === 'leaderboard') {
-    const q = state.question;
-    const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : 'bad';
+    const q = state.question, t = q.type || 'mc';
+    const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : (t === 'fill' && state.right) ? 'part' : 'bad';
+    const sol = state.solution || {};
+    const solHtml = t === 'fill' ? `Palavras certas:<br>${(sol.blanks || []).map((w, i) => `${i + 1}. ${esc(w)}`).join('<br>')}`
+      : t === 'open' ? `Respostas aceites:<br>${(sol.accepted || []).map(esc).join(' · ')}`
+      : `Resposta correta:<br>${(state.correct || []).map(i => optLabel(q.options, i)).join('<br>')}`;
     const key = 'rev' + s.qIndex + ph;
     const isNew = !lastKey.startsWith('rev' + s.qIndex);
     set(key, header() + qmeta() + `<div class="middle"><div class="result ${cls} ${isNew ? (state.wasCorrect ? 'pop-in' : 'shake') : ''}">
       <div class="big-emoji">${!state.answered ? '😴' : state.wasCorrect ? '🎉' : '😅'}</div>
-      <h2>${!state.answered ? 'Sem resposta' : state.wasCorrect ? 'Certo!' : 'Errado'}</h2>
-      ${state.wasCorrect ? `<div style="font-size:1.5em;font-weight:700">+${state.points} pontos</div>` : ''}
-      ${!state.wasCorrect ? `<div class="correct-box">Resposta correta:<br>${state.correct.map(i => optLabel(q.options, i)).join('<br>')}</div>` : ''}
+      <h2>${!state.answered ? 'Sem resposta' : state.wasCorrect ? 'Certo!' : t === 'fill' && state.right ? `${state.right} de ${q.blanks} certas` : 'Errado'}</h2>
+      ${state.points ? `<div style="font-size:1.5em;font-weight:700">+${state.points} pontos</div>` : ''}
+      ${!state.wasCorrect ? `<div class="correct-box">${solHtml}</div>` : ''}
       </div>${ph === 'leaderboard' ? rankBox() : ''}</div>`);
     if (isNew) { Sound.play(state.wasCorrect ? 'correct' : 'wrong'); if (state.wasCorrect) Confetti.burst(80); navigator.vibrate && navigator.vibrate(state.wasCorrect ? [40, 60, 40] : 200); }
     return;
@@ -297,12 +324,12 @@ function renderGameInner() {
     const podium = s.settings.finalPodium && m.position <= 5;
     set('end', header() + `<div class="middle">${podium ? `<div class="pop-in">${dancer(m, ['jump', 'disco', 'wave', 'sway', 'robot'][m.position - 1], ['#ffd93d', '#e5e7eb', '#f4a261', '#7dd3fc', '#c4b5fd'][m.position - 1], m.position === 1)}</div>` : avatar(m, 'xl pop-in')}<h1>Terminou! 🏁</h1>
       ${m.score != null || m.position != null ? `<div class="card" style="width:100%">
-        ${m.score != null ? `<div style="font-size:2.4em;font-weight:700">${m.score} pts</div><div class="muted">${m.correct} de ${state.review ? state.review.length : s.total} respostas certas</div>` : ''}
+        ${m.score != null ? `<div style="font-size:2.4em;font-weight:700">${m.score} pts</div><div class="muted">${m.correct} de ${state.gradedTotal ?? s.total} respostas certas</div>` : ''}
         ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
       ${state.review ? `<h2 style="margin:10px 0 0">As respostas corretas</h2><div class="review">${state.review.map((r, i) => `
-        <div class="rv-item ${r.mine == null ? 'none' : r.ok ? 'ok' : 'bad'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
-          <div class="rv-a">✅ ${r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
-          <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${optLabel(r.options, r.mine)} ${r.ok ? '✓' : '✗'}`}</div></div>`).join('')}</div>` : ''}
+        <div class="rv-item ${r.mine == null ? 'none' : r.ok === true ? 'ok' : r.ok === false ? 'bad' : 'none'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
+          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? ((r.solution.accepted || []).length ? '✅ ' + r.solution.accepted.map(esc).join(' · ') : '📝 Avaliada pelo formador') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
+          <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${r.type === 'mc' || r.type === 'tf' || !r.type ? optLabel(r.options, r.mine) : esc(r.mineText || '')} ${r.ok === true ? '✓' : r.ok === false ? '✗' : ''}`}</div></div>`).join('')}</div>` : ''}
       ${!state.review && m.score == null ? `<div class="result none" style="margin-top:6px"><div class="big-emoji">📨</div><h2>Respostas enviadas!</h2>
         <p>Respondeste a ${state.answeredCount ?? 0} de ${s.total} perguntas. As tuas respostas foram registadas.</p></div>` : ''}
       <p>Obrigado por participares! 💜</p></div>`);
@@ -462,12 +489,12 @@ function renderExam() {
     return exClockStart();
   }
   exIdx = Math.max(0, Math.min(n - 1, exIdx));
-  const q = ex.questions[exIdx], mine = ex.mine[exIdx];
+  const q = ex.questions[exIdx], mine = ex.mine[exIdx], exW = answerWidget(q, mine, true);
   set('ex' + exIdx + JSON.stringify(ex.mine), header() + top + `
     <div class="ex-chips">${ex.questions.map((_, i) => `<button class="ex-chip ${ex.mine[i] != null ? 'ans' : ''} ${i === exIdx ? 'cur' : ''}" data-go="${i}">${i + 1}</button>`).join('')}</div>
     <div class="qmeta"><span>Pergunta ${exIdx + 1} de ${n}</span><span>${mine != null ? '✅ respondida' : ''}</span></div>
-    <div class="qtext">${esc(q.text)}</div>${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
-    <div class="answers ex-answers ${q.options.length === 2 ? 'n2' : ''}">${q.options.map((o, i) => `<button class="ans opt-${i} ${mine === i ? 'sel' : mine != null ? 'unsel' : ''}" data-i="${i}"><span class="letter">${LETTERS[i]}</span>${esc(o)}</button>`).join('')}</div>
+    ${(q.type === 'fill' && q.parts) ? '' : `<div class="qtext">${esc(q.text)}</div>`}${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
+    ${exW.html}
     <div class="ex-nav"><button class="btn ghost" id="exPrev" ${exIdx === 0 ? 'disabled' : ''}>← Anterior</button>
       ${exIdx < n - 1 ? `<button class="btn ghost" id="exNext">Seguinte →</button>` : `<button class="btn primary" id="exEnd">Rever e entregar ✅</button>`}</div>
     ${exIdx < n - 1 ? `<button class="btn ghost ex-submit-link" id="exEnd">Entregar</button>` : ''}`, () => {
@@ -475,9 +502,9 @@ function renderExam() {
     $('#exPrev').onclick = () => { exIdx--; render(); };
     const nx = $('#exNext'); if (nx) nx.onclick = () => { exIdx++; render(); };
     $$('#exEnd').forEach(b => b.onclick = () => { exConfirm = true; render(); });
-    $$('.ex-answers .ans').forEach(b => b.onclick = () => {
-      const opt = +b.dataset.i, at = exIdx;
-      socket.emit('player:examAnswer', { q: at, option: opt }, res => {
+    exW.bind(opt => {
+      const at = exIdx;
+      socket.emit('player:examAnswer', { q: at, value: opt }, res => {
         if (res && res.error) return toast(res.error, 3500);
         Sound.play('sent'); navigator.vibrate && navigator.vibrate(30);
         state.exam.mine[at] = opt;
@@ -493,6 +520,52 @@ function renderExam() {
 
 const optLabel = (opts, i) => opts && opts[i] ? `${LETTERS[i]}) ${esc(opts[i])}` : LETTERS[i];
 const onScreenNote = `<div class="on-screen pop-in">👀 A pergunta e as opções estão no <b>ecrã do formador</b>.<br>Responde aqui com a letra.</div>`;
+
+// Desenha a forma de responder conforme o tipo. cur = resposta atual (modo tempo total).
+// Devolve { html, bind(onAnswer) }; onAnswer(valor) recebe o índice, o número, as palavras ou o texto.
+function answerWidget(q, cur, exam) {
+  const t = q.type || 'mc';
+  if (t === 'scale') return {
+    html: `<div class="scale-btns">${[1, 2, 3, 4, 5].map((n, i) => `<button class="ans opt-${i} pop-in ${cur === n ? 'sel' : cur != null ? 'unsel' : ''}" style="animation-delay:${i * 60}ms" data-v="${n}">${n}</button>`).join('')}</div>
+      ${q.scaleMin || q.scaleMax ? `<div class="scale-labels"><span>1 = ${esc(q.scaleMin)}</span><span>5 = ${esc(q.scaleMax)}</span></div>` : ''}`,
+    bind: on => $$('.scale-btns .ans').forEach(b => b.onclick = () => on(+b.dataset.v, b)),
+  };
+  if (t === 'open') return {
+    html: `<textarea id="openIn" class="open-in" maxlength="300" rows="4" placeholder="Escreve a tua resposta…">${esc(typeof cur === 'string' ? cur : '')}</textarea>
+      <button class="btn primary" id="openSend" style="width:100%;margin-top:10px">${exam ? '💾 Guardar resposta' : '📨 Enviar resposta'}</button>`,
+    bind: on => { $('#openSend').onclick = () => { const v = $('#openIn').value.trim(); if (!v) return toast('Escreve a tua resposta.'); on(v, $('#openSend')); }; },
+  };
+  if (t === 'fill') {
+    const n = q.blanks, vals = Array.isArray(cur) ? cur.slice() : Array(n).fill(null);
+    const slot = i => `<button class="slot ${vals[i] ? 'filled' : ''}" data-b="${i}">${vals[i] ? esc(vals[i]) : (i + 1)}</button>`;
+    return {
+      html: `<div class="fill-phone">${q.parts ? sentenceHtml(q.parts, slot) : Array.from({ length: n }, (_, i) => `<div>Espaço ${i + 1}: ${slot(i)}</div>`).join('')}</div>
+        <p class="center" style="margin:8px 0 6px;opacity:.85">Toca numa palavra para a pôr no próximo espaço; toca num espaço para o limpar.</p>
+        <div class="wbank">${q.bank.map(w => `<button class="wchip" data-w="${esc(w)}">${esc(w)}</button>`).join('')}</div>
+        <button class="btn primary" id="fillSend" style="width:100%;margin-top:12px" ${vals.every(Boolean) ? '' : 'disabled'}>${exam ? '💾 Guardar resposta' : '📨 Enviar resposta'}</button>`,
+      bind: on => {
+        const refresh = () => { $$('.slot').forEach(sl => { const i = +sl.dataset.b; sl.textContent = vals[i] || (i + 1); sl.classList.toggle('filled', !!vals[i]); }); $('#fillSend').disabled = !vals.every(Boolean); };
+        $$('.wchip').forEach(c => c.onclick = () => { const i = vals.findIndex(v => !v); if (i < 0) return toast('Todos os espaços estão preenchidos: toca num para o trocar.'); vals[i] = c.dataset.w; Sound.play('pop'); refresh(); });
+        $$('.slot').forEach(sl => sl.onclick = () => { vals[+sl.dataset.b] = null; refresh(); });
+        $('#fillSend').onclick = () => on(vals.slice(), $('#fillSend'));
+      },
+    };
+  }
+  // escolha múltipla / verdadeiro-falso
+  return {
+    html: `<div class="answers ${exam ? 'ex-answers' : ''} ${q.options.length === 2 ? 'n2' : ''} ${q.hidden ? 'letters-only' : ''}">${q.options.map((o, i) => `<button class="ans opt-${i} ${exam ? (cur === i ? 'sel' : cur != null ? 'unsel' : '') : 'pop-in'}" style="animation-delay:${i * 70}ms" data-i="${i}"><span class="letter">${LETTERS[i]}</span>${esc(o)}</button>`).join('')}</div>`,
+    bind: on => $$('.answers .ans').forEach(b => b.onclick = () => on(+b.dataset.i, b)),
+  };
+}
+// resumo da resposta dada, para mostrar depois de enviar
+function answerSummary(q, v) {
+  const t = q.type || 'mc';
+  if (v == null) return '';
+  if (t === 'scale') return `⭐ ${v} de 5`;
+  if (t === 'fill') return (v || []).join(' · ');
+  if (t === 'open') return `“${esc(v)}”`;
+  return optLabel(q.options, v);
+}
 
 function qmeta() { const s = state.session; return `<div class="qmeta"><span>Pergunta ${s.qIndex + 1} de ${s.total}</span><span>${esc(s.quizTitle)}</span></div>`; }
 render();
