@@ -376,7 +376,7 @@ function questionHtml() {
 // withAnswer=false → sondagem (só quantos escolheram cada opção); true → destaca a correta
 // passo "resposta correta" num ecrã projetado quando as respostas não são mostradas à turma
 function hiddenRevealHtml() {
-  const atEnd = S.settings.revealMode === 'end';
+  const atEnd = !!S.settings.revealEnd;
   return resultsHtml(false).replace(/<div class="big-msg[^>]*>📊 Sondagem[\s\S]*?<\/div>/, '').replace('<div class="timeup">⏰ Tempo esgotado!</div>', '') +
     `<p class="center" style="font-size:1.5em;font-weight:600;margin-top:4px">${atEnd ? '🤫 As respostas corretas vão ser mostradas no fim!' : '📨 Respostas registadas.'}</p>`;
 }
@@ -467,7 +467,7 @@ function controlsHtml() {
     ${isAuto() && ph !== 'end' && ph !== 'lobby' ? `<button class="btn small ghost" id="btnPause">${S.settings.paused ? '▶ Retomar' : '⏸ Pausar'}</button>` : ''}
     <div class="info"><b id="autoInfo" style="color:#ffd93d"></b> <span id="ctlInfo">${ph === 'end' ? 'Sessão terminada — as respostas estão guardadas.' : `${connectedN()} ligados · espaço/→ avança`}</span></div>
     ${hiddenReveal() ? `<label class="switch" title="Só neste dispositivo. Deixa desligado no ecrã projetado."><input type="checkbox" id="setSee" ${seeAnswers ? 'checked' : ''}> 👁 Ver respostas corretas</label>` : ''}
-    ${ph === 'end' && S.settings.revealMode === 'end' ? `<button class="btn small ${showAnswersList ? 'primary' : 'ghost'}" id="btnAnswers">${showAnswersList ? '🏆 Voltar ao pódio' : '📋 Mostrar respostas corretas'}</button>` : ''}
+    ${ph === 'end' && S.settings.revealEnd ? `<button class="btn small ${showAnswersList ? 'primary' : 'ghost'}" id="btnAnswers">${showAnswersList ? '🏆 Voltar ao pódio' : '📋 Mostrar respostas corretas'}</button>` : ''}
     <label class="switch" title="Mostrar quantos escolheram cada opção"><input type="checkbox" id="setPoll" ${pollOn() ? 'checked' : ''}> Sondagem</label>
     ${pollOn() ? `<label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>` : ''}
     ${S.settings.noRanking || hiddenReveal() ? '' : `<label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>`}
@@ -617,12 +617,9 @@ function renderSetup(el) {
             <label id="tBoardL">🏆 Ranking <span class="num-in"><input type="number" id="tBoard" min="2" max="120" value="8"> s</span></label>
           </div>
         </div>
-        <label>✅ Mostrar as respostas corretas aos formandos</label>
-        <select id="sReveal">
-          <option value="each">Depois de cada pergunta</option>
-          <option value="end">Só no fim (todas de uma vez)</option>
-          <option value="never">Nunca</option>
-        </select>
+        <label>✅ Respostas corretas para os formandos</label>
+        <label class="switch"><input type="checkbox" id="sRevEach" checked> Mostrar a resposta correta depois de cada pergunta</label>
+        <label class="switch"><input type="checkbox" id="sRevEnd"> Mostrar todas as respostas corretas no fim</label>
         <p class="muted" id="revealNote" hidden style="margin:-2px 0 0">Tu continuas a ver tudo: a resposta correta de cada pergunta (no teu ecrã, se ligares "👁 Ver respostas corretas") e a grelha de resultados. Os telemóveis não mostram certo/errado nem pontuação durante o quiz, e não há ranking depois de cada pergunta.</p>
         <label>🏆 Ranking</label>
         <select id="sRanking">
@@ -653,20 +650,20 @@ function renderSetup(el) {
   const syncSetup = () => {
     const m = $('[name=sMode]:checked').value;
     $('#timeRow').hidden = m === 'manual'; $('#autoRow').hidden = m !== 'auto';
-    const rv = $('#sReveal').value, eachOpt = $('#sRanking option[value=each]');
+    const rv = $('#sRevEach').checked ? 'each' : 'hidden', eachOpt = $('#sRanking option[value=each]');
     eachOpt.disabled = rv !== 'each';
     if (rv !== 'each' && $('#sRanking').value === 'each') $('#sRanking').value = 'end';
     $('#revealNote').hidden = rv === 'each';
     $('#tBoardL').hidden = $('#sRanking').value !== 'each';
   };
-  $('#sReveal').onchange = syncSetup;
+  $('#sRevEach').onchange = syncSetup;
   $$('[name=sMode]').forEach(r => r.onchange = syncSetup); $('#sRanking').onchange = syncSetup; syncSetup();
   if ($('#allOn')) { $('#allOn').onclick = () => $$('.sStu').forEach(c => c.checked = true); $('#allOff').onclick = () => $$('.sStu').forEach(c => c.checked = false); }
   go.onclick = () => {
     const ids = $$('.sStu').filter(c => c.checked).map(c => c.value);
     if (!ids.length) return toast('Escolhe pelo menos um aluno');
     Sound.init();
-    socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sReveal').value,
+    socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sRevEach').checked ? 'each' : ($('#sRevEnd').checked ? 'end' : 'never'), revealEnd: $('#sRevEnd').checked,
       rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
       autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked } });
   };

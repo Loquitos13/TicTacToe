@@ -80,12 +80,11 @@ Ao abrir a sala escolhes **como avançam as perguntas** (vale para o quiz inteir
 - **⏱ Por tempo** — cada pergunta tem tempo limite (o de cada pergunta ou um tempo igual para todas). Quando chega a 0 (ou todos respondem) deixa de aceitar respostas e passa sozinha para a sondagem.
 - **🤖 Totalmente automático** — tudo por tempo: tempo para responder, sondagem, resposta correta e ranking (segundos configuráveis ao abrir a sala), passagem para a pergunta seguinte e pódio final. Só carregas em `Começar`. Durante o quiz tens **⏸ Pausar / ▶ Retomar**, e o botão amarelo avança logo se não quiseres esperar.
 
-Escolhes quando **mostrar as respostas corretas aos formandos**:
-- **Depois de cada pergunta** — cada um vê no telemóvel se acertou e qual era a correta.
-- **Só no fim** — durante o quiz não há o passo da resposta correta: depois da sondagem segue logo para a pergunta seguinte, e o telemóvel não mostra certo/errado nem pontuação. No fim, cada formando vê a lista de todas as perguntas com a resposta correta e a sua, e tu tens o botão **📋 Mostrar respostas corretas** para as projetar.
-- **Nunca** — igual, mas no fim também não são mostradas: os formandos nunca veem as respostas corretas nem a pontuação.
+Escolhes, com duas opções independentes, se os formandos veem as respostas corretas:
+- **Depois de cada pergunta** — cada um vê no telemóvel se acertou e qual era a correta. Se desligares, não há esse passo: depois da sondagem segue logo para a pergunta seguinte, e o telemóvel não mostra certo/errado nem pontuação durante o quiz.
+- **Todas no fim** — no fim, cada formando vê a lista de todas as perguntas com a resposta correta e a sua, e tu tens o botão **📋 Mostrar respostas corretas** para as projetar. Se desligares, no fim o telemóvel mostra só "📨 Respostas enviadas!" e quantas perguntas respondeu.
 
-Nos dois últimos casos **tu continuas a ver tudo**: liga **👁 Ver respostas corretas** na barra de baixo no teu portátil ou telemóvel (a opção correta fica marcada com ✔ na sondagem) (fica guardado só nesse dispositivo; deixa desligado no ecrã projetado) e tens sempre a grelha de resultados. Não há ranking depois de cada pergunta, porque mostraria quem acertou.
+Em qualquer caso **tu continuas a ver tudo**: liga **👁 Ver respostas corretas** na barra de baixo no teu portátil ou telemóvel (a opção correta fica marcada com ✔ na sondagem) (fica guardado só nesse dispositivo; deixa desligado no ecrã projetado) e tens sempre a grelha de resultados. Não há ranking depois de cada pergunta, porque mostraria quem acertou.
 Dica: podes abrir o painel do formador ao mesmo tempo no projetor e no teu telemóvel.
 
 Escolhes se queres **mostrar a sondagem** (barras com quantos escolheram cada opção). Sem sondagem, quando as respostas fecham aparece só "🔒 Respostas fechadas" e quantos responderam; a resposta correta é destacada sem números. Podes ligar/desligar a sondagem a qualquer momento na barra de baixo.

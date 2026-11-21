@@ -144,7 +144,8 @@ function playerView(p) {
   // Quando mostrar as respostas corretas aos formandos: 'each' (depois de cada pergunta),
   // 'end' (só no fim) ou 'never' (nunca). O formador vê sempre tudo.
   const rv = session.settings.revealMode || 'each', isEnd = session.phase === 'end';
-  const showScore = rv === 'each' || (rv === 'end' && isEnd); // a pontuação denunciaria as respostas certas
+  const revealEnd = !!session.settings.revealEnd; // lista de respostas corretas no fim (opcional)
+  const showScore = rv === 'each' || (revealEnd && isEnd); // a pontuação denunciaria as respostas certas
   const showPos = !session.settings.noRanking && (rv === 'each' || isEnd);
   const v = {
     session: { id: session.id, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase, qIndex: session.qIndex, total: session.questions.length, settings: session.settings },
@@ -162,7 +163,8 @@ function playerView(p) {
     v.remainingMs = session.deadline ? Math.max(0, session.deadline - Date.now()) : 0;
   }
   // no fim (modo "só no fim"): todas as perguntas, a resposta correta e a resposta do formando
-  if (isEnd && rv === 'end') {
+  if (isEnd) v.answeredCount = session.asked.filter(i => (session.answers[i] || {})[p.studentId]).length;
+  if (isEnd && revealEnd) {
     v.review = session.asked.map(i => {
       const qq = session.questions[i], a = (session.answers[i] || {})[p.studentId];
       return { text: qq.text, options: qq.options, correct: qq.correct, mine: a ? a.option : null, ok: a ? a.correct : false };
@@ -574,6 +576,9 @@ io.on('connection', socket => {
       settings.paused = false;
       if (settings.noRanking) { settings.rankEach = false; settings.finalPodium = false; }
       if (!['each', 'end', 'never'].includes(settings.revealMode)) settings.revealMode = 'each';
+      // duas opções independentes: depois de cada pergunta / todas no fim
+      settings.revealEnd = settings.revealEnd === true || settings.revealMode === 'end';
+      if (settings.revealMode !== 'each') settings.revealMode = settings.revealEnd ? 'end' : 'never';
       settings.showPoll = settings.showPoll !== false;
       if (settings.revealMode !== 'each') settings.rankEach = false;
       const fixed = parseInt(settings && settings.fixedTime, 10);
@@ -597,7 +602,7 @@ io.on('connection', socket => {
     socket.on('host:settings', guard(s => {
       if (!session) return;
       delete s.mode; delete s.autoTimes; // o modo e os tempos ficam fixos durante toda a sessão
-      delete s.noRanking; delete s.revealMode;
+      delete s.noRanking; delete s.revealMode; delete s.revealEnd;
       if (session.settings.noRanking) { delete s.rankEach; delete s.finalPodium; }
       if (session.settings.revealMode !== 'each') delete s.rankEach;
       if ('showPoll' in s) s.showPoll = !!s.showPoll;

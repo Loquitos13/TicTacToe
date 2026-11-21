@@ -251,7 +251,7 @@ function renderGameInner() {
       <p>${state.answered ? 'A tua resposta foi registada ✅' : 'Não respondeste a tempo 😬'}<br>${s.settings.showPoll === false ? 'Aguarda' : '📊 Olha para o ecrã: vem aí a sondagem'}<span class="dots"></span></p></div>`);
   }
   if ((ph === 'reveal' || ph === 'leaderboard') && (s.settings.revealMode || 'each') !== 'each') {
-    const atEnd = s.settings.revealMode === 'end';
+    const atEnd = !!s.settings.revealEnd;
     return set('rv-hidden' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="result none pop-in">
       <div class="big-emoji">${state.answered ? '📨' : '😴'}</div>
       <h2>${state.answered ? 'Resposta registada' : 'Sem resposta'}</h2>
@@ -285,6 +285,8 @@ function renderGameInner() {
         <div class="rv-item ${r.mine == null ? 'none' : r.ok ? 'ok' : 'bad'}"><div class="rv-q">${i + 1}. ${esc(r.text)}</div>
           <div class="rv-a">✅ ${r.correct.map(k => `${LETTERS[k]}) ${esc(r.options[k])}`).join(' | ')}</div>
           <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${LETTERS[r.mine]}) ${esc(r.options[r.mine])} ${r.ok ? '✓' : '✗'}`}</div></div>`).join('')}</div>` : ''}
+      ${!state.review && m.score == null ? `<div class="result none" style="margin-top:6px"><div class="big-emoji">📨</div><h2>Respostas enviadas!</h2>
+        <p>Respondeste a ${state.answeredCount ?? 0} de ${s.total} perguntas. As tuas respostas foram registadas.</p></div>` : ''}
       <p>Obrigado por participares! 💜</p></div>`);
     if (isNew) { Sound.play('fanfare'); Confetti.burst(200); }
   }
