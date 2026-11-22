@@ -39,7 +39,7 @@
   .ex-clock.hurry { color: #ffd93d; animation: pulse 1s infinite; }
   .ex-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; justify-content: center; }
   .ex-chip { width: 36px; height: 36px; border-radius: 10px; background: rgba(255,255,255,.18); color: #fff; font-weight: 700; }
-  .ex-chip.ans { background: #22c55e; } .ex-chip.cur { outline: 3px solid #ffd93d; }
+  .ex-chip.done { background: #22c55e; } .ex-chip.cur { outline: 3px solid #ffd93d; }
   .ex-answers { flex: none; margin-top: 12px; }
   .ex-answers .ans { min-height: 90px; }
   .ans.sel { outline: 5px solid #fff; transform: scale(1.02); }
@@ -53,7 +53,7 @@
   .scale-btns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
   .scale-btns .ans { min-height: 90px; font-size: 2.2em; padding: 0; }
   .scale-labels { display: flex; justify-content: space-between; font-size: .9em; opacity: .9; margin-top: 6px; }
-  .open-in { width: 100%; border-radius: 14px; border: 0; padding: 12px; font-size: 1.1em; resize: vertical; }
+  .open-in { width: 100%; border-radius: 14px; border: 0; padding: 12px; margin-top: 12px; display: block; font-size: 1.1em; resize: vertical; }
   .fill-phone { background: #fff; color: var(--ink); border-radius: 16px; padding: 14px; font-size: 1.15em; font-weight: 600; line-height: 2.1; text-align: center; }
   .slot { min-width: 3.4em; border: 0; border-bottom: 3px solid var(--d); background: #f1edf8; color: var(--d); font-weight: 700; border-radius: 8px 8px 0 0; padding: 2px 8px; margin: 0 3px; font-size: .95em; }
   .slot.filled { background: #ede9fe; color: var(--ink); }
@@ -71,13 +71,17 @@
   .bar { display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,.2); padding: 8px 12px; border-radius: 16px; margin-right: 52px; }
   .bar .name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .score { background: #ffd93d; color: var(--ink); padding: 4px 12px; border-radius: 999px; font-weight: 700; }
-  .qmeta { display: flex; justify-content: space-between; margin: 14px 0 6px; opacity: .85; }
+  .qmeta { display: flex; justify-content: space-between; gap: 12px; margin: 14px 0 6px; opacity: .85; }
+  .qmeta span:first-child { white-space: nowrap; }
+  .qmeta span:last-child { text-align: right; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .qtext { background: #fff; color: var(--ink); border-radius: 16px; padding: 16px; font-size: 1.25em; font-weight: 600; text-align: center; }
   .qimg { max-width: 100%; max-height: 28vh; border-radius: 12px; margin: 10px auto 0; display: block; }
   .timebar { height: 10px; background: rgba(255,255,255,.2); border-radius: 99px; overflow: hidden; margin: 12px 0; }
   .timebar div { height: 100%; background: #ffd93d; width: 100%; transform-origin: left; }
-  .answers { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; flex: 1; align-content: stretch; }
-  .answers.n2 { grid-template-columns: 1fr; }
+  .answers { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); flex: 1; align-content: stretch; }
+  .answers.n2, .answers.long { grid-template-columns: minmax(0, 1fr); }
+  .answers.long .ans { min-height: 64px; }
+  .ans, .qtext, .rv-item, .wchip, .slot { overflow-wrap: anywhere; min-width: 0; }
   .ans { color: #fff; border-radius: 18px; padding: 16px 12px; font-size: 1.15em; font-weight: 600; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 110px; box-shadow: 0 6px 0 rgba(0,0,0,.25); transition: transform .1s; }
   .ans:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(0,0,0,.25); }
   .ans .letter { font-size: 1.1em; }
@@ -506,7 +510,7 @@ function renderExam() {
   exIdx = Math.max(0, Math.min(n - 1, exIdx));
   const q = ex.questions[exIdx], mine = ex.mine[exIdx], exW = answerWidget(q, mine, true);
   set('ex' + exIdx + JSON.stringify(ex.mine), header() + top + `
-    <div class="ex-chips">${ex.questions.map((_, i) => `<button class="ex-chip ${ex.mine[i] != null ? 'ans' : ''} ${i === exIdx ? 'cur' : ''}" data-go="${i}">${i + 1}</button>`).join('')}</div>
+    <div class="ex-chips">${ex.questions.map((_, i) => `<button class="ex-chip ${ex.mine[i] != null ? 'done' : ''} ${i === exIdx ? 'cur' : ''}" data-go="${i}">${i + 1}</button>`).join('')}</div>
     <div class="qmeta"><span>Pergunta ${exIdx + 1} de ${n}</span><span>${mine != null ? '✅ respondida' : ''}</span></div>
     ${(q.type === 'fill' && q.parts) ? '' : `<div class="qtext">${esc(q.text)}</div>`}${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
     ${exW.html}
@@ -602,7 +606,7 @@ function answerWidget(q, cur, exam) {
   }
   // escolha múltipla / verdadeiro-falso
   return {
-    html: `<div class="answers ${exam ? 'ex-answers' : ''} ${q.options.length === 2 ? 'n2' : ''} ${q.hidden ? 'letters-only' : ''}">${q.options.map((o, i) => `<button class="ans opt-${i} ${exam ? (cur === i ? 'sel' : cur != null ? 'unsel' : '') : 'pop-in'}" style="animation-delay:${i * 70}ms" data-i="${i}"><span class="letter">${LETTERS[i]}</span>${esc(o)}</button>`).join('')}</div>`,
+    html: `<div class="answers ${exam ? 'ex-answers' : ''} ${q.options.length === 2 ? 'n2' : ''} ${!q.hidden && q.options.some(o => String(o).length > 38) ? 'long' : ''} ${q.hidden ? 'letters-only' : ''}">${q.options.map((o, i) => `<button class="ans opt-${i} ${exam ? (cur === i ? 'sel' : cur != null ? 'unsel' : '') : 'pop-in'}" style="animation-delay:${i * 70}ms" data-i="${i}"><span class="letter">${LETTERS[i]}</span>${esc(o)}</button>`).join('')}</div>`,
     bind: on => $$('.answers .ans').forEach(b => b.onclick = () => on(+b.dataset.i, b)),
   };
 }
