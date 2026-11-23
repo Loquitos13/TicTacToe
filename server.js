@@ -91,7 +91,8 @@ function persistSession() {
     settings: session.settings,
     questions: session.questions,
     roster: session.roster,
-    players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, joinedAt: p.joinedAt })),
+    players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, joinedAt: p.joinedAt, team: p.team ?? null })),
+    teams: session.settings.teams ? teamStats() : null,
     code: session.code,
     anonymous: !!session.settings.anonymous,
     submitted: session.submitted || null,
@@ -109,6 +110,35 @@ function ranking() {
   return Object.values(session.players)
     .map(p => ({ studentId: p.studentId, name: p.name, short: p.short || p.name, photo: p.photo, score: p.score }))
     .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+}
+
+// ---------- Jogos em grupo (equipas) ----------
+const TEAMS = [
+  { id: 0, name: 'Vermelha', color: '#ef4444', emoji: '🔴' }, { id: 1, name: 'Azul', color: '#3b82f6', emoji: '🔵' },
+  { id: 2, name: 'Verde', color: '#22c55e', emoji: '🟢' }, { id: 3, name: 'Amarela', color: '#eab308', emoji: '🟡' },
+  { id: 4, name: 'Roxa', color: '#a855f7', emoji: '🟣' }, { id: 5, name: 'Laranja', color: '#f97316', emoji: '🟠' },
+];
+const teamInfo = id => TEAMS[id] ? { ...TEAMS[id] } : null;
+// equipa com menos pessoas (empate: ao acaso) — usada quando alguém entra
+function smallestTeam() {
+  const n = session.settings.teams, counts = Array(n).fill(0);
+  Object.values(session.players).forEach(p => { if (p.team != null && p.team < n) counts[p.team]++; });
+  const min = Math.min(...counts), opts = counts.map((c, i) => c === min ? i : -1).filter(i => i >= 0);
+  return opts[crypto.randomInt(opts.length)];
+}
+// pontuação de cada equipa = média dos pontos dos seus membros (justo com equipas de tamanhos diferentes)
+// scoreOf permite ignorar a pergunta em curso (para os telemóveis não perceberem se acertaram)
+function teamStats(scoreOf = p => p.score, lastPts = null) {
+  const n = session.settings.teams || 0, list = [];
+  for (let id = 0; id < n; id++) {
+    const members = Object.values(session.players).filter(p => p.team === id);
+    const total = members.reduce((t, p) => t + scoreOf(p), 0);
+    const plus = lastPts ? members.reduce((t, p) => t + (lastPts[p.studentId] || 0), 0) : 0;
+    list.push({ ...teamInfo(id), size: members.length, score: members.length ? Math.round(total / members.length) : 0,
+      plus: members.length ? Math.round(plus / members.length) : 0,
+      members: members.map(p => ({ studentId: p.studentId, name: p.name, short: p.short || p.name, photo: p.photo, score: p.score })) });
+  }
+  return list.filter(t => t.size).sort((a, b) => b.score - a.score || a.id - b.id);
 }
 
 function hostView() {
@@ -150,7 +180,9 @@ function hostView() {
       autoMs: session.autoAt ? Math.max(0, session.autoAt - Date.now()) : 0,
       allQuestions: session.phase === 'end' ? session.asked.slice().sort((x, y) => x - y).map(i => session.questions[i]) : null,
       counts, whoByOption, answeredIds: Object.keys(ans), ...extra,
-      players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, connected: !!p.socketId })),
+      players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, connected: !!p.socketId, team: p.team ?? null })),
+      teams: session.settings.teams ? teamStats(p => p.score, q ? Object.fromEntries(Object.entries(ans).map(([sid, a]) => [sid, a.points])) : null) : null,
+      teamList: session.settings.teams ? TEAMS.slice(0, session.settings.teams) : null,
       roster: session.roster,
       ranking: ranking(),
       lastPoints: q ? Object.fromEntries(Object.entries(ans).map(([sid, a]) => [sid, a.points])) : {},
@@ -187,6 +219,15 @@ function playerView(p) {
     },
     answered: !!mine, myOption: mine ? mine.option : null, myValue: mine ? mine.value : null,
   };
+  if (session.settings.teams && p.team != null) {
+    v.me.team = teamInfo(p.team);
+    v.me.teammates = Object.values(session.players).filter(x => x.team === p.team && x !== p).map(x => x.short || x.name);
+    if (showPos) {
+      const ts = teamStats(scoreOf);
+      v.me.teamPosition = ts.findIndex(t => t.id === p.team) + 1; v.me.teamOf = ts.length;
+      if (showScore) v.me.teamScore = (ts.find(t => t.id === p.team) || {}).score;
+    }
+  }
   if (session.phase === 'exam') {
     v.exam = {
       questions: session.questions.map(qq => Q.publicQuestion(qq, false)),
@@ -590,8 +631,12 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
   let rows;
   if (req.query.type === 'grelha') {
     rows = [['Curso', r.courseName || ''], ['Questionário', r.quizTitle], ['Data', new Date(r.startedAt).toLocaleString('pt-PT')], []];
-    rows.push(['Aluno', ...r.questions.map((q, i) => 'P' + (i + 1)), 'Certas', 'Perguntas avaliadas', '% acerto', 'Pontos']);
-    rows.push(['RESPOSTA CORRETA', ...r.questions.map(q => Q.correctShort(q)), '', '', '', '']);
+    // jogos em grupo: coluna com a equipa e, no fim, a pontuação de cada equipa
+    const teamName = Object.fromEntries((r.teams || []).map(t => [t.id, t.name]));
+    const teamOf = Object.fromEntries(r.players.map(p => [p.studentId, p.team]));
+    const tcol = r.teams ? [''] : [];
+    rows.push(['Aluno', ...(r.teams ? ['Equipa'] : []), ...r.questions.map((q, i) => 'P' + (i + 1)), 'Certas', 'Perguntas avaliadas', '% acerto', 'Pontos']);
+    rows.push(['RESPOSTA CORRETA', ...tcol, ...r.questions.map(q => Q.correctShort(q)), '', '', '', '']);
     // conta só as perguntas com resposta certa (a escala e a resposta livre por avaliar não contam)
     const gradedIdx = r.asked.filter(i => Q.isGraded(r.questions[i]) || Object.values(r.answers[i] || {}).some(a => a.correct != null));
     for (const p of people) {
@@ -604,8 +649,9 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
         return Q.answerShort(q, a) + (a.correct === true ? ' ✓' : a.correct === false ? ' ✗' : Q.typeOf(q) === 'open' ? ' ?' : '');
       });
       const n = gradedIdx.length;
-      rows.push([p.name, ...cells, ok, n, n ? Math.round(ok / n * 100) + '%' : '', score[p.id] ?? 0]);
+      rows.push([p.name, ...(r.teams ? [teamName[teamOf[p.id]] || ''] : []), ...cells, ok, n, n ? Math.round(ok / n * 100) + '%' : '', score[p.id] ?? 0]);
     }
+    if (r.teams) { rows.push([]); rows.push(['EQUIPAS', 'Lugar', 'Membros', 'Pontos (média)']); r.teams.forEach((t, k) => rows.push(['Equipa ' + t.name, k + 1 + 'º', t.members.map(m => m.name).join(', '), t.score])); }
   } else {
     rows = [['Curso', 'Questionário', 'Nº', 'Pergunta', 'Opções', 'Resposta correta', 'Aluno', 'Resposta dada', 'Correta?', 'Tempo (s)', 'Pontos']];
     r.questions.forEach((q, i) => {
@@ -728,6 +774,9 @@ io.on('connection', socket => {
       // anónimo: nenhuma ligação à turma (sem nomes, fotos nem ranking)
       settings.anonymous = !!quiz.anonymous;
       if (settings.anonymous) { settings.noRanking = true; settings.rankEach = false; settings.finalPodium = false; settings.showWho = false; }
+      // jogos em grupo: 2 a 6 equipas (não há equipas no anónimo nem sem ranking)
+      const nt = parseInt(settings.teams, 10);
+      settings.teams = !settings.anonymous && !settings.noRanking && nt >= 2 && nt <= 6 ? nt : 0;
       const roster = settings.anonymous ? [] : db.students.filter(s => !studentIds || studentIds.includes(s.id)).map(s => ({ ...s }));
       assignShortNames(roster);
       session = {
@@ -747,7 +796,7 @@ io.on('connection', socket => {
     socket.on('host:settings', guard(s => {
       if (!session) return;
       delete s.mode; delete s.autoTimes; // o modo e os tempos ficam fixos durante toda a sessão
-      delete s.noRanking; delete s.revealMode; delete s.revealEnd;
+      delete s.noRanking; delete s.revealMode; delete s.revealEnd; delete s.teams;
       if (session.settings.noRanking) { delete s.rankEach; delete s.finalPodium; }
       if (session.settings.revealMode !== 'each') delete s.rankEach;
       if ('showPoll' in s) s.showPoll = !!s.showPoll;
@@ -758,6 +807,23 @@ io.on('connection', socket => {
     }));
 
     socket.on('host:next', guard(advance));
+
+    // jogos em grupo: volta a distribuir toda a gente pelas equipas, ao acaso e equilibrado (só antes de começar)
+    socket.on('host:shuffleTeams', guard(() => {
+      if (!session || !session.settings.teams || session.phase !== 'lobby') return;
+      const ps = Object.values(session.players);
+      for (let i = ps.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [ps[i], ps[j]] = [ps[j], ps[i]]; }
+      const off = crypto.randomInt(session.settings.teams);
+      ps.forEach((p, k) => p.team = (k + off) % session.settings.teams);
+      persistSession(); broadcast();
+    }));
+    // mudar uma pessoa de equipa (toque no cartão, na sala de espera)
+    socket.on('host:moveTeam', guard((studentId) => {
+      if (!session || !session.settings.teams || session.phase !== 'lobby') return;
+      const p = session.players[String(studentId)]; if (!p) return;
+      p.team = ((p.team ?? -1) + 1) % session.settings.teams;
+      persistSession(); broadcast();
+    }));
     socket.on('host:extend', guard(min => {
       if (!session || session.phase !== 'exam') return;
       const add = Math.max(1, Math.min(30, parseInt(min, 10) || 1)) * 60000;
@@ -828,7 +894,8 @@ io.on('connection', socket => {
     cb({ ok: true, token: p.token, sessionId: session.id, studentId: p.studentId, name: p.name });
     broadcast();
   }
-  const newPlayer = st => ({ studentId: st.id, name: st.name, short: st.short || st.name, photo: st.photo || null, score: 0, joinedAt: Date.now() });
+  const newPlayer = st => ({ studentId: st.id, name: st.name, short: st.short || st.name, photo: st.photo || null, score: 0, joinedAt: Date.now(),
+    team: session.settings.teams ? smallestTeam() : null });
 
   // Mesmo dispositivo a voltar (recarregou a página): só com o token que recebeu ao entrar
   socket.on('player:claim', (data, cb) => {

@@ -139,6 +139,24 @@
   .board .pts { margin-left: auto; font-weight: 700; }
   .board .plus { color: var(--ok); font-size: .7em; margin-left: 10px; }
   @keyframes grow { from { transform: scaleY(0); } }
+  .teams-opt { gap: 10px; } .teams-opt select { padding: 6px 10px; }
+  .teams-lobby { margin-top: 14px; }
+  .tl-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .tl-col { background: rgba(255,255,255,.1); border-radius: 16px; padding: 10px; border-top: 6px solid var(--tc); display: flex; flex-direction: column; gap: 6px; }
+  .tl-head { font-weight: 800; font-size: 1.15em; display: flex; justify-content: space-between; align-items: center; } .tl-head small { background: var(--tc); border-radius: 99px; padding: 0 9px; font-size: .8em; }
+  .tl-p { display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,.2); color: #fff; border-radius: 12px; padding: 5px 8px; text-align: left; font-weight: 600; min-height: 40px; animation: popIn .4s both; }
+  .tl-p span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .tl-p.off { opacity: .45; } .tl-p:hover { background: rgba(0,0,0,.35); }
+  .tl-empty { opacity: .5; text-align: center; padding: 6px; } .tl-missing { opacity: .75; margin: 10px 0 0; }
+  .tpod { flex: 1; display: flex; justify-content: center; align-items: flex-end; gap: 16px; margin-top: 6px; }
+  .tcol { display: flex; flex-direction: column; align-items: center; width: min(15vw, 190px); }
+  .tcol .dancer { animation: dropIn .7s cubic-bezier(.3,1.6,.5,1) both; animation-delay: calc(var(--d) + .35s); margin-bottom: -4px; }
+  .tcol .pts-bubble { animation-delay: calc(var(--d) + .6s); margin-bottom: 26px; }
+  .tstep { width: 100%; border-radius: 16px 16px 0 0; background: var(--tc); color: #fff; display: flex; flex-direction: column; align-items: center; padding-top: 8px; transform-origin: bottom; animation: grow .6s cubic-bezier(.2,.9,.3,1.1) both; animation-delay: var(--d); box-shadow: inset 0 -10px 0 rgba(0,0,0,.12); text-shadow: 0 2px 4px rgba(0,0,0,.3); }
+  .tstep .place { font-size: 2em; font-weight: 800; line-height: 1; } .tname { font-weight: 800; text-align: center; padding: 2px 6px; line-height: 1.1; } .tstep .pscore { font-weight: 700; opacity: .9; }
+  .tmembers { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; margin-top: 6px; min-height: 34px; animation: slideUp .5s both; animation-delay: calc(var(--d) + .5s); }
+  .tpod-note { opacity: .75; margin: 8px 0 0; }
+  .res-teams { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .res-team { border-left: 8px solid var(--tc); background: #f6f3fb; border-radius: 10px; padding: 8px 12px; }
   .podium5 { flex: 1; display: flex; justify-content: center; align-items: flex-end; gap: 14px; margin-top: 6px; }
   .pcol { display: flex; flex-direction: column; align-items: center; width: min(19vw, 200px); }
   .pcol .dancer { animation: dropIn .7s cubic-bezier(.3,1.6,.5,1) both; animation-delay: calc(var(--d) + .35s); margin-bottom: -4px; }
@@ -147,7 +165,7 @@
   .pcol .pname { font-weight: 700; font-size: 1.05em; text-align: center; padding: 2px 6px; line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pcol .pscore { font-size: .95em; opacity: .75; font-weight: 600; }
   .pts-bubble { background: #fff; color: var(--ok); font-weight: 700; padding: 4px 12px; border-radius: 999px; margin-bottom: 4px; animation: popIn .5s both; animation-delay: calc(var(--d) + .9s); }
-  .podium5.final .pts-bubble { color: var(--ink); background: #ffd93d; font-size: 1.15em; }
+  .podium5.final .pts-bubble, .tpod.final .pts-bubble { color: var(--ink); background: #ffd93d; font-size: 1.15em; }
   .podium5.final .dancer { --s: 1.15; }
   .podium5.final .pname { font-size: 1.25em; }
   @keyframes dropIn { from { opacity: 0; transform: translateY(-260px); } to { opacity: 1; transform: none; } }
@@ -398,7 +416,8 @@ function renderGame(full) {
   const firstPoll = ph === 'closed' && !closedShown.has(S.qIndex);
   if (ph === 'closed') { html += resultsHtml(false, firstPoll); closedShown.add(S.qIndex); }
   if (ph === 'reveal') html += showCorrectHere() ? resultsHtml(true) + (hiddenReveal() ? `<p class="center private-note">👁 Só neste ecrã: os formandos não veem a resposta correta.</p>` : '') : hiddenRevealHtml();
-  if (ph === 'leaderboard') html += `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Top 5</div>` + podiumHtml(S.ranking.slice(0, 5), false);
+  if (ph === 'leaderboard') html += S.settings.teams ? `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Equipas</div>` + teamPodiumHtml(false)
+    : `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Top 5</div>` + podiumHtml(S.ranking.slice(0, 5), false);
   if (ph === 'end') html += (showAnswersList ? answersListHtml() : endHtml());
   lastControls = controlsHtml();
   html += `</div>` + lastControls;
@@ -433,8 +452,19 @@ function lobbyHtml() {
     </div>
     <div>
       <div class="row"><div class="count-big" id="joinCount">${connectedN()}</div><div style="font-size:1.3em">${S.settings.anonymous ? `participantes<br>anónimos já entraram` : `de <span id="rosterN">${S.roster.length}</span> alunos<br>já entraram`}</div></div>
-      <div class="joined" id="joined" style="margin-top:20px">${joinedHtml()}</div>
+      ${S.settings.teams ? `<div class="row noprint" style="margin-top:14px"><button class="btn small" id="btnShuffleTeams">🔀 Baralhar equipas</button><span class="muted" style="color:#ddd">Toca num formando para o mudar de equipa.</span></div>
+        <div class="teams-lobby" id="teamsLobby">${teamsLobbyHtml()}</div>` : `<div class="joined" id="joined" style="margin-top:20px">${joinedHtml()}</div>`}
     </div></div>`;
+}
+// sala de espera com equipas: uma coluna por equipa; quem ainda não entrou fica por baixo
+function teamsLobbyHtml() {
+  const cols = (S.teamList || []).map(t => {
+    const ps = S.players.filter(p => p.team === t.id);
+    return `<div class="tl-col" style="--tc:${t.color}"><div class="tl-head">${t.emoji} ${esc(t.name)} <small>${ps.length}</small></div>
+      ${ps.map(p => { const st = S.roster.find(r => r.id === p.studentId) || p; return `<button class="tl-p ${p.connected ? '' : 'off'}" data-move="${esc(p.studentId)}" title="Mudar de equipa">${avatar(st, 'sm')}<span>${esc(st.short || st.name)}</span></button>`; }).join('') || '<div class="tl-empty">—</div>'}</div>`;
+  }).join('');
+  const missing = S.roster.filter(r => !S.players.some(p => p.studentId === r.id));
+  return `<div class="tl-cols">${cols}</div>${missing.length ? `<p class="tl-missing">Ainda não entraram: ${missing.map(r => esc(r.short || r.name)).join(', ')}</p>` : ''}`;
 }
 function joinedHtml() {
   const joined = new Map(S.players.map(p => [p.studentId, p]));
@@ -670,8 +700,29 @@ function podiumHtml(top, final) {
   }).join('')}</div>`;
 }
 
+// pódio das equipas: mascote a dançar com as cores da equipa, degrau pela posição e os membros por baixo
+function teamPodiumHtml(final) {
+  const ts = S.teams || [], n = ts.length;
+  if (!n) return '<p class="center">Sem equipas com jogadores.</p>';
+  const order = [5, 3, 1, 0, 2, 4].filter(i => i < n);              // 1º ao centro
+  const moves = ['jump', 'disco', 'wave', 'sway', 'robot', 'wave'];
+  const maxH = final ? 240 : 190, minH = final ? 120 : 112;
+  const delayOf = i => final ? (i === 0 ? FINAL_FIRST_AT : (n - 1 - i) * 0.9 + 0.3) : (n - 1 - i) * 0.25 + 0.2;
+  return `<div class="tpod ${final ? 'final' : ''}">${order.map(i => {
+    const t = ts[i], h = n === 1 ? maxH : Math.round(maxH - (maxH - minH) * i / (n - 1)), d = delayOf(i);
+    return `<div class="tcol" style="--d:${d}s;--tc:${t.color}">
+      <div class="pts-bubble">${final ? t.score + ' pts' : '+' + (t.plus || 0)}</div>
+      <div class="dancer m-${moves[i]}" style="--body:${t.color}"><div class="dz">${i === 0 ? '<div class="crown">👑</div>' : ''}
+        <div class="arm l"></div><div class="arm r"></div><div class="leg l"></div><div class="leg r"></div><div class="torso"></div>
+        <div class="head"><span class="avatar" style="background:${t.color};font-size:1.5em">${t.emoji}</span></div></div></div>
+      <div class="tstep" style="height:${h}px"><span class="place">${i + 1}º</span><span class="tname">Equipa ${esc(t.name)}</span>${final ? '' : `<span class="pscore">${t.score} pts</span>`}</div>
+      <div class="tmembers">${t.members.map(m => avatar(m, 'sm')).join('')}</div>
+    </div>`;
+  }).join('')}</div><p class="center tpod-note">Pontos da equipa = média dos pontos dos seus membros</p>`;
+}
 function endHtml() {
   if (!S.settings.finalPodium) return `<div class="big-msg slide-up">🎉 Fim do quiz!</div><p class="center" style="font-size:1.4em">Obrigado a todos pela participação! 💜</p>`;
+  if (S.settings.teams) return `<div class="big-msg slide-up" style="font-size:2.6em;margin:0">🎉 Equipa vencedora! 🏆</div>` + teamPodiumHtml(true);
   return `<div class="big-msg slide-up" style="font-size:2.6em;margin:0">🎉 Fim do quiz! 🏆</div>` + podiumHtml(S.ranking.slice(0, 5), true);
 }
 
@@ -700,7 +751,12 @@ function controlsHtml() {
   </div>`;
 }
 
+function bindTeamsLobby() {
+  $$('[data-move]').forEach(b => b.onclick = () => socket.emit('host:moveTeam', b.dataset.move));
+}
 function bindGame() {
+  const sh = $('#btnShuffleTeams'); if (sh) sh.onclick = () => { socket.emit('host:shuffleTeams'); Sound.play('whoosh'); };
+  if ($('#teamsLobby')) bindTeamsLobby();
   const on = (id, fn) => { const e = $('#' + id); if (e) e.onclick = fn; };
   on('btnNext', () => { if (S.phase === 'exam' && !confirm('Terminar agora? As respostas dadas até aqui ficam entregues.')) return; next(); });
   on('btnExtend', () => socket.emit('host:extend', 1));
@@ -744,7 +800,12 @@ function updateLive() {
     const st = $('#examStats'); if (st) st.innerHTML = examStatsHtml();
     runExamClock(); // o formador pode ter acrescentado tempo
   }
-  if (S.phase === 'lobby') {
+  if (S.phase === 'lobby' && S.settings.teams) {
+    $('#joinCount') && ($('#joinCount').textContent = connectedN());
+    const tl = $('#teamsLobby'), html = teamsLobbyHtml();
+    if (tl && tl.dataset.sig !== html) { const grew = S.players.length > +(tl.dataset.n || 0); tl.dataset.sig = html; tl.dataset.n = S.players.length; tl.innerHTML = html; bindTeamsLobby(); if (grew) Sound.play('pop'); }
+  }
+  if (S.phase === 'lobby' && !S.settings.teams) {
     const on = new Set(S.players.filter(p => p.connected).map(p => p.studentId));
     $('#joinCount') && ($('#joinCount').textContent = on.size);
     // entrou alguém que não estava na turma (participante extra): acrescenta o cartão
@@ -865,6 +926,9 @@ function renderSetup(el) {
           <option value="end">Só o pódio final</option>
           <option value="none">Sem ranking (ninguém vê posições nem pódio)</option>
         </select>
+        <div class="row teams-opt"><label class="switch" style="padding:0"><input type="checkbox" id="sTeams"> 👥 <b>Jogar em equipas</b></label>
+          <select id="sTeamsN" disabled>${[2, 3, 4, 5, 6].map(n => `<option value="${n}">${n} equipas</option>`).join('')}</select></div>
+        <p class="muted" id="teamsNote" hidden style="margin:-2px 0 0">Cada formando entra na equipa com menos gente (podes baralhar ou mudar alguém na sala de espera). Cada um responde no seu telemóvel; a pontuação da equipa é a <b>média</b> dos pontos dos membros, por isso é justo mesmo com equipas de tamanhos diferentes. O ranking e o pódio passam a ser por equipas.</p>
         <label class="switch"><input type="checkbox" id="sHide"> 📱 Esconder as perguntas nos telemóveis (só aparecem no teu ecrã)</label>
         <p class="muted" id="hideNote" hidden style="margin:-2px 0 0">O teu ecrã passa a ser o único sítio com as perguntas e as opções: tem de estar projetado ou visível para todos. Os formandos só veem os botões A, B, C, D, o que torna inúteis as capturas de ecrã. Não se aplica ao modo "Tempo total".</p>
         <label class="switch"><input type="checkbox" id="sPoll" checked> 📊 Mostrar a sondagem (quantos escolheram cada opção) depois de cada pergunta</label>
@@ -895,7 +959,7 @@ function renderSetup(el) {
     $('#sWho').disabled = anon; if (anon) $('#sWho').checked = false;
     const turma = $('.chips'); if (turma) turma.style.opacity = anon ? .35 : 1;
   };
-  $('#sQuiz').onchange = syncAnon;
+  $('#sQuiz').onchange = () => { syncAnon(); syncSetup(); };
   fillQuiz();
   $('#sCourse').onchange = fillQuiz;
   const syncSetup = () => {
@@ -913,8 +977,12 @@ function renderSetup(el) {
     if (rv !== 'each' && $('#sRanking').value === 'each') $('#sRanking').value = 'end';
     $('#revealNote').hidden = rv === 'each';
     $('#tBoardL').hidden = $('#sRanking').value !== 'each';
+    // equipas: precisam de ranking e não existem no questionário anónimo
+    const qq = qz.find(x => x.id === $('#sQuiz').value), noTeams = $('#sRanking').value === 'none' || !!(qq && qq.anonymous);
+    $('#sTeams').disabled = noTeams; if (noTeams) $('#sTeams').checked = false;
+    $('#sTeamsN').disabled = !$('#sTeams').checked; $('#teamsNote').hidden = !$('#sTeams').checked;
   };
-  $('#sRevEach').onchange = syncSetup; $('#sHide').onchange = syncSetup;
+  $('#sRevEach').onchange = syncSetup; $('#sHide').onchange = syncSetup; $('#sTeams').onchange = syncSetup;
   $$('[name=sMode]').forEach(r => r.onchange = syncSetup); $('#sRanking').onchange = syncSetup; syncSetup();
   if ($('#allOn')) { $('#allOn').onclick = () => $$('.sStu').forEach(c => c.checked = true); $('#allOff').onclick = () => $$('.sStu').forEach(c => c.checked = false); }
   go.onclick = () => {
@@ -924,7 +992,8 @@ function renderSetup(el) {
     Sound.init();
     socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sRevEach').checked ? 'each' : ($('#sRevEnd').checked ? 'end' : 'never'), revealEnd: $('#sRevEnd').checked,
       rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
-      autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, hideOnPhones: $('#sHide').checked, examMinutes: +$('#tTotal').value, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked } });
+      autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, hideOnPhones: $('#sHide').checked, examMinutes: +$('#tTotal').value, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked,
+      teams: $('#sTeams').checked ? +$('#sTeamsN').value : 0 } });
   };
 }
 
@@ -1406,11 +1475,12 @@ async function openResult(id) {
     ${openTotal ? `<div class="pend-note row"><span class="grow">${pending ? `❔ Há <b>${pending}</b> resposta(s) livre(s) por validar.` : `✅ Todas as ${openTotal} respostas livres estão validadas.`}</span>
       <button class="btn small primary noprint" id="btnValidate">✍️ ${pending ? 'Validar respostas livres' : 'Rever validações'}</button></div>` : ''}
     <div class="row noprint" style="margin:8px 0"><span class="muted grow">📄 Ficha individual: carrega no nome de um formando.</span><button class="btn small" id="btnAllDocx">⬇ Word: fichas de todos</button><button class="btn small" id="btnAllSheets">🖨 Fichas de todos (uma por página)</button></div>
+    ${r.teams && r.teams.length ? `<h3>👥 Equipas</h3><div class="res-teams">${r.teams.map((t, k) => `<div class="res-team" style="--tc:${t.color}"><b>${k + 1}º ${t.emoji} Equipa ${esc(t.name)}</b> · ${t.score} pts (média)<br><small>${t.members.map(m => esc(m.name)).join(', ')}</small></div>`).join('')}</div>` : ''}
     <h3>Grelha: quem respondeu o quê</h3>
     <div class="tbl-wrap"><table class="res"><thead>
       <tr><th>Aluno</th>${r.questions.map((q, i) => `<th title="${esc(q.text)}">P${i + 1}</th>`).join('')}<th>Certas</th><th>%</th><th>Pontos</th></tr>
       <tr><th>Resposta correta</th>${r.questions.map(q => `<th style="color:var(--ok)" title="${esc(QTYPE_LABEL[qType(q)])}">${esc(corShort(q))}</th>`).join('')}<th></th><th></th><th></th></tr></thead>
-      <tbody>${list.map((p, j) => `<tr><td><a href="#" class="sheet-link" data-sheet="${esc(p.id)}" title="Abrir a ficha de respostas">📄 ${esc(p.name)}</a>${p.homonym ? ' <small style="color:#b45309">⚠ nome repetido</small>' : (p.extra || p.guest) ? ' <small class="muted">(extra)</small>' : ''}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
+      <tbody>${list.map((p, j) => `<tr><td><a href="#" class="sheet-link" data-sheet="${esc(p.id)}" title="Abrir a ficha de respostas">📄 ${esc(p.name)}</a>${r.teams ? (t => t ? ` <span title="Equipa ${esc(t.name)}">${t.emoji}</span>` : '')((r.teams || []).find(t => t.id === ((r.players.find(x => x.studentId === p.id) || {}).team))) : ''}${p.homonym ? ' <small style="color:#b45309">⚠ nome repetido</small>' : (p.extra || p.guest) ? ' <small class="muted">(extra)</small>' : ''}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
         <td><b>${stats[j]}</b>/${nAsked}</td><td>${nAsked ? Math.round(stats[j] / nAsked * 100) : 0}%</td><td>${score[p.id] ?? 0}</td></tr>`).join('')}</tbody></table></div>
     <h3 style="margin-top:28px">Detalhe por pergunta</h3>
     ${r.questions.map((q, i) => {

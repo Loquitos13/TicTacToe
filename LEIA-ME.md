@@ -40,6 +40,8 @@ Segurança:
    | **Completar espaços** | a frase tem espaços; o formando toca nas palavras para os preencher | cada palavra certa entre `[[ ]]`, ex.: `A capital é [[Lisboa]].` + palavras extra para baralhar. Pontos proporcionais às palavras certas |
    | **Resposta livre** | escreve o texto | **validada sempre por ti, uma a uma**, nos resultados; tem de ter uma **resposta de referência** (obrigatória), que aparece na lista de soluções e quando validas |
    | **Escala 1–5** | botões 1 a 5 (com legenda opcional) | opinião: sem resposta certa nem pontos; mostra a média |
+   | **☁️ Nuvem de palavras** | escreve 1 a 3 palavras (escolhes quantas) | a nuvem cresce **em direto** no projetor à medida que respondem; as palavras repetidas ficam maiores (maiúsculas e acentos não contam: "Confiança" = "confianca"). Sem resposta certa nem pontos |
+   | **🔢 Ranking de opções** | toca nas opções pela ordem (1º, 2º, 3º…); tocar numa numerada tira-a; a última entra sozinha | **com "ordem certa"**: escreves as opções pela ordem correta, os formandos veem-nas baralhadas e ganham pontos por cada posição certa (ex.: "3 de 5 no lugar certo"). **Sem ordem certa** é uma opinião (prioridades, temas preferidos): o projetor mostra a ordem média da turma |
 
    Podes colar várias perguntas de uma vez em texto (uma por bloco, separadas por linha em branco):
    ```
@@ -64,6 +66,18 @@ Segurança:
    Gostaste da formação? [escala]
    1=Nada
    5=Muito
+   
+   O que faz um bom vendedor? [nuvem]
+
+   Ordena as etapas da venda [ordenar]
+   Preparação
+   Abordagem
+   Fecho
+
+   Que tema queres aprofundar? [ranking]
+   Negociação
+   Objeções
+   Pós-venda
    ```
 
 **🕶️ Questionário anónimo:** no editor, liga **Respostas anónimas** (ex.: inquéritos de satisfação). Ao abrir a sala aparece o aviso e não é preciso escolher formandos. Os formandos entram só com o QR code e carregam em **Entrar** — sem nome nem fotografia; cada telemóvel aparece como "Anónimo #código". A app não guarda nomes, fotos nem qualquer ligação à lista da turma, por isso ninguém (nem tu) sabe quem respondeu o quê. Não há ranking, pódio nem fotos de quem respondeu; a grelha, as fichas, o Excel, a validação das respostas livres e a lista de soluções funcionam por participante anónimo.
@@ -129,6 +143,16 @@ E escolhes o **ranking**:
 - **Depois de cada pergunta e pódio final** (Top 5 com bonecos a dançar);
 - **Só o pódio final**;
 - **Sem ranking** — não há Top 5 nem pódio, e os formandos não recebem a sua posição (só a pontuação e o nº de respostas certas).
+
+**👥 Jogos em grupo (equipas):** ao abrir a sala liga **Jogar em equipas** e escolhe 2 a 6 equipas (Vermelha, Azul, Verde, Amarela, Roxa, Laranja).
+- Cada formando entra na equipa com menos gente; o telemóvel mostra a cor da equipa e os colegas.
+- Na sala de espera vês uma coluna por equipa: **🔀 Baralhar equipas** volta a distribuir toda a gente ao acaso (equilibrado) e **tocar num formando** muda-o para a equipa seguinte.
+- Cada um responde no seu telemóvel. A pontuação da equipa é a **média** dos pontos dos membros, por isso é justo mesmo com equipas de tamanhos diferentes.
+- O ranking entre perguntas e o pódio final passam a ser **por equipas** (mascotes com as cores da equipa a dançar e os membros por baixo). O telemóvel mostra o lugar da equipa e o seu.
+- Nos resultados aparece o resumo das equipas, a equipa de cada formando na grelha e no Excel.
+- Não existe com "Sem ranking" nem no questionário anónimo.
+
+Depois de uma pergunta de **opinião** (escala, nuvem ou ranking sem ordem certa) não aparece o Top 5, porque ninguém ganha pontos: segue logo para a próxima pergunta.
 
 Cada pergunta passa por estes passos (o botão amarelo, ou **espaço / →**, avança):
 1. **Prepara-te 3-2-1** — a pergunta aparece no ecrã e nos telemóveis, ainda sem opções.

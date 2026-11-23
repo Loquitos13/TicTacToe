@@ -18,6 +18,9 @@
   .search { width: 100%; padding: 14px 16px; border-radius: 14px; border: 0; font-size: 1.05em; margin: 10px 0 14px; }
   .code-in { text-align: center; font-size: 1.8em; letter-spacing: .25em; text-transform: uppercase; font-weight: 700; }
   .middle p { margin: 0; }
+  .team-chip { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--tc); box-shadow: 0 0 0 2px #fff; font-size: 15px; }
+  .team-card { width: 100%; background: var(--tc); color: #fff; border-radius: 18px; padding: 12px 16px; text-align: center; box-shadow: 0 6px 0 rgba(0,0,0,.2); text-shadow: 0 2px 4px rgba(0,0,0,.25); }
+  .team-name { font-size: 1.4em; font-weight: 800; } .team-mates { opacity: .95; margin-top: 2px; }
   .cloud-in { display: flex; flex-direction: column; gap: 0; margin-top: 6px; } .cloud-in .search { margin: 0 0 10px; }
   .rank-list { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
   .rank-item { display: flex; align-items: center; gap: 10px; color: #fff; border-radius: 16px; padding: 12px 14px; min-height: 58px; font-weight: 600; font-size: 1.05em; text-align: left; box-shadow: 0 5px 0 rgba(0,0,0,.25); opacity: .92; overflow-wrap: anywhere; }
@@ -239,7 +242,14 @@ function set(key, html, bind) {
 function header() {
   const m = state.me;
   if (state.session.settings.anonymous) return `<div class="bar"><span class="avatar sm" style="background:#334155">🕶</span><span class="name">Anónimo</span>${m.score == null ? '' : `<span class="score" id="score">${m.score} pts</span>`}</div>`;
-  return `<div class="bar">${avatar(m, 'sm')}<span class="name">${esc(m.name)}</span>${m.score == null ? '' : `<span class="score" id="score">${m.score} pts</span>`}</div>`;
+  return `<div class="bar">${avatar(m, 'sm')}<span class="name">${esc(m.name)}</span>${m.team ? `<span class="team-chip" style="--tc:${m.team.color}" title="Equipa ${esc(m.team.name)}">${m.team.emoji}</span>` : ''}${m.score == null ? '' : `<span class="score" id="score">${m.score} pts</span>`}</div>`;
+}
+// cartão da equipa (sala de espera, ranking e fim)
+function teamCard(big, lobby) {
+  const m = state.me, t = m.team; if (!t) return '';
+  const pos = m.teamPosition && !lobby ? `<div style="font-size:${big ? 1.5 : 1.2}em;margin-top:4px">${m.teamPosition <= 3 ? ['🥇', '🥈', '🥉'][m.teamPosition - 1] : '🏅'} <b>${m.teamPosition}º</b> lugar de ${m.teamOf}${m.teamScore != null ? ` · ${m.teamScore} pts` : ''}</div>` : '';
+  return `<div class="team-card pop-in" style="--tc:${t.color}"><div class="team-name">${t.emoji} Equipa ${esc(t.name)}</div>
+    ${lobby ? `<div class="team-mates">${m.teammates && m.teammates.length ? 'com ' + m.teammates.map(esc).join(', ') : 'Por agora estás sozinho(a) nesta equipa'}</div>` : ''}${pos}</div>`;
 }
 
 let prevPhase = '';
@@ -258,7 +268,7 @@ function renderGameInner() {
   if (ph === 'lobby') {
     if (s.settings.anonymous) return set('lobby-anon', header() + `<div class="middle"><div class="big-emoji bounce">🕶️</div><h1>Estás dentro! 🎉</h1>
       <p>Participas de forma <b>anónima</b>.<br>Olha para o ecrã do formador — o questionário vai começar<span class="dots"></span></p></div>`);
-    return set('lobby' + state.me.studentId + (state.me.photo || ''), header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1><p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
+    return set('lobby' + state.me.studentId + (state.me.photo || '') + JSON.stringify([state.me.team, state.me.teammates]), header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1>${teamCard(true, true)}<p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
       <button class="btn ghost" id="notMe" style="margin-top:10px">Não sou ${esc(state.me.name)}</button></div>`, () => {
       $('#notMe').onclick = () => socket.emit('player:leave', res => {
         if (res && res.error) return toast(res.error, 4500);
@@ -359,6 +369,7 @@ function renderGameInner() {
       ${m.score != null || m.position != null ? `<div class="card" style="width:100%">
         ${m.score != null ? `<div style="font-size:2.4em;font-weight:700">${m.score} pts</div><div class="muted">${m.correct} de ${state.gradedTotal ?? s.total} respostas certas</div>` : ''}
         ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
+      ${m.team && m.teamPosition ? teamCard(true) : ''}
       ${state.review ? `<h2 style="margin:10px 0 0">As respostas corretas</h2><div class="review">${state.review.map((r, i) => `
         <div class="rv-item ${r.mine == null ? 'none' : r.ok === true ? 'ok' : r.ok === false ? 'bad' : 'none'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
           <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'cloud' ? '☁️ Nuvem de palavras' : r.type === 'rank' ? ((r.solution.order || []).length ? '✅ ' + r.solution.order.map((o, k) => `${k + 1}. ${esc(o)}`).join(' · ') : '🔢 Ranking de opinião') : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
@@ -371,6 +382,7 @@ function renderGameInner() {
 }
 function rankBox() {
   const m = state.me;
+  if (m.team) return teamCard(false) + (m.position ? `<p style="margin:6px 0 0;opacity:.85">Tu: ${m.position}º lugar de ${m.of}</p>` : '');
   return m.position <= 5
     ? `<div class="pop-in" style="display:flex;align-items:center;gap:12px">${dancer(m, 'wave', '#ffd93d', m.position === 1)}<p style="font-size:1.3em;margin:0">Estás no <b>Top 5</b>!<br><b style="font-size:1.6em">${m.position}º</b> lugar 🎉</p></div>`
     : `<p style="font-size:1.2em">Estás em <b>${m.position}º</b> lugar de ${m.of}</p>`;
