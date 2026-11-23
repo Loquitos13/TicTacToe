@@ -116,14 +116,44 @@
   .scale-box { border-radius: 20px; font-size: 3em; font-weight: 700; text-align: center; padding: 18px 0; }
   .scale-labels { display: flex; justify-content: space-between; font-size: 1.2em; margin-top: 10px; opacity: .9; }
   .cloud-hint { text-align: center; font-size: 1.3em; opacity: .9; margin: 8px 0; }
-  .cloud { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; align-content: center; gap: .15em .55em; min-height: 32vh; padding: 10px 20px; line-height: 1.05; font-size: clamp(14px, 1.6vw, 26px); }
-  .cloud.big { min-height: 48vh; font-size: clamp(16px, 1.9vw, 30px); }
-  .cw { font-weight: 800; text-shadow: 0 3px 10px rgba(0,0,0,.35); overflow-wrap: anywhere; max-width: 100%; transition: font-size .5s cubic-bezier(.2,.9,.3,1.2); }
+  .cloud { position: relative; height: 40vh; min-height: 240px; margin: 4px 10px; overflow: hidden; }
+  .cloud.big { height: 50vh; }
+  .cw { position: absolute; left: 50%; top: 50%; font-weight: 800; line-height: 1; white-space: nowrap; text-shadow: 0 3px 10px rgba(0,0,0,.35);
+    transition: left .8s cubic-bezier(.2,.9,.3,1), top .8s cubic-bezier(.2,.9,.3,1), font-size .8s cubic-bezier(.2,.9,.3,1.15); }
+  .cw.fresh { animation: popIn .6s cubic-bezier(.2,1.6,.4,1) both; }
+  .cw-measure { visibility: hidden; transition: none; left: -9999px; top: 0; animation: none; }
   .cw sup { font-size: .38em; opacity: .8; margin-left: 2px; }
-  .cloud-empty { font-size: 1.6em; opacity: .7; }
+  .cloud-empty { font-size: 1.6em; opacity: .7; position: absolute; inset: 0; display: grid; place-items: center; margin: 0; }
   .rank-res { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
   .rank-row { display: flex; align-items: center; gap: 14px; } .rank-row .opt { flex: 1; min-height: 64px; }
   .rank-pos { font-size: 2em; font-weight: 800; width: 2.2em; text-align: center; color: #ffd93d; }
+  .scr-board { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 18px 0 10px; }
+  .scr-tile { width: 1.6em; height: 1.6em; display: grid; place-items: center; background: #fff; color: var(--ink); border-radius: 14px; font-size: clamp(2em, 4vw, 3.4em); font-weight: 800; box-shadow: 0 6px 0 rgba(0,0,0,.25); }
+  .scr-tile.ok { background: #22c55e; color: #fff; } .scr-gap { width: 1em; }
+  .scr-slots { display: flex; flex-wrap: wrap; justify-content: center; gap: 26px; margin: 8px 0; }
+  .scr-word { display: flex; gap: 6px; } .scr-word i { width: 2.2em; height: 0; border-bottom: 5px solid rgba(255,255,255,.7); border-radius: 3px; }
+  .cw-stage { display: flex; gap: 28px; align-items: flex-start; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+  .cw-grid { display: grid; grid-template-columns: repeat(var(--cols), var(--cs, 34px)); grid-auto-rows: var(--cs, 34px); gap: 3px; }
+  .cw-grid.big { --cs: min(48px, calc((58vw - 40px) / var(--cols)), calc((62vh - 40px) / var(--rows))); }
+  .cw-grid.key, .cw-grid.mini { --cs: 26px; gap: 2px; } .cw-grid.mini { margin-top: 4px; }
+  .cw-cell { position: relative; background: #fff; color: var(--ink); border-radius: 5px; display: grid; place-items: center; font-weight: 800; font-size: calc(var(--cs, 34px) * .55); }
+  .cw-grid.key .cw-cell, .cw-grid.mini .cw-cell { border: 1px solid #c9bfe0; }
+  .cw-cell sup { position: absolute; top: 1px; left: 3px; font-size: max(9px, calc(var(--cs, 34px) * .26)); font-weight: 700; color: #6b5b95; line-height: 1; }
+  .cw-cell.ok { background: #dcfce7; color: #166534; }
+  .cw-clues { max-width: 520px; font-size: 1.15em; } .cw-clues h4 { margin: 4px 0 6px; } .cw-clues ul { margin: 0 0 10px; padding-left: 0; list-style: none; } .cw-clues li { margin: 4px 0; }
+  .cw-sol { background: #dcfce7; color: #166534; border-radius: 6px; padding: 0 6px; font-weight: 800; } .cw-st { background: rgba(255,255,255,.2); border-radius: 6px; padding: 0 6px; font-size: .85em; }
+  .key-cross { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .scr-tile.gq { background: rgba(255,255,255,.18); color: rgba(255,255,255,.7); }
+  .gb-wrap { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 14px; margin-top: 6px; padding: 6px; max-height: 40vh; overflow: auto; }
+  .gb { display: flex; flex-direction: column; align-items: center; gap: 3px; background: rgba(0,0,0,.2); border-radius: 12px; padding: 8px 10px; animation: popIn .4s both; }
+  .gb.solved { box-shadow: 0 0 0 3px #22c55e; } .gb.out { opacity: .6; }
+  .gb-row { display: flex; gap: 3px; } .gb-row i { width: 16px; height: 16px; border-radius: 3px; }
+  .gb-row i.g, .gw-c.g { background: #22c55e; } .gb-row i.y, .gw-c.y { background: #f59e0b; } .gb-row i.r, .gw-c.r { background: #ef4444; }
+  .gb-name { font-weight: 700; font-size: .9em; margin-top: 3px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gd { width: min(620px, 90%); margin: 6px auto 0; display: flex; flex-direction: column; gap: 5px; align-self: center; }
+  .gd-row { display: flex; align-items: center; gap: 10px; } .gd-row span { width: 2.2em; text-align: right; font-weight: 700; }
+  .gd-bar { flex: 1; position: relative; height: 26px; background: rgba(255,255,255,.12); border-radius: 8px; overflow: hidden; display: flex; align-items: center; }
+  .gd-bar .fill { position: absolute; inset: 0 auto 0 0; background: #22c55e; } .gd-bar b { position: relative; margin-left: 8px; }
   .rank-good { position: relative; z-index: 1; background: rgba(0,0,0,.3); border-radius: 10px; padding: 4px 10px; font-size: .7em; white-space: nowrap; margin-left: 10px; }
   .rank-opts { grid-template-columns: minmax(0, 1fr); }
   .open-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 8px; max-height: 46vh; overflow: auto; }
@@ -282,6 +312,7 @@
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="common.js"></script>
+<script src="crossword.js"></script>
 <script src="qtypes.js"></script>
 <script src="sound.js"></script>
 <script src="feedback-admin.js"></script>
@@ -422,6 +453,7 @@ function renderGame(full) {
   lastControls = controlsHtml();
   html += `</div>` + lastControls;
   el.innerHTML = html;
+  $$('#tab-game .cloud').forEach(c => { c.dataset.sig = JSON.stringify(S.cloud || []); renderCloud(c, S.cloud); });
   bindGame();
   if (ph === 'question' && timed()) runRing();
   if (ph === 'ready') runReady();
@@ -556,24 +588,72 @@ function questionBodyHtml(q) {
     <div class="bank">${bankOf(q).map((w, i) => `<span class="chip-w pop-in" style="animation-delay:${i * 60}ms">${esc(w)}</span>`).join('')}</div>`;
   if (t === 'open') return `<div class="open-hint pop-in">✍️ Resposta livre — cada formando escreve a sua resposta no telemóvel</div>`;
   if (t === 'scale') return scaleRowHtml(q);
-  if (t === 'cloud') return `<div class="cloud-hint">☁️ Cada formando escreve até ${q.words || 3} palavra${(q.words || 3) > 1 ? 's' : ''} no telemóvel — a nuvem cresce em direto</div><div class="cloud" id="liveCloud">${cloudHtml(S.cloud, null)}</div>`;
+  if (t === 'scramble') { const tiles = scrambleTilesOf(q);
+    return `<div class="scr-board">${tiles.map((ch, i) => `<span class="scr-tile pop-in" style="animation-delay:${i * 70}ms">${esc(ch)}</span>`).join('')}</div>
+      <div class="scr-slots">${scrambleShapeOf(q).map(n => `<span class="scr-word">${'<i></i>'.repeat(n)}</span>`).join('')}</div>
+      <p class="cloud-hint">🔤 Forma a palavra no telemóvel, tocando nas letras pela ordem</p>`; }
+  if (t === 'cross') return crossStageHtml(q, false);
+  if (t === 'guess') return `<div class="scr-board">${Array.from({ length: cwNorm(q.answer).length }, (_, i) => `<span class="scr-tile gq pop-in" style="animation-delay:${i * 60}ms">?</span>`).join('')}</div>
+    <p class="cloud-hint">🟩 letra no sítio certo · 🟧 existe noutro sítio · 🟥 não existe — ${q.maxTries || 6} tentativas</p>
+    <div class="gb-wrap" id="guessBoards">${guessBoardsHtml()}</div>`;
+  if (t === 'cloud') return `<div class="cloud-hint">☁️ Cada formando escreve até ${q.words || 3} palavra${(q.words || 3) > 1 ? 's' : ''} no telemóvel — a nuvem cresce em direto</div><div class="cloud" id="liveCloud"></div>`;
   if (t === 'rank') return `<div class="cloud-hint">🔢 Ordena no telemóvel: toca nas opções pela ordem, da 1ª à última${q.ordered ? '' : ' (não há ordem certa: é a tua opinião)'}</div>
     <div class="opts rank-opts ${q.options.some(o => String(o).length > 60) ? 'long' : ''}">${(S.rankOrder || q.options.map((_, i) => i)).map((i, k) => `<div class="opt opt-${k} pop-in" style="animation-delay:${k * 90}ms"><span class="letter">${LETTERS[k]}</span><span class="txt">${esc(q.options[i])}</span></div>`).join('')}</div>`;
   return `<div class="opts ${q.options.some(o => String(o).length > 60) ? 'long' : ''}">${q.options.map((o, i) => `<div class="opt opt-${i} pop-in" style="animation-delay:${i * 90}ms"><span class="letter">${LETTERS[i]}</span><span class="txt">${esc(o)}</span></div>`).join('')}</div>`;
 }
-// nuvem de palavras: tamanho conforme quantas pessoas escreveram a palavra; as maiores ao centro
+// nuvem de palavras espalhada: a palavra mais escrita fica ao centro e maior; as outras procuram lugar
+// numa espiral à volta (cada uma parte numa direção diferente). Quando uma palavra é repetida cresce,
+// e as outras deslizam para lhe dar espaço (animação de posição e tamanho).
 const CLOUD_COLORS = ['#ffd93d', '#7dd3fc', '#f9a8d4', '#86efac', '#fdba74', '#c4b5fd', '#ffffff', '#5eead4'];
-function cloudHtml(list, known) {
+const hashOf = k => { let h = 0; for (const c of k) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
+function renderCloud(el, list) {
   list = list || [];
-  if (!list.length) return '<p class="cloud-empty">À espera das primeiras palavras<span class="dots"></span></p>';
+  if (!list.length) { el.innerHTML = '<p class="cloud-empty">À espera das primeiras palavras<span class="dots"></span></p>'; return; }
+  const empty = $('.cloud-empty', el); if (empty) empty.remove();
   const max = list[0].count, min = list[list.length - 1].count;
-  const size = c => max === min ? 2.6 : 1.1 + (c - min) / (max - min) * 3.4;   // em em
-  // intercala: maior ao centro, as outras alternam esquerda / direita
-  const arranged = []; list.forEach((w, k) => k % 2 ? arranged.unshift(w) : arranged.push(w));
-  return arranged.map(w => { const k = qnorm(w.text); let h = 0; for (const c of k) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-    const fresh = known && !known.has(k);
-    return `<span class="cw ${fresh ? 'pop-in' : ''}" data-k="${esc(k)}" title="${w.count} pessoa${w.count > 1 ? 's' : ''}" style="font-size:${size(w.count).toFixed(2)}em;color:${CLOUD_COLORS[h % CLOUD_COLORS.length]}">${esc(w.text)}${w.count > 1 ? `<sup>${w.count}</sup>` : ''}</span>`; }).join('');
+  const base = Math.max(13, Math.min(el.clientWidth / 30, el.clientHeight / 14));
+  // 1 pessoa → tamanho base; a mais escrita → até 4,5× maior
+  const size = c => base * (max === min ? (list.length === 1 ? 3.5 : 1.8) : 1 + (c - min) / (max - min) * 3.5);
+  const spans = list.map(w => {
+    const k = qnorm(w.text);
+    let sp = el.querySelector(`.cw[data-k="${CSS.escape(k)}"]`);
+    if (!sp) { sp = document.createElement('span'); sp.className = 'cw fresh'; sp.dataset.k = k; sp.style.color = CLOUD_COLORS[hashOf(k) % CLOUD_COLORS.length]; el.appendChild(sp); setTimeout(() => sp.classList.remove('fresh'), 900); }
+    sp.innerHTML = esc(w.text) + (w.count > 1 ? `<sup>${w.count}</sup>` : '');
+    sp.title = `${w.count} pessoa${w.count > 1 ? 's' : ''}`;
+    sp.dataset.fs = size(w.count);
+    return sp;
+  });
+  const keep = new Set(spans);
+  $$('.cw', el).forEach(sp => { if (!keep.has(sp)) sp.remove(); });
+  layoutCloud(el, spans);
 }
+function layoutCloud(el, spans) {
+  const W = el.clientWidth, H = el.clientHeight, pad = 6;
+  // medidor escondido: mede o tamanho final de cada palavra (sem esperar pela animação)
+  let m = $('.cw-measure', el); if (!m) { m = document.createElement('span'); m.className = 'cw cw-measure'; el.appendChild(m); }
+  for (let scale = 1; scale > 0.25; scale *= 0.88) {
+    const placed = [], out = []; let ok = true;
+    for (const [idx, sp] of spans.entries()) {
+      m.innerHTML = sp.innerHTML; m.style.fontSize = sp.dataset.fs * scale + 'px';
+      const w = m.offsetWidth, h = m.offsetHeight;
+      const a0 = (hashOf(sp.dataset.k) % 628) / 100;            // cada palavra parte numa direção
+      let found = null;
+      for (let t = 0; t < 900; t++) {
+        const ang = a0 + t * 0.32, r = idx === 0 ? 0 : 3 + t * 1.15;
+        const x = W / 2 + r * Math.cos(ang) * (W / H) * 0.9 - w / 2, y = H / 2 + r * Math.sin(ang) - h / 2;
+        if (x < 0 || y < 0 || x + w > W || y + h > H) { if (idx === 0) break; continue; }
+        if (placed.every(b => x + w + pad <= b.x || b.x + b.w + pad <= x || y + h + pad <= b.y || b.y + b.h + pad <= y)) { found = { x, y, w, h }; break; }
+      }
+      if (!found) { ok = false; break; }
+      placed.push(found); out.push([sp, found, sp.dataset.fs * scale]);
+    }
+    if (ok || scale * 0.88 <= 0.25) {
+      out.forEach(([sp, b, fs]) => { sp.style.left = b.x + 'px'; sp.style.top = b.y + 'px'; sp.style.fontSize = fs + 'px'; });
+      return;
+    }
+  }
+}
+window.addEventListener('resize', () => $$('#tab-game .cloud').forEach(c => S && renderCloud(c, S.cloud)));
 function scaleRowHtml(q) {
   return `<div class="scale-row">${[1, 2, 3, 4, 5].map((n, i) => `<div class="scale-box opt-${i} pop-in" style="animation-delay:${i * 80}ms">${n}</div>`).join('')}</div>
     ${q.scaleMin || q.scaleMax ? `<div class="scale-labels"><span>1 = ${esc(q.scaleMin || '')}</span><span>5 = ${esc(q.scaleMax || '')}</span></div>` : ''}`;
@@ -613,7 +693,7 @@ function growPoll(delay) {
 }
 function resultsHtml(withAnswer, animate = false) {
   const t = qType(S.question);
-  if (t === 'fill' || t === 'open' || t === 'cloud' || t === 'rank') return resultsOtherHtml(withAnswer, animate);
+  if (t === 'fill' || t === 'open' || t === 'cloud' || t === 'rank' || t === 'scramble' || t === 'cross' || t === 'guess') return resultsOtherHtml(withAnswer, animate);
   // escala: as 5 "opções" são os valores 1..5 e não há resposta certa
   const q = t === 'scale' ? { ...S.question, options: ['1', '2', '3', '4', '5'], correct: [] } : S.question;
   const total = S.answeredIds.length, max = Math.max(1, ...S.counts);
@@ -652,7 +732,18 @@ function resultsOtherHtml(withAnswer, animate) {
         <span class="cnt"><span class="num" data-n="${f.right}">${animate ? 0 : f.right}</span> <small class="pc" data-p="${pct(f.right)}" style="font-size:.55em;opacity:.85">${animate ? 0 : pct(f.right)}%</small></span></div>`).join('')}</div>
       <p class="center" style="opacity:.85;margin:6px 0 0">Quantos acertaram em cada espaço</p>`;
   } else if (t === 'cloud') {
-    body = `<div class="cloud big">${cloudHtml(S.cloud, null)}</div>`;
+    body = `<div class="cloud big"></div>`;
+  } else if (t === 'scramble') {
+    body = showSol ? `<div class="scr-board">${[...String(q.answer).toUpperCase()].map((ch, i) => ch === ' ' ? '<span class="scr-gap"></span>' : `<span class="scr-tile ok pop-in" style="animation-delay:${i * 60}ms">${esc(ch)}</span>`).join('')}</div>`
+      : `<div class="scr-board">${scrambleTilesOf(q).map(ch => `<span class="scr-tile">${esc(ch)}</span>`).join('')}</div>`;
+    if (poll) body += `<div class="open-list">${(S.attempts || []).map((a, i) => `<span class="open-ans slide-up ${showSol ? (a.correct ? 'ok' : 'bad') : ''}" style="animation-delay:${Math.min(i, 20) * 50}ms">${esc(a.text)}${a.count > 1 ? ` <b>×${a.count}</b>` : ''}</span>`).join('') || '<p class="center">Ainda sem respostas.</p>'}</div>`;
+  } else if (t === 'cross') {
+    body = crossStageHtml(q, showSol);
+  } else if (t === 'guess') {
+    const word = cwNorm(q.answer), dist = S.guessDist || [], mx = Math.max(1, ...dist);
+    body = `<div class="scr-board">${[...word].map((ch, i) => `<span class="scr-tile ${showSol ? 'ok pop-in' : 'gq'}" style="animation-delay:${i * 80}ms">${showSol ? esc(ch) : '?'}</span>`).join('')}</div>`;
+    if (poll) body += `<div class="gd">${dist.map((n, k) => `<div class="gd-row"><span>${k + 1}ª</span><div class="gd-bar"><div class="fill" data-w="${Math.round(n / mx * 100)}%" style="width:${Math.round(n / mx * 100)}%"></div><b>${n}</b></div></div>`).join('')}</div>
+      <p class="center" style="opacity:.85;margin:4px 0 8px">Em que tentativa acertaram</p><div class="gb-wrap">${guessBoardsHtml()}</div>`;
   } else if (t === 'rank') {
     // posição média: quanto mais perto de 1, mais vezes ficou nos primeiros lugares
     const n = q.options.length, st = (S.rankStats || []).filter(x => x.avg != null).sort((a, b) => a.avg - b.avg);
@@ -675,7 +766,7 @@ function resultsOtherHtml(withAnswer, animate) {
     <div class="question-title" style="font-size:clamp(1.3em,2.6vw,2.2em);margin-top:6px">${t === 'fill' ? '✏️ Completa os espaços' : esc(q.text)}</div>
     ${body}
     ${!withAnswer && hiddenReveal() && seeAnswers ? `<p class="center private-note">👁 Só neste ecrã: a solução está visível. Os formandos não a veem.</p>` : ''}
-    <p class="center" style="font-size:1.3em;margin-top:16px">${withAnswer && t === 'fill' ? `✅ ${Object.keys(S.lastPoints || {}).filter(id => (S.lastPoints[id] || 0) > 0).length} com pelo menos uma certa · ` : ''}${showSol && t === 'rank' && q.ordered ? `✅ ${S.rankPerfect || 0} acertaram a ordem toda · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
+    <p class="center" style="font-size:1.3em;margin-top:16px">${withAnswer && t === 'fill' ? `✅ ${Object.keys(S.lastPoints || {}).filter(id => (S.lastPoints[id] || 0) > 0).length} com pelo menos uma certa · ` : ''}${showSol && t === 'rank' && q.ordered ? `✅ ${S.rankPerfect || 0} acertaram a ordem toda · ` : ''}${t === 'guess' ? `🟩 ${S.guessSolved || 0} adivinharam · ` : ''}${showSol && t === 'scramble' ? `✅ ${(S.attempts || []).filter(a => a.correct).reduce((n, a) => n + a.count, 0)} acertaram · ` : ''}${showSol && t === 'cross' ? `✅ ${Object.values(S.lastPoints || {}).filter(v => v > 0).length} com pelo menos uma palavra certa · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
 }
 
 // ----- Pódio com bonecos a dançar -----
@@ -837,8 +928,9 @@ function updateLive() {
     const o = $('#ansOf'); if (o) o.textContent = 'de ' + of;
     const bar = $('#ansBar'); if (bar) bar.style.width = (of ? Math.min(100, cnt / of * 100) : 0) + '%';
     const done = $('#allDone'); if (done) { const was = !done.classList.contains('hidden'); const now = of && cnt >= of; done.classList.toggle('hidden', !now); if (now && !was) Sound.play('softEnd'); }
+    const gbx = $('#guessBoards'); if (gbx) { const h = guessBoardsHtml(); if (gbx.dataset.sig !== h) { gbx.dataset.sig = h; gbx.innerHTML = h; } }
     const lc = $('#liveCloud');
-    if (lc) { const sig = JSON.stringify(S.cloud || []); if (lc.dataset.sig !== sig) { const known = new Set($$('.cw', lc).map(e => e.dataset.k)); lc.dataset.sig = sig; lc.innerHTML = cloudHtml(S.cloud, known); } }
+    if (lc) { const sig = JSON.stringify(S.cloud || []); if (lc.dataset.sig !== sig) { lc.dataset.sig = sig; renderCloud(lc, S.cloud); } }
   }
   // redesenha só a barra de controlos (mantém as animações do palco)
   const old = $('.controls');
@@ -1105,6 +1197,10 @@ function answerKeyItemHtml(q, i) {
     : `<p class="key-warn">⚠ Sem resposta de referência — edita a pergunta para a acrescentar.</p>`;
   if (t === 'scale') body = `<div class="key-scale">${[1, 2, 3, 4, 5].map(n => `<span>${n}</span>`).join('')}</div>
     ${q.scaleMin || q.scaleMax ? `<p class="muted">1 = ${esc(q.scaleMin || '—')} · 5 = ${esc(q.scaleMax || '—')}</p>` : ''}<p class="muted">Escala de opinião: não tem resposta certa.</p>`;
+  if (t === 'guess') body = `<p>Palavra secreta: <span class="key-ok">${esc(String(q.answer).toUpperCase())}</span> · ${cwNorm(q.answer).length} letras · ${q.maxTries || 6} tentativas</p><p class="muted">Cada letra fica verde (sítio certo), laranja (existe noutro sítio) ou vermelha (não existe). Pontos: tudo à 1ª tentativa, metade na última.</p>`;
+  if (t === 'scramble') body = `<p>Palavra: <span class="key-ok">${esc(String(q.answer).toUpperCase())}</span></p><p class="muted">Os formandos veem as letras baralhadas: ${scrambleTilesOf(q).map(esc).join(' ')}</p>`;
+  if (t === 'cross') body = `<div class="key-cross">${crossGridHtml(q.cross, Object.fromEntries(q.cross.words.flatMap(w => crossCellsOf(w).map((k, i) => [k, w.word[i]]))), {}, 'key')}
+    <ol class="key-opts" style="list-style:none;padding-left:0">${q.cross.words.map(w => `<li>${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.clue)} — <span class="key-ok">${esc(w.display.toUpperCase())}</span></li>`).join('')}</ol></div>`;
   if (t === 'cloud') body = `<p class="muted">Cada formando escreve até ${q.words || 3} palavra(s). Nuvem de palavras: não tem resposta certa.</p>`;
   if (t === 'rank') body = q.ordered ? `<ol class="key-opts">${q.options.map(o => `<li class="key-ok">${esc(o)}</li>`).join('')}</ol><p class="muted">Ordem certa (os formandos veem as opções baralhadas).</p>`
     : `<ul class="key-opts">${q.options.map(o => `<li>${esc(o)}</li>`).join('')}</ul><p class="muted">Ranking de opinião: não tem ordem certa.</p>`;
@@ -1138,6 +1234,9 @@ function renderEditor(el) {
         <li><b>Completar espaços:</b> põe cada palavra certa entre <code>[[ ]]</code> na frase; na linha seguinte, palavras extra separadas por vírgulas (opcional).</li>
         <li><b>Resposta livre:</b> acaba a pergunta com <code>[livre]</code>; na linha seguinte, com <b>*</b>, a resposta de referência (obrigatória).</li>
         <li><b>Escala 1–5:</b> acaba a pergunta com <code>[escala]</code>; opcional <code>1=Nada</code> e <code>5=Muito</code> nas linhas seguintes.</li>
+        <li><b>Adivinha a palavra:</b> a pista acaba com <code>[adivinha]</code>; na linha seguinte, a palavra secreta.</li>
+        <li><b>Letras baralhadas:</b> a pergunta é a pista e acaba com <code>[letras]</code>; na linha seguinte, a palavra.</li>
+        <li><b>Palavras cruzadas:</b> título acabado em <code>[cruzadas]</code>; depois uma linha por palavra: <code>palavra = pista</code>.</li>
         <li><b>Nuvem de palavras:</b> acaba a pergunta com <code>[nuvem]</code> (até 3 palavras) ou <code>[nuvem:1]</code> (só uma).</li>
         <li><b>Ranking:</b> acaba com <code>[ordenar]</code> e escreve as opções <b>pela ordem certa</b>; ou com <code>[ranking]</code> se for de opinião (sem ordem certa).</li>
       </ul>
@@ -1157,6 +1256,9 @@ function renderEditor(el) {
       if (t === 'open') { x.accepted = $('.qAcc', box).value.split(';').map(w => w.trim()).filter(Boolean); x.options = []; x.correct = []; }
       if (t === 'scale') { x.scaleMin = $('.qSmin', box).value; x.scaleMax = $('.qSmax', box).value; x.options = []; x.correct = []; }
       if (t === 'cloud') { x.words = +$('.qWords', box).value || 3; x.options = []; x.correct = []; }
+      if (t === 'scramble') { x.answer = $('.qAnswer', box).value; x.options = []; x.correct = []; }
+      if (t === 'guess') { x.answer = $('.qAnswer', box).value; x.maxTries = +$('.qTries', box).value || 6; x.options = []; x.correct = []; }
+      if (t === 'cross') { x.entries = $$('.cw-row', box).map(r => ({ word: $('.cwWord', r).value, clue: $('.cwClue', r).value })); x.options = []; x.correct = []; }
       if (t === 'rank') { x.options = $$('.qOpt', box).map(o => o.value); x.ordered = $('.qOrdered', box).checked; x.correct = []; }
     });
   };
@@ -1170,7 +1272,10 @@ function renderEditor(el) {
       let text = b[0], time = 20; const m = /\[(\d+)\s*s?\]\s*$/.exec(text); if (m) { time = +m[1]; text = text.replace(m[0], '').trim(); }
       const rest = b.slice(1);
       let x = null;
-      if (/\[nuvem(?::\s*(\d))?\]\s*$/i.test(text)) { const w = /\[nuvem(?::\s*(\d))?\]/i.exec(text)[1]; x = { type: 'cloud', text: text.replace(/\[nuvem[^\]]*\]\s*$/i, '').trim(), words: +w || 3 }; }
+      if (/\[adivinha\]\s*$/i.test(text)) { x = { type: 'guess', text: text.replace(/\[adivinha\]\s*$/i, '').trim() || 'Adivinha a palavra', answer: (rest[0] || '').replace(/^\*\s*/, ''), maxTries: 6 }; time = Math.max(time, 120); }
+      else if (/\[(baralhada|letras)\]\s*$/i.test(text)) x = { type: 'scramble', text: text.replace(/\[(baralhada|letras)\]\s*$/i, '').trim(), answer: (rest[0] || '').replace(/^\*\s*/, '') };
+      else if (/\[cruzadas\]\s*$/i.test(text)) { x = { type: 'cross', text: text.replace(/\[cruzadas\]\s*$/i, '').trim(), entries: rest.map(l => { const m = /^(.+?)\s*[=:]\s*(.+)$/.exec(l); return m ? { word: m[1].replace(/^\*\s*/, '').trim(), clue: m[2].trim() } : null; }).filter(Boolean) }; time = Math.max(time, 120); }
+      else if (/\[nuvem(?::\s*(\d))?\]\s*$/i.test(text)) { const w = /\[nuvem(?::\s*(\d))?\]/i.exec(text)[1]; x = { type: 'cloud', text: text.replace(/\[nuvem[^\]]*\]\s*$/i, '').trim(), words: +w || 3 }; }
       else if (/\[(ordenar|ranking)\]\s*$/i.test(text)) x = { type: 'rank', text: text.replace(/\[(ordenar|ranking)\]\s*$/i, '').trim(), options: rest.map(o => o.replace(/^\*\s*/, '')).slice(0, 6), ordered: /\[ordenar\]/i.test(text) };
       else if (/\[livre\]\s*$/i.test(text)) x = { type: 'open', text: text.replace(/\[livre\]\s*$/i, '').trim(), accepted: rest.filter(l => l.startsWith('*')).map(l => l.slice(1).trim()) };
       else if (/\[escala\]\s*$/i.test(text)) {
@@ -1198,6 +1303,15 @@ function renderEditor(el) {
         if (x.options.filter(o => o.trim()).length < 2) return toast(`Pergunta ${i + 1}: precisa de pelo menos 2 opções`);
         if (!x.correct.length || x.correct.some(k => !x.options[k] || !x.options[k].trim())) return toast(`Pergunta ${i + 1}: marca a resposta correta`);
       }
+      if (t === 'guess' && (cwNorm(x.answer || '').length < 3 || cwNorm(x.answer || '').length > 12)) return toast(`Pergunta ${i + 1}: a palavra secreta tem de ter entre 3 e 12 letras`);
+      if (t === 'scramble' && cwNorm(x.answer || '').length < 2) return toast(`Pergunta ${i + 1}: escreve a palavra a adivinhar (pelo menos 2 letras)`);
+      if (t === 'cross') {
+        const ok = (x.entries || []).filter(e => cwNorm(e.word).length >= 2);
+        if (ok.some(e => !e.clue.trim())) return toast(`Pergunta ${i + 1}: falta a pista de uma palavra`);
+        if (ok.length < 2) return toast(`Pergunta ${i + 1}: as palavras cruzadas precisam de pelo menos 2 palavras`);
+        const cw = buildCrossword(ok); if (cw.unplaced.length) return toast(`Pergunta ${i + 1}: não consegui cruzar ${cw.unplaced.join(', ')}. Troca ou apaga essa palavra (precisa de ter letras em comum com as outras).`, 7000);
+        x.entries = ok;
+      }
       if (t === 'rank' && x.options.filter(o => o.trim()).length < 2) return toast(`Pergunta ${i + 1}: o ranking precisa de pelo menos 2 opções`);
       if (t === 'open' && !(x.accepted || []).length) return toast(`Pergunta ${i + 1}: escreve a resposta de referência (é obrigatória nas respostas livres).`, 6000);
       if (t === 'fill' && !fillBlanksOf(x.text).length) return toast(`Pergunta ${i + 1}: põe as palavras certas entre [[ ]] na frase, ex.: A capital é [[Lisboa]].`, 6000);
@@ -1211,6 +1325,12 @@ function renderEditor(el) {
     $('.qDel', box).onclick = () => { sync(); q.questions.splice(i, 1); renderQuizzes(); };
     $('.qUp', box).onclick = () => { sync(); if (i > 0) { [q.questions[i - 1], q.questions[i]] = [q.questions[i], q.questions[i - 1]]; renderQuizzes(); } };
     const ao = $('.qAddOpt', box); if (ao) ao.onclick = () => { sync(); if (q.questions[i].options.length < 6) q.questions[i].options.push(''); renderQuizzes(); };
+    const cwAdd = $('.cwAdd', box); if (cwAdd) cwAdd.onclick = () => { sync(); if (q.questions[i].entries.length < 15) q.questions[i].entries.push({ word: '', clue: '' }); renderQuizzes(); };
+    $$('.cwDel', box).forEach(b => b.onclick = () => { sync(); q.questions[i].entries.splice(+b.dataset.k, 1); renderQuizzes(); });
+    const cwPrev = () => { const pv = $('.cwPrev', box); if (!pv) return; const es = $$('.cw-row', box).map(r => ({ word: $('.cwWord', r).value, clue: $('.cwClue', r).value })).filter(e => cwNorm(e.word).length >= 2);
+      const cw = buildCrossword(es);
+      pv.innerHTML = cw.words.length ? crossGridHtml(cw, Object.fromEntries(cw.words.flatMap(w => crossCellsOf(w).map((k, j) => [k, w.word[j]]))), {}, 'mini') + (cw.unplaced.length ? `<p class="key-warn">⚠ Não cruza: ${cw.unplaced.map(esc).join(', ')} — troca ou apaga (precisa de letras em comum com as outras).</p>` : `<p class="muted">✅ ${cw.words.length} palavras cruzadas (${cw.rows}×${cw.cols})</p>`) : '<p class="muted">Escreve pelo menos 2 palavras para ver a grelha.</p>'; };
+    $$('.cwWord', box).forEach(inp => inp.oninput = cwPrev); cwPrev();
     $$('.qRankUp', box).forEach(b => b.onclick = () => { sync(); const o = q.questions[i].options, k = +b.dataset.k; if (k > 0) { [o[k - 1], o[k]] = [o[k], o[k - 1]]; renderQuizzes(); } });
     $('.qType', box).onchange = e => {
       sync(); const x = q.questions[i], t = e.target.value; x.type = t;
@@ -1218,6 +1338,9 @@ function renderEditor(el) {
       if (t === 'mc' && (x.options || []).length < 2) Object.assign(x, { options: ['', '', '', ''], correct: [0] });
       if (t === 'fill') Object.assign(x, { options: [], correct: [] });
       if (t === 'cloud') Object.assign(x, { options: [], correct: [], words: x.words || 3 });
+      if (t === 'scramble') Object.assign(x, { options: [], correct: [], answer: x.answer || '' });
+      if (t === 'guess') Object.assign(x, { options: [], correct: [], answer: x.answer || '', maxTries: x.maxTries || 6, time: Math.max(x.time || 0, 120) });
+      if (t === 'cross') Object.assign(x, { options: [], correct: [], entries: (x.entries || []).length ? x.entries : [{ word: '', clue: '' }, { word: '', clue: '' }, { word: '', clue: '' }], time: Math.max(x.time || 0, 120) });
       if (t === 'rank') Object.assign(x, { options: (x.options || []).filter(o => o && o !== 'Verdadeiro' && o !== 'Falso').length >= 2 ? x.options.filter(o => o && o !== 'Verdadeiro' && o !== 'Falso') : ['', '', '', ''], correct: [], ordered: !!x.ordered });
       renderQuizzes();
     };
@@ -1250,6 +1373,14 @@ function qEditHtml(x, i) {
   if (t === 'scale') body = `<div class="row" style="margin-top:8px"><label class="muted">1 =</label><input type="text" class="qSmin grow" value="${esc(x.scaleMin || '')}" placeholder="ex.: Nada">
       <label class="muted">5 =</label><input type="text" class="qSmax grow" value="${esc(x.scaleMax || '')}" placeholder="ex.: Muito"></div>
       <p class="muted" style="margin:6px 0 0">Escala de opinião: não tem resposta certa nem dá pontos.</p>`;
+  if (t === 'guess') body = `<div class="row" style="margin-top:8px"><label class="muted"><b>Palavra secreta</b></label><input type="text" class="qAnswer grow" maxlength="20" value="${esc(x.answer || '')}" placeholder="ex.: Valor">
+      <label class="muted">Tentativas <select class="qTries">${[3, 4, 5, 6, 7, 8].map(n => `<option ${(x.maxTries || 6) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
+      <p class="muted" style="margin:6px 0 0">🟩 A pergunta é a <b>pista</b> (opcional, ex.: "Benefício que o cliente percebe"). Os formandos escrevem palavras com o mesmo nº de letras; cada letra fica <b style="color:#16a34a">verde</b> (sítio certo), <b style="color:#ea580c">laranja</b> (existe noutro sítio) ou <b style="color:#dc2626">vermelha</b> (não existe). 3 a 12 letras, uma só palavra; acentos não contam. Mais pontos com menos tentativas.</p>`;
+  if (t === 'scramble') body = `<div class="row" style="margin-top:8px"><label class="muted"><b>Palavra a adivinhar</b></label><input type="text" class="qAnswer grow" maxlength="30" value="${esc(x.answer || '')}" placeholder="ex.: Cliente"></div>
+      <p class="muted" style="margin:6px 0 0">🔤 A pergunta é a <b>pista</b> (ex.: "Quem compra o produto?"). Os formandos veem as letras baralhadas e tocam nelas pela ordem. Acentos e maiúsculas não contam. Pode ter duas palavras (ex.: "pós venda").</p>`;
+  if (t === 'cross') body = `<p class="muted" style="margin:8px 0 4px">✏️ Escreve as palavras e as pistas — a grelha monta-se sozinha. A pergunta acima é o título (ex.: "Palavras cruzadas: técnicas de venda"). Pontos por cada palavra certa; acentos não contam.</p>
+    ${(x.entries || []).map((e, k) => `<div class="opt-row cw-row"><span class="letter" style="background:var(--d)">${k + 1}</span><input type="text" class="cwWord" maxlength="15" value="${esc(e.word)}" placeholder="Palavra" style="width:150px"><input type="text" class="cwClue grow" maxlength="200" value="${esc(e.clue)}" placeholder="Pista"><button class="btn small cwDel" data-k="${k}" title="Remover">−</button></div>`).join('')}
+    <div class="row" style="margin-top:6px"><button class="btn small cwAdd">+ Palavra</button></div><div class="cwPrev" style="margin-top:8px"></div>`;
   if (t === 'cloud') body = `<div class="row" style="margin-top:8px"><label class="muted">Cada formando escreve até
       <select class="qWords">${[1, 2, 3].map(n => `<option value="${n}" ${(x.words || 3) === n ? 'selected' : ''}>${n} palavra${n > 1 ? 's' : ''}</option>`).join('')}</select></label></div>
       <p class="muted" style="margin:6px 0 0">☁️ As palavras aparecem numa nuvem no teu ecrã, em direto; as mais repetidas ficam maiores. Não tem resposta certa nem dá pontos.</p>`;
@@ -1284,7 +1415,7 @@ function sheetHtml(p) {
     if (graded(i)) { n++; if (a && a.correct === true) ok++; }
     if (a && t === 'open' && a.correct == null) pend++;
     const res = !asked.has(i) ? '<span class="tag none">não feita</span>' : !a ? `<span class="tag none">${joined.has(p.id) ? 'Sem resposta' : 'Ausente'}</span>`
-      : !qGraded(q) && t !== 'open' ? '<span class="tag none">opinião</span>' : a.correct === true ? '<span class="tag ok">✓ Certa</span>' : a.correct === false ? ((t === 'fill' || t === 'rank') && a.right ? `<span class="tag pend">${a.right}/${t === 'fill' ? fillBlanksOf(q.text).length : q.options.length}</span>` : '<span class="tag bad">✗ Errada</span>') : '<span class="tag pend">❔ Por validar</span>';
+      : !qGraded(q) && t !== 'open' ? '<span class="tag none">opinião</span>' : a.correct === true ? '<span class="tag ok">✓ Certa</span>' : a.correct === false ? ((t === 'fill' || t === 'rank' || t === 'cross') && a.right ? `<span class="tag pend">${a.right}/${t === 'fill' ? fillBlanksOf(q.text).length : t === 'cross' ? q.cross.words.length : q.options.length}</span>` : '<span class="tag bad">✗ Errada</span>') : '<span class="tag pend">❔ Por validar</span>';
     return `<tr><td>${i + 1}</td><td><b>${esc(qTitle(q))}</b><br><small class="muted">${QTYPE_LABEL[t]}${t === 'mc' || t === 'tf' ? ' · opções: ' + q.options.map(esc).join(' · ') : ''}</small></td>
       <td>${esc(plainCorrectOf(q))}</td><td>${a ? esc(plainAnswerOf(q, a)) : ''}</td><td>${res}</td><td class="num">${a ? (a.points || 0) : 0}</td></tr>`;
   }).join('');
@@ -1448,9 +1579,9 @@ async function openResult(id) {
   const graded = i => { const q = r.questions[i], t = qType(q); return t === 'open' ? Object.values(r.answers[i] || {}).some(a => a.correct != null) : qGraded(q); };
   const nAsked = r.asked.filter(graded).length;
   const stats = list.map(p => { let ok = 0; r.questions.forEach((q, i) => { const a = (r.answers[i] || {})[p.id]; if (a && a.correct === true) ok++; }); return ok; });
-  const ansText = (q, a) => { const t = qType(q); return t === 'mc' || t === 'tf' ? `${LETTERS[a.option]}) ${q.options[a.option]}` : t === 'fill' ? (a.value || []).join(' · ') : t === 'cloud' || t === 'rank' ? plainAnswerOf(q, a) : String(a.value ?? ''); };
-  const ansShort = (q, a) => { const t = qType(q); return t === 'mc' ? LETTERS[a.option] : t === 'tf' ? (a.option === 0 ? 'V' : 'F') : t === 'fill' ? `${a.right ?? 0}/${fillBlanksOf(q.text).length}` : t === 'scale' ? '★' + a.value : t === 'rank' ? (q.ordered ? `${a.right ?? 0}/${q.options.length}` : '1º ' + String(q.options[(a.value || [])[0]] || '').slice(0, 12)) : t === 'cloud' ? '☁ ' + (a.value || []).join(', ').slice(0, 14) : (String(a.value).length > 14 ? String(a.value).slice(0, 14) + '…' : String(a.value)); };
-  const corShort = q => { const t = qType(q); return t === 'mc' ? q.correct.map(k => LETTERS[k]).join('/') : t === 'tf' ? (q.correct[0] === 0 ? 'V' : 'F') : t === 'fill' ? fillBlanksOf(q.text).join(', ') : t === 'open' ? 'livre' : t === 'cloud' ? 'nuvem' : t === 'rank' ? (q.ordered ? 'ordem' : 'opinião') : '1–5'; };
+  const ansText = (q, a) => { const t = qType(q); return t === 'mc' || t === 'tf' ? `${LETTERS[a.option]}) ${q.options[a.option]}` : t === 'fill' ? (a.value || []).join(' · ') : t === 'cloud' || t === 'rank' || t === 'cross' || t === 'guess' ? plainAnswerOf(q, a) : t === 'scramble' ? String(a.value || '').toUpperCase() : String(a.value ?? ''); };
+  const ansShort = (q, a) => { const t = qType(q); return t === 'mc' ? LETTERS[a.option] : t === 'tf' ? (a.option === 0 ? 'V' : 'F') : t === 'fill' ? `${a.right ?? 0}/${fillBlanksOf(q.text).length}` : t === 'scale' ? '★' + a.value : t === 'cross' ? `${a.right ?? 0}/${q.cross.words.length}` : t === 'guess' ? (a.correct ? `${a.tries}ª tent.` : `✗ ${(a.value || []).length}`) : t === 'scramble' ? String(a.value || '').toUpperCase().slice(0, 14) : t === 'rank' ? (q.ordered ? `${a.right ?? 0}/${q.options.length}` : '1º ' + String(q.options[(a.value || [])[0]] || '').slice(0, 12)) : t === 'cloud' ? '☁ ' + (a.value || []).join(', ').slice(0, 14) : (String(a.value).length > 14 ? String(a.value).slice(0, 14) + '…' : String(a.value)); };
+  const corShort = q => { const t = qType(q); return t === 'mc' ? q.correct.map(k => LETTERS[k]).join('/') : t === 'tf' ? (q.correct[0] === 0 ? 'V' : 'F') : t === 'fill' ? fillBlanksOf(q.text).join(', ') : t === 'open' ? 'livre' : t === 'cloud' ? 'nuvem' : t === 'scramble' || t === 'guess' ? String(q.answer).toUpperCase().slice(0, 14) : t === 'cross' ? q.cross.words.length + ' palavras' : t === 'rank' ? (q.ordered ? 'ordem' : 'opinião') : '1–5'; };
   const cls = a => a.correct === true ? 'ok' : a.correct === false ? 'bad' : 'pend';
   const mark = a => a.correct === true ? ' ✓' : a.correct === false ? ' ✗' : '';
   const cell = (p, q, i) => {
@@ -1492,7 +1623,7 @@ async function openResult(id) {
         ${t === 'scale' ? `<div class="muted" style="margin-bottom:6px">1 = ${esc(q.scaleMin || '')} · 5 = ${esc(q.scaleMax || '')}</div>` : ''}
         <div style="margin-bottom:8px"><span class="tag ${qGraded(q) ? 'ok' : 'none'}">${qGraded(q) ? 'Resposta correta: ' : ''}${esc(solutionText(q))}</span></div>
         ${asked.has(i) ? list.map(p => { const a = ans[p.id]; return `<div class="ans-row">${avatar(p, 'sm')}<span style="min-width:200px">${esc(p.name)}</span>
-          ${a ? `<span class="tag ${!qGraded(q) && t !== 'open' ? 'none' : cls(a)}">${esc(ansText(q, a))}${mark(a)}${t === 'fill' ? ` (${a.right ?? 0}/${fillBlanksOf(q.text).length})` : t === 'rank' && q.ordered ? ` (${a.right ?? 0}/${q.options.length} no lugar certo)` : ''}</span>
+          ${a ? `<span class="tag ${!qGraded(q) && t !== 'open' ? 'none' : cls(a)}">${esc(ansText(q, a))}${mark(a)}${t === 'fill' ? ` (${a.right ?? 0}/${fillBlanksOf(q.text).length})` : t === 'rank' && q.ordered ? ` (${a.right ?? 0}/${q.options.length} no lugar certo)` : t === 'cross' ? ` (${a.right ?? 0}/${q.cross.words.length} palavras)` : ''}</span>
             ${t === 'open' ? `<span class="noprint">${aiBadge(aiSignals(q, a, Object.values(ans)))}</span>` : ''}
             ${t === 'open' ? `<span class="markers noprint"><button class="btn small ${a.correct === true ? 'go' : ''}" data-mark="1" data-q="${i}" data-s="${esc(p.id)}">✓ Certa</button><button class="btn small ${a.correct === false ? 'danger' : ''}" data-mark="0" data-q="${i}" data-s="${esc(p.id)}">✗ Errada</button></span>` : ''}
             <small class="muted">${(a.timeMs / 1000).toFixed(1)} s</small>` : `<span class="tag none">${joined.has(p.id) ? 'Sem resposta' : 'Ausente'}</span>`}</div>`; }).join('') : ''}

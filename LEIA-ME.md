@@ -40,8 +40,11 @@ Segurança:
    | **Completar espaços** | a frase tem espaços; o formando toca nas palavras para os preencher | cada palavra certa entre `[[ ]]`, ex.: `A capital é [[Lisboa]].` + palavras extra para baralhar. Pontos proporcionais às palavras certas |
    | **Resposta livre** | escreve o texto | **validada sempre por ti, uma a uma**, nos resultados; tem de ter uma **resposta de referência** (obrigatória), que aparece na lista de soluções e quando validas |
    | **Escala 1–5** | botões 1 a 5 (com legenda opcional) | opinião: sem resposta certa nem pontos; mostra a média |
-   | **☁️ Nuvem de palavras** | escreve 1 a 3 palavras (escolhes quantas) | a nuvem cresce **em direto** no projetor à medida que respondem; as palavras repetidas ficam maiores (maiúsculas e acentos não contam: "Confiança" = "confianca"). Sem resposta certa nem pontos |
+   | **☁️ Nuvem de palavras** | escreve 1 a 3 palavras (escolhes quantas) | a nuvem cresce **em direto** no projetor: as palavras ficam espalhadas à volta do centro, a mais escrita fica ao meio e cada palavra cresce (com animação) à medida que mais pessoas a escrevem (maiúsculas e acentos não contam: "Confiança" = "confianca"). Sem resposta certa nem pontos |
    | **🔢 Ranking de opções** | toca nas opções pela ordem (1º, 2º, 3º…); tocar numa numerada tira-a; a última entra sozinha | **com "ordem certa"**: escreves as opções pela ordem correta, os formandos veem-nas baralhadas e ganham pontos por cada posição certa (ex.: "3 de 5 no lugar certo"). **Sem ordem certa** é uma opinião (prioridades, temas preferidos): o projetor mostra a ordem média da turma |
+   | **🔤 Letras baralhadas** | vê as letras baralhadas e toca nelas pela ordem para formar a palavra (tocar numa casa devolve a letra) | a pergunta é a **pista**; escreves a palavra (pode ter duas, ex.: "pós venda"). O projetor mostra as mesmas letras baralhadas. Acentos e maiúsculas não contam |
+   | **✏️ Palavras cruzadas** | grelha + pistas: toca numa pista (ou numa casa) e escreve a palavra; as letras aparecem na grelha | escreves as **palavras e as pistas** e a grelha **monta-se sozinha** (pré-visualização no editor; avisa se alguma palavra não cruza). Pontos por cada palavra certa (ex.: "3 de 5"). No projetor aparece a grelha com as pistas e, na resposta, a grelha resolvida e quantos acertaram cada palavra |
+   | **🟩 Adivinha a palavra** | escreve palavras com o mesmo nº de letras no teclado do jogo; cada letra fica **verde** (sítio certo), **laranja** (existe noutro sítio) ou **vermelha** (não existe) | escolhes a palavra secreta (3 a 12 letras) e o nº de tentativas (3 a 8). Mais pontos com menos tentativas (tudo à 1ª, metade na última). A palavra **nunca vai para o telemóvel**: cada tentativa é avaliada no servidor. No projetor vês o quadro de cada um só com as cores (sem letras) e, no fim, em que tentativa acertaram |
 
    Podes colar várias perguntas de uma vez em texto (uma por bloco, separadas por linha em branco):
    ```
@@ -78,6 +81,17 @@ Segurança:
    Negociação
    Objeções
    Pós-venda
+
+   Quem compra o produto? [letras]
+   Cliente
+
+   Palavras cruzadas: vendas [cruzadas]
+   Cliente = Quem compra
+   Fecho = Fim da venda
+   Valor = Benefício percebido
+
+   Benefício que o cliente percebe [adivinha]
+   Valor
    ```
 
 **🕶️ Questionário anónimo:** no editor, liga **Respostas anónimas** (ex.: inquéritos de satisfação). Ao abrir a sala aparece o aviso e não é preciso escolher formandos. Os formandos entram só com o QR code e carregam em **Entrar** — sem nome nem fotografia; cada telemóvel aparece como "Anónimo #código". A app não guarda nomes, fotos nem qualquer ligação à lista da turma, por isso ninguém (nem tu) sabe quem respondeu o quê. Não há ranking, pódio nem fotos de quem respondeu; a grelha, as fichas, o Excel, a validação das respostas livres e a lista de soluções funcionam por participante anónimo.

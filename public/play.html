@@ -22,6 +22,38 @@
   .team-card { width: 100%; background: var(--tc); color: #fff; border-radius: 18px; padding: 12px 16px; text-align: center; box-shadow: 0 6px 0 rgba(0,0,0,.2); text-shadow: 0 2px 4px rgba(0,0,0,.25); }
   .team-name { font-size: 1.4em; font-weight: 800; } .team-mates { opacity: .95; margin-top: 2px; }
   .cloud-in { display: flex; flex-direction: column; gap: 0; margin-top: 6px; } .cloud-in .search { margin: 0 0 10px; }
+  .gw { display: flex; flex-direction: column; gap: 5px; align-items: center; margin: 6px 0; }
+  .gw-row { display: flex; gap: 5px; }
+  .gw-c { width: min(48px, calc((100vw - 40px - (var(--len) - 1) * 5px) / var(--len))); aspect-ratio: 1; display: grid; place-items: center; border-radius: 8px; border: 2px solid rgba(255,255,255,.35); font-weight: 800; font-size: min(1.6em, calc((100vw - 40px) / var(--len) * .5)); color: #fff; text-transform: uppercase; }
+  .gw-c.typed { border-color: #fff; background: rgba(255,255,255,.15); }
+  .gw-c.g { background: #22c55e; border-color: #22c55e; } .gw-c.y { background: #f59e0b; border-color: #f59e0b; } .gw-c.r { background: #ef4444; border-color: #ef4444; }
+  .gw-c.flip { animation: gwFlip .45s both; } @keyframes gwFlip { 0% { transform: rotateX(90deg); } 100% { transform: none; } }
+  .gw-msg { text-align: center; font-weight: 700; margin: 4px 0 8px; }
+  .kb { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; user-select: none; }
+  .kb-row { display: flex; gap: 4px; justify-content: center; }
+  .kb-k { flex: 1; max-width: 42px; height: 50px; border-radius: 8px; background: rgba(255,255,255,.85); color: var(--ink); font-weight: 800; font-size: 1.05em; padding: 0; }
+  .kb-k.wide { max-width: 64px; flex: 1.5; font-size: .95em; } .kb-k.go { background: #ffd93d; }
+  .kb-k.g { background: #22c55e; color: #fff; } .kb-k.y { background: #f59e0b; color: #fff; } .kb-k.r { background: #ef4444; color: #fff; opacity: .8; }
+  @media (max-width: 360px) { .kb-k { height: 44px; font-size: .95em; } .kb-row { gap: 3px; } }
+  .scr-slots { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin: 8px 0 14px; }
+  .scr-word { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; }
+  .scr-slot { width: 38px; height: 46px; border-radius: 10px; background: rgba(255,255,255,.15); border: 2px dashed rgba(255,255,255,.6); color: #fff; font-size: 1.4em; font-weight: 800; padding: 0; }
+  .scr-slot.on { background: #fff; color: var(--ink); border: 0; box-shadow: 0 3px 0 rgba(0,0,0,.25); }
+  .scr-tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .scr-t { width: 50px; height: 54px; border-radius: 12px; background: #ffd93d; color: var(--ink); font-size: 1.6em; font-weight: 800; box-shadow: 0 5px 0 rgba(0,0,0,.25); padding: 0; }
+  .scr-t.used { opacity: .2; box-shadow: none; }
+  @media (max-width: 360px) { .scr-slot { width: 32px; height: 40px; } .scr-t { width: 44px; height: 48px; } }
+  .cw-wrap { display: flex; justify-content: center; margin: 6px 0 10px; overflow-x: auto; }
+  .cw-grid { display: grid; grid-template-columns: repeat(var(--cols), var(--cs)); grid-auto-rows: var(--cs); gap: 2px; }
+  .cw-grid.phone { --cs: min(34px, calc((100vw - 40px) / var(--cols))); }
+  .cw-cell { position: relative; background: #fff; color: var(--ink); border-radius: 4px; display: grid; place-items: center; font-weight: 800; font-size: calc(var(--cs) * .58); cursor: pointer; }
+  .cw-cell.on { background: #fff3b0; box-shadow: inset 0 0 0 2px #f59e0b; }
+  .cw-cell sup { position: absolute; top: 1px; left: 2px; font-size: max(8px, calc(var(--cs) * .28)); color: #6b5b95; line-height: 1; }
+  .cw-list { display: flex; flex-direction: column; gap: 8px; }
+  .cw-q { background: rgba(255,255,255,.12); border-radius: 12px; padding: 8px 10px; border: 2px solid transparent; }
+  .cw-q.on { border-color: #ffd93d; background: rgba(255,255,255,.2); } .cw-q.done .cw-q-t b::after { content: ' ✓'; color: #86efac; }
+  .cw-q-t { font-size: .95em; line-height: 1.3; overflow-wrap: anywhere; } .cw-q-t small { opacity: .75; }
+  .cw-in { width: 100%; margin-top: 6px; border: 0; border-radius: 10px; padding: 9px 12px; font-size: 1.15em; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; color: var(--ink); }
   .rank-list { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
   .rank-item { display: flex; align-items: center; gap: 10px; color: #fff; border-radius: 16px; padding: 12px 14px; min-height: 58px; font-weight: 600; font-size: 1.05em; text-align: left; box-shadow: 0 5px 0 rgba(0,0,0,.25); opacity: .92; overflow-wrap: anywhere; }
   .rank-item.on { opacity: 1; box-shadow: 0 0 0 3px #fff, 0 5px 0 rgba(0,0,0,.25); }
@@ -117,6 +149,7 @@
 </main>
 <script src="/socket.io/socket.io.js"></script>
 <script src="common.js"></script>
+<script src="crossword.js"></script>
 <script src="qtypes.js"></script>
 <script src="sound.js"></script>
 <script>
@@ -289,6 +322,12 @@ function renderGameInner() {
   }
   if (ph === 'question') {
     const q = state.question;
+    if (state.answered && (q.type === 'guess')) {
+      const g = state.guess || { tries: [] };
+      return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">${g.solved ? '🎉' : '😵'}</div>
+        <h1>${g.solved ? `Acertaste à ${g.tries.length}ª!` : 'Não foi desta…'}</h1>${guessBoardHtml(q, g.tries, '', false)}
+        <p>${g.solved ? 'Boa! Aguarda pelos outros' : 'Olha para o ecrã: a palavra vai ser revelada'}<span class="dots"></span></p></div>`);
+    }
     if (state.answered) {
       const revealLater = (s.settings.revealMode || 'each') !== 'each';
       const t = q.type || 'mc', mineV = t === 'mc' || t === 'tf' ? state.myOption : state.myValue;
@@ -298,7 +337,7 @@ function renderGameInner() {
     }
     const w = answerWidget(q, null, false), t = q.type || 'mc';
     const hint = { mc: '👆 Escolhe a tua resposta', tf: '👆 Verdadeiro ou falso?', scale: '👆 Escolhe de 1 a 5', fill: '✏️ Completa os espaços', open: '✍️ Escreve a tua resposta',
-      cloud: `☁️ Escreve até ${q.words || 3} palavra${(q.words || 3) > 1 ? 's' : ''}`, rank: '🔢 Toca nas opções pela ordem: 1º, 2º, 3º…' }[t];
+      cloud: `☁️ Escreve até ${q.words || 3} palavra${(q.words || 3) > 1 ? 's' : ''}`, rank: '🔢 Toca nas opções pela ordem: 1º, 2º, 3º…', scramble: '🔤 Toca nas letras pela ordem para formar a palavra', guess: `🟩 Adivinha a palavra de ${q.len} letras`, cross: '✏️ Toca numa pista (ou numa casa) e escreve a palavra' }[t];
     set('q' + s.qIndex, header() + qmeta() + `${q.hidden ? onScreenNote : t === 'fill' && q.parts ? '' : `<div class="qtext slide-up">${esc(q.text)}</div>`}${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
       ${timedMode ? '<div class="timebar"><div id="tb"></div></div>' : `<p class="center" style="margin:10px 0;opacity:.85">${hint}</p>`}
       ${w.html}`, () => {
@@ -342,17 +381,20 @@ function renderGameInner() {
   }
   if (ph === 'reveal' || ph === 'leaderboard') {
     const q = state.question, t = q.type || 'mc';
-    const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : ((t === 'fill' || t === 'rank') && state.right) ? 'part' : 'bad';
+    const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : ((t === 'fill' || t === 'rank' || t === 'cross') && state.right) ? 'part' : 'bad';
     const sol = state.solution || {};
     const solHtml = t === 'fill' ? `Palavras certas:<br>${(sol.blanks || []).map((w, i) => `${i + 1}. ${esc(w)}`).join('<br>')}`
       : t === 'open' ? `Resposta modelo:<br>${(sol.accepted || []).map(esc).join(' · ')}`
       : t === 'rank' ? `Ordem certa:<br>${(sol.order || []).map((o, k) => `${k + 1}. ${esc(o)}`).join('<br>')}`
+      : t === 'guess' ? `A palavra era:<br><b style="font-size:1.4em;letter-spacing:.08em">${esc(String(sol.answer || '').toUpperCase())}</b>`
+      : t === 'scramble' ? `A palavra era:<br><b style="font-size:1.4em;letter-spacing:.08em">${esc(String(sol.answer || '').toUpperCase())}</b>`
+      : t === 'cross' ? `Solução:<br>${(sol.words || []).map((w, k) => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.display.toUpperCase())} ${(state.myValue || [])[k] === w.word ? '✓' : '✗'}`).join('<br>')}`
       : `Resposta correta:<br>${(state.correct || []).map(i => optLabel(q.options, i)).join('<br>')}`;
     const key = 'rev' + s.qIndex + ph;
     const isNew = !lastKey.startsWith('rev' + s.qIndex);
     set(key, header() + qmeta() + `<div class="middle"><div class="result ${cls} ${isNew ? (state.wasCorrect ? 'pop-in' : 'shake') : ''}">
       <div class="big-emoji">${!state.answered ? '😴' : state.wasCorrect ? '🎉' : '😅'}</div>
-      <h2>${!state.answered ? 'Sem resposta' : state.wasCorrect ? 'Certo!' : t === 'fill' && state.right ? `${state.right} de ${q.blanks} certas` : t === 'rank' && state.right ? `${state.right} de ${q.items.length} no lugar certo` : 'Errado'}</h2>
+      <h2>${!state.answered ? 'Sem resposta' : state.wasCorrect ? 'Certo!' : t === 'fill' && state.right ? `${state.right} de ${q.blanks} certas` : t === 'rank' && state.right ? `${state.right} de ${q.items.length} no lugar certo` : t === 'cross' && state.right ? `${state.right} de ${q.cross.words.length} palavras certas` : 'Errado'}</h2>
       ${state.points ? `<div style="font-size:1.5em;font-weight:700">+${state.points} pontos</div>` : ''}
       ${!state.wasCorrect ? `<div class="correct-box">${solHtml}</div>` : ''}
       </div>${ph === 'leaderboard' ? rankBox() : ''}</div>`);
@@ -372,7 +414,7 @@ function renderGameInner() {
       ${m.team && m.teamPosition ? teamCard(true) : ''}
       ${state.review ? `<h2 style="margin:10px 0 0">As respostas corretas</h2><div class="review">${state.review.map((r, i) => `
         <div class="rv-item ${r.mine == null ? 'none' : r.ok === true ? 'ok' : r.ok === false ? 'bad' : 'none'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
-          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'cloud' ? '☁️ Nuvem de palavras' : r.type === 'rank' ? ((r.solution.order || []).length ? '✅ ' + r.solution.order.map((o, k) => `${k + 1}. ${esc(o)}`).join(' · ') : '🔢 Ranking de opinião') : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
+          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'cloud' ? '☁️ Nuvem de palavras' : r.type === 'scramble' || r.type === 'guess' ? '✅ ' + esc(String(r.solution.answer || '').toUpperCase()) : r.type === 'cross' ? '✅ ' + (r.solution.words || []).map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.display.toUpperCase())}`).join(' · ') : r.type === 'rank' ? ((r.solution.order || []).length ? '✅ ' + r.solution.order.map((o, k) => `${k + 1}. ${esc(o)}`).join(' · ') : '🔢 Ranking de opinião') : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
           <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${r.type === 'mc' || r.type === 'tf' || !r.type ? optLabel(r.options, r.mine) : esc(r.mineText || '')} ${r.ok === true ? '✓' : r.ok === false ? '✗' : ''}`}</div></div>`).join('')}</div>` : ''}
       ${(!state.review || !state.review.some(r => r.graded || r.ok != null)) && m.score == null ? `<div class="result none" style="margin-top:6px"><div class="big-emoji">📨</div><h2>Respostas enviadas!</h2>
         <p>Respondeste a ${state.answeredCount ?? 0} de ${s.total} perguntas. As tuas respostas foram registadas.</p></div>` : ''}
@@ -605,6 +647,112 @@ function answerWidget(q, cur, exam) {
       },
     };
   }
+  if (t === 'guess') {
+    // adivinha a palavra: cada tentativa vai ao servidor, que devolve as cores (a palavra não está no telemóvel)
+    const g0 = exam ? ((state.exam.guess || {})[exIdx] || { tries: [] }) : (state.guess || { tries: [] });
+    let tries = g0.tries.slice(), done = !!g0.done, solved = !!g0.solved, typed = '', busy = false;
+    const L = q.len, at = exam ? exIdx : null;
+    const keyState = () => { const st = {}, rk = { r: 1, y: 2, g: 3 }; tries.forEach(tr => [...tr.word].forEach((ch, i) => { const c = tr.colors[i]; if (!st[ch] || rk[c] > rk[st[ch]]) st[ch] = c; })); return st; };
+    const msg = () => done ? (solved ? `🎉 Acertaste à ${tries.length}ª tentativa!` : '😵 Acabaram as tentativas') : `Tentativa ${tries.length + 1} de ${q.maxTries}`;
+    const kb = () => { const st = keyState();
+      return ['QWERTYUIOP', 'ASDFGHJKL', '⏎ZXCVBNM⌫'].map(row => `<div class="kb-row">${[...row].map(k => {
+        const label = k === '⏎' ? 'OK' : k, cls = k === '⏎' ? 'wide go' : k === '⌫' ? 'wide' : (st[k] || '');
+        return `<button class="kb-k ${cls}" data-k="${k}" ${done ? 'disabled' : ''}>${label}</button>`; }).join('')}</div>`).join(''); };
+    return {
+      html: `<div id="gw">${guessBoardHtml(q, tries, typed, !done)}</div><p class="gw-msg" id="gwMsg">${msg()}</p><div class="kb" id="kb">${kb()}</div>`,
+      bind: () => {
+        const paint = () => { const b = $('#gw'); if (!b) return; b.innerHTML = guessBoardHtml(q, tries, typed, !done); $('#kb').innerHTML = kb(); $('#gwMsg').textContent = msg(); bindKeys(); };
+        const send = () => {
+          if (typed.length < L) { const row = $('#gw .gw-row.cur'); if (row) { row.classList.remove('shake'); void row.offsetWidth; row.classList.add('shake'); } return toast(`A palavra tem ${L} letras`); }
+          busy = true;
+          socket.emit('player:guess', { q: at, word: typed }, res => {
+            busy = false;
+            if (!res || res.error) return toast((res && res.error) || 'Erro', 3500);
+            tries.push({ word: typed, colors: res.colors }); typed = ''; done = res.done; solved = res.solved;
+            Sound.play(res.solved ? 'correct' : res.done ? 'wrong' : 'pop'); navigator.vibrate && navigator.vibrate(res.solved ? [40, 60, 40] : 30);
+            if (res.solved) Confetti.burst(80);
+            paint();
+            if (!done) return;
+            if (exam) {
+              state.exam.mine[at] = tries.map(x => x.word); (state.exam.guess ||= {})[at] = { tries, done, solved };
+              setTimeout(() => { if (exIdx !== at) return; const nf = state.exam.questions.findIndex((_, i) => i > at && state.exam.mine[i] == null); if (nf >= 0) exIdx = nf; render(); }, 1600);
+            } else { state.guess = { tries, done, solved }; setTimeout(() => { state.answered = true; render(); }, 1600); }
+          });
+        };
+        const press = k => { if (done || busy) return; if (k === '⌫') typed = typed.slice(0, -1); else if (k === '⏎') return send(); else if (typed.length < L) typed += k; paint(); };
+        const bindKeys = () => $$('#kb .kb-k').forEach(b => b.onclick = () => press(b.dataset.k));
+        bindKeys();
+        // teclado físico (computador / teclado bluetooth)
+        if (window._gwKey) document.removeEventListener('keydown', window._gwKey);
+        window._gwKey = e => { if (!$('#gw') || e.ctrlKey || e.metaKey || e.altKey) return; const k = e.key === 'Enter' ? '⏎' : e.key === 'Backspace' ? '⌫' : cwNorm(e.key); if (k.length === 1 || k === '⏎' || k === '⌫') { e.preventDefault(); press(k); } };
+        document.addEventListener('keydown', window._gwKey);
+      },
+    };
+  }
+  if (t === 'scramble') {
+    // toca nas letras pela ordem; tocar numa casa preenchida devolve a letra
+    const tiles = q.tiles || [], shape = q.shape || [tiles.length], total = shape.reduce((a, b) => a + b, 0);
+    let picked = [];   // índices das letras usadas, pela ordem
+    if (typeof cur === 'string') { const want = [...cur.toUpperCase()].filter(ch => /\p{L}/u.test(ch)); const used = new Set(); want.forEach(ch => { const i = tiles.findIndex((x, k) => !used.has(k) && x === ch); if (i >= 0) { used.add(i); picked.push(i); } }); }
+    const word = () => { let k = 0; return shape.map(n => picked.slice(k, k += n).map(i => tiles[i]).join('')).join(' '); };
+    const html = () => { let k = 0;
+      return `<div class="scr-slots">${shape.map(n => `<div class="scr-word">${Array.from({ length: n }, () => { const idx = k++, i = picked[idx]; return `<button class="scr-slot ${i != null ? 'on' : ''}" data-s="${idx}">${i != null ? esc(tiles[i]) : ''}</button>`; }).join('')}</div>`).join('')}</div>
+        <div class="scr-tiles">${tiles.map((ch, i) => `<button class="scr-t ${picked.includes(i) ? 'used' : ''}" data-t="${i}" ${picked.includes(i) ? 'disabled' : ''}>${esc(ch)}</button>`).join('')}</div>`; };
+    return {
+      html: `<div id="scrBox">${html()}</div><div class="row" style="margin-top:12px;flex-wrap:nowrap"><button class="btn ghost" id="scrReset" style="flex:none">↺ Limpar</button>
+        <button class="btn primary" id="scrSend" style="flex:1" ${picked.length === total ? '' : 'disabled'}>${exam ? '💾 Guardar' : '📨 Enviar'}</button></div>`,
+      bind: on => {
+        const refresh = () => { $('#scrBox').innerHTML = html(); bindIt(); $('#scrSend').disabled = picked.length !== total; };
+        const bindIt = () => {
+          $$('.scr-t').forEach(b => b.onclick = () => { if (picked.length >= total) return; picked.push(+b.dataset.t); Sound.play('pop'); refresh(); });
+          $$('.scr-slot').forEach(b => b.onclick = () => { const k = +b.dataset.s; if (picked[k] != null) { picked.splice(k, 1); refresh(); } });
+        };
+        bindIt();
+        $('#scrReset').onclick = () => { picked = []; refresh(); };
+        $('#scrSend').onclick = () => on(word(), $('#scrSend'));
+      },
+    };
+  }
+  if (t === 'cross') {
+    const cw = q.cross, vals = Array.isArray(cur) ? cur.map(v => v || '') : cw.words.map(() => '');
+    let active = vals.findIndex(v => !v); if (active < 0) active = 0;
+    const gridHtml = () => { const m = {}; crossCellsOf(cw.words[active]).forEach(k => m[k] = 'on'); return crossGridHtml(cw, crossLetters(cw, vals), m, 'phone'); };
+    const cluesHtml = () => cw.words.map((w, k) => `<div class="cw-q ${k === active ? 'on' : ''} ${vals[k].length === w.len ? 'done' : ''}" data-k="${k}">
+      <div class="cw-q-t"><b>${w.n}${w.dir === 'a' ? ' ➡' : ' ⬇'}</b> ${w.clue ? esc(w.clue) : 'Pista no ecrã do formador'} <small>(${w.len} letras)</small></div>
+      <input class="cw-in" data-k="${k}" maxlength="${w.len}" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="next" value="${esc(vals[k])}" placeholder="${'·'.repeat(w.len)}"></div>`).join('');
+    return {
+      html: `<div class="cw-wrap" id="cwGrid" style="--cols:${cw.cols}">${gridHtml()}</div><div class="cw-list">${cluesHtml()}</div>
+        <button class="btn primary" id="cwSend" style="width:100%;margin-top:12px">${exam ? '💾 Guardar' : '📨 Enviar palavras'}</button>`,
+      bind: on => {
+        const paint = () => { $('#cwGrid').innerHTML = gridHtml(); $$('.cw-q').forEach(d => { const k = +d.dataset.k; d.classList.toggle('on', k === active); d.classList.toggle('done', vals[k].length === cw.words[k].len); }); bindGrid(); };
+        const bindGrid = () => $$('#cwGrid .cw-cell').forEach(c => c.onclick = () => {
+          // casa da grelha: vai para a palavra que passa por ela (se houver duas, alterna)
+          const ws = cw.words.map((w, k) => crossCellsOf(w).includes(c.dataset.rc) ? k : -1).filter(k => k >= 0);
+          const k = ws.length > 1 && ws.includes(active) ? ws[(ws.indexOf(active) + 1) % ws.length] : ws[0];
+          if (k != null) { active = k; paint(); const inp = $(`.cw-in[data-k="${k}"]`); inp.focus(); }
+        });
+        $$('.cw-in').forEach(inp => {
+          const k = +inp.dataset.k;
+          inp.onfocus = () => { if (active !== k) { active = k; paint(); } };
+          inp.oninput = () => {
+            const v = cwNorm(inp.value).slice(0, cw.words[k].len);
+            if (inp.value !== v) inp.value = v;
+            vals[k] = v; paint();
+            if (v.length === cw.words[k].len) { const nx = vals.findIndex((x, j) => j > k && x.length < cw.words[j].len); if (nx >= 0) $(`.cw-in[data-k="${nx}"]`).focus(); }
+          };
+          inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const nx = $(`.cw-in[data-k="${k + 1}"]`); if (nx) nx.focus(); else inp.blur(); } };
+        });
+        $$('.cw-q').forEach(d => d.onclick = e => { if (e.target.tagName !== 'INPUT') $(`.cw-in[data-k="${d.dataset.k}"]`).focus(); });
+        bindGrid();
+        $('#cwSend').onclick = () => {
+          if (!vals.some(Boolean)) return toast('Escreve pelo menos uma palavra.');
+          const miss = vals.filter((v, k) => v.length < cw.words[k].len).length;
+          if (miss && !exam && !confirm(`Ainda há ${miss} palavra(s) por completar. Enviar assim?`)) return;
+          on(vals.slice(), $('#cwSend'));
+        };
+      },
+    };
+  }
   if (t === 'rank') {
     // toca nas opções pela ordem; tocar numa já numerada tira-a (e as seguintes sobem)
     let order = Array.isArray(cur) ? cur.slice() : [];
@@ -675,6 +823,18 @@ function answerWidget(q, cur, exam) {
     bind: on => $$('.answers .ans').forEach(b => b.onclick = () => on(+b.dataset.i, b)),
   };
 }
+// quadro do "adivinha a palavra": linhas já tentadas (com cores), a linha a escrever e as vazias
+function guessBoardHtml(q, tries, typed, live) {
+  const L = q.len, rows = [];
+  for (let r = 0; r < q.maxTries; r++) {
+    const tr = tries[r], cur = live && r === tries.length;
+    if (!live && !tr) continue;
+    rows.push(`<div class="gw-row ${cur ? 'cur' : ''}">${Array.from({ length: L }, (_, i) => {
+      const ch = tr ? tr.word[i] : cur ? (typed[i] || '') : '';
+      return `<span class="gw-c ${tr ? tr.colors[i] + ' flip' : ch ? 'typed' : ''}" style="${tr ? `animation-delay:${i * 90}ms` : ''}">${esc(ch)}</span>`; }).join('')}</div>`);
+  }
+  return `<div class="gw" style="--len:${L}">${rows.join('')}</div>`;
+}
 // resumo da resposta dada, para mostrar depois de enviar
 function answerSummary(q, v) {
   const t = q.type || 'mc';
@@ -683,6 +843,9 @@ function answerSummary(q, v) {
   if (t === 'fill') return (v || []).join(' · ');
   if (t === 'open') return `“${esc(v)}”`;
   if (t === 'cloud') return '☁️ ' + (v || []).map(esc).join(' · ');
+  if (t === 'scramble') return `<b style="font-size:1.4em;letter-spacing:.08em">${esc(String(v).toUpperCase())}</b>`;
+  if (t === 'guess') return (v || []).map(esc).join(' → ');
+  if (t === 'cross') return `<div style="text-align:left">${q.cross.words.map((w, k) => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc((v || [])[k] || '—')}`).join('<br>')}</div>`;
   if (t === 'rank') { const txt = i => { const it = (q.items || []).find(x => x.i === i); return it ? (it.text ? esc(it.text) : it.letter) : '?'; }; return `<div style="text-align:left">${(v || []).map((i, k) => `${k + 1}º ${txt(i)}`).join('<br>')}</div>`; }
   return optLabel(q.options, v);
 }

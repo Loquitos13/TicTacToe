@@ -9,7 +9,13 @@
 //  cloud — nuvem de palavras: cada formando escreve até 3 palavras; sem resposta certa nem pontos
 //  rank  — ranking de opções: o formando ordena as opções. Com "ordered", a ordem do editor é a certa
 //          (pontos por posição certa); sem ela é uma opinião (resultado = posição média de cada opção)
-const TYPES = ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank'];
+//  scramble — letras baralhadas: a pergunta é a pista; o formando forma a palavra tocando nas letras
+//  cross — palavras cruzadas: lista de palavras + pistas; a grelha é gerada sozinha; pontos por palavra certa
+//  guess — adivinha a palavra: palavra secreta com N letras e várias tentativas; cada letra fica
+//          verde (sítio certo), laranja (existe noutro sítio) ou vermelha (não existe).
+//          As tentativas são avaliadas no servidor: a palavra nunca vai para o telemóvel.
+const TYPES = ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess'];
+const { buildCrossword, cwNorm } = require('./public/crossword.js');
 const LETTERS = 'ABCDEF';
 const norm = t => String(t ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
 const BLANK_RE = /\[\[([^\]]+?)\]\]/g;
@@ -32,6 +38,32 @@ function rankOrder(q) {
   return idx;
 }
 // palavras da nuvem: limpa, tira repetidas e corta no máximo
+// letras baralhadas: as letras da resposta (sem espaços), baralhadas sempre da mesma maneira
+// para a mesma pergunta e nunca pela ordem certa
+function scrambleTiles(q) {
+  const letters = [...String(q.answer || '').toUpperCase()].filter(ch => /\p{L}/u.test(ch));
+  let h = 2166136261; for (const c of String(q.id || q.answer)) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  const rnd = () => (h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0, h / 4294967296);
+  const out = letters.slice();
+  for (let k = 0; k < 20; k++) {
+    for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; }
+    if (out.join('') !== letters.join('') || new Set(letters).size < 2) break;
+  }
+  return out;
+}
+// adivinha a palavra: cor de cada letra da tentativa ('g' verde, 'y' laranja, 'r' vermelho).
+// Letras repetidas: primeiro marcam-se as certas; as outras só ficam laranja enquanto houver
+// dessa letra por encontrar na palavra (ex.: palavra VALOR, tentativa AVAAA → laranja, laranja, vermelho…)
+function guessColors(secret, word) {
+  const s = [...secret], w = [...word], out = w.map(() => 'r'), left = {};
+  w.forEach((ch, i) => { if (ch === s[i]) out[i] = 'g'; else left[s[i]] = (left[s[i]] || 0) + 1; });
+  w.forEach((ch, i) => { if (out[i] !== 'g' && left[ch]) { out[i] = 'y'; left[ch]--; } });
+  return out;
+}
+// pontos: à 1ª tentativa vale tudo; na última vale metade; não acertar vale 0
+const guessFrac = (q, tries) => 1 - 0.5 * (tries - 1) / Math.max(1, (q.maxTries || 6) - 1);
+// tamanho de cada palavra da resposta (ex.: "pós venda" → [3, 5])
+const scrambleShape = q => String(q.answer || '').trim().split(/\s+/).map(w => [...w].filter(ch => /\p{L}/u.test(ch)).length).filter(Boolean);
 function cloudWords(raw, max) {
   const list = (Array.isArray(raw) ? raw : String(raw ?? '').split(/[,;\n]+/)).map(w => String(w ?? '').trim().replace(/\s+/g, ' ').slice(0, 30)).filter(Boolean);
   const seen = new Set(), out = [];
@@ -80,6 +112,20 @@ function cleanQuestion(x, uid, savePhoto) {
     base.options = (x.options || []).map(o => String(o).trim()).filter(Boolean).slice(0, 6);
     base.ordered = !!x.ordered;
     if (base.options.length < 2) return null;
+  } else if (type === 'scramble') {
+    base.answer = String(x.answer || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+    if (cwNorm(base.answer).length < 2) return null;
+  } else if (type === 'guess') {
+    base.answer = String(x.answer || '').trim().slice(0, 20);
+    base.maxTries = Math.max(3, Math.min(8, parseInt(x.maxTries, 10) || 6));
+    const n = cwNorm(base.answer).length;
+    if (n < 3 || n > 12) return null;
+  } else if (type === 'cross') {
+    base.entries = (x.entries || []).map(e => ({ word: String(e.word || '').trim().slice(0, 30), clue: String(e.clue || '').trim().slice(0, 200) }))
+      .filter(e => cwNorm(e.word).length >= 2 && e.clue).slice(0, 15);
+    const cw = buildCrossword(base.entries);
+    if (cw.words.length < 2) return null;
+    base.cross = { rows: cw.rows, cols: cw.cols, words: cw.words };   // só as palavras que cruzam
   }
   return base;
 }
@@ -121,6 +167,21 @@ function grade(q, raw) {
     const right = value.filter((v, pos) => v === pos).length;
     return { entry: { value, correct: right === n, frac: right / n, right } };
   }
+  if (t === 'scramble') {
+    const value = String(raw ?? '').trim().slice(0, 40);
+    if (!cwNorm(value)) return { error: 'Forma a palavra.' };
+    const ok = cwNorm(value) === cwNorm(q.answer);
+    return { entry: { value, correct: ok, frac: ok ? 1 : 0 } };
+  }
+  if (t === 'guess') return { error: 'Usa o teclado do jogo para adivinhar a palavra.' };
+  if (t === 'cross') {
+    const ws = q.cross.words;
+    if (!Array.isArray(raw) || raw.length !== ws.length) return { error: 'Resposta inválida.' };
+    const value = raw.map((v, k) => cwNorm(v).slice(0, ws[k].len));
+    if (!value.some(Boolean)) return { error: 'Preenche pelo menos uma palavra.' };
+    const right = value.filter((v, k) => v === ws[k].word).length;
+    return { entry: { value, correct: right === ws.length, frac: right / ws.length, right } };
+  }
   if (t === 'open') {
     const value = String(raw ?? '').trim().replace(/\s+/g, ' ').slice(0, 300);
     if (!value) return { error: 'Escreve a tua resposta.' };
@@ -139,6 +200,8 @@ function answerText(q, a) {
   if (t === 'fill') return (a.value || []).join(' | ');
   if (t === 'cloud') return (a.value || []).join(', ');
   if (t === 'rank') return (a.value || []).map((k, pos) => `${pos + 1}. ${q.options[k]}`).join(' | ');
+  if (t === 'cross') return q.cross.words.map((w, k) => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${(a.value || [])[k] || '—'}`).join(' | ');
+  if (t === 'guess') return (a.value || []).join(' → ') + (a.correct ? ` (acertou à ${a.tries}ª)` : ' (não acertou)');
   return String(a.value ?? '');
 }
 function answerShort(q, a) {
@@ -149,6 +212,9 @@ function answerShort(q, a) {
   if (t === 'scale') return String(a.value);
   if (t === 'rank') return q.ordered ? `${a.right ?? 0}/${q.options.length}` : '1º ' + String(q.options[(a.value || [])[0]] || '').slice(0, 14);
   if (t === 'cloud') { const j = (a.value || []).join(', '); return j.slice(0, 18) + (j.length > 18 ? '…' : ''); }
+  if (t === 'cross') return `${a.right ?? 0}/${q.cross.words.length}`;
+  if (t === 'guess') return a.correct ? `${a.tries}ª tent.` : `✗ ${(a.value || []).length} tent.`;
+  if (t === 'scramble') return String(a.value || '').toUpperCase().slice(0, 18);
   return String(a.value || '').slice(0, 18) + (String(a.value || '').length > 18 ? '…' : '');
 }
 function correctText(q) {
@@ -157,6 +223,8 @@ function correctText(q) {
   if (t === 'fill') return q.blanks.join(' | ');
   if (t === 'open') return (q.accepted || []).length ? 'Modelo: ' + q.accepted.join(' | ') + ' (validada pelo formador)' : '(resposta livre — validada pelo formador)';
   if (t === 'cloud') return '(nuvem de palavras — sem resposta certa)';
+  if (t === 'scramble' || t === 'guess') return String(q.answer).toUpperCase();
+  if (t === 'cross') return q.cross.words.map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${w.display}`).join(' | ');
   if (t === 'rank') return q.ordered ? q.options.map((o, k) => `${k + 1}. ${o}`).join(' | ') : '(ranking de opinião — sem ordem certa)';
   return '(escala 1–5 — sem resposta certa)';
 }
@@ -167,6 +235,8 @@ function correctShort(q) {
   if (t === 'fill') return q.blanks.join(', ');
   if (t === 'open') return (q.accepted || []).length ? q.accepted[0] + (q.accepted.length > 1 ? '…' : '') : 'livre';
   if (t === 'cloud') return 'nuvem';
+  if (t === 'scramble' || t === 'guess') return String(q.answer).toUpperCase().slice(0, 14);
+  if (t === 'cross') return q.cross.words.length + ' palavras';
   if (t === 'rank') return q.ordered ? 'ordem' : 'opinião';
   return '1–5';
 }
@@ -179,6 +249,10 @@ function publicQuestion(q, hide) {
   if (t === 'fill') { p.blanks = q.blanks.length; p.bank = wordBank(q); if (!hide) p.parts = String(q.text).split(BLANK_RE).filter((_, i) => i % 2 === 0); }
   if (t === 'scale') { p.scaleMin = q.scaleMin || ''; p.scaleMax = q.scaleMax || ''; }
   if (t === 'cloud') p.words = q.words || 3;
+  if (t === 'scramble') { p.tiles = scrambleTiles(q); p.shape = scrambleShape(q); }
+  if (t === 'guess') { p.len = cwNorm(q.answer).length; p.maxTries = q.maxTries || 6; }
+  // palavras cruzadas: a grelha sem as letras (as pistas só no projetor, se escondidas nos telemóveis)
+  if (t === 'cross') p.cross = { rows: q.cross.rows, cols: q.cross.cols, words: q.cross.words.map(w => ({ n: w.n, dir: w.dir, r: w.r, c: w.c, len: w.len, clue: hide ? '' : w.clue })) };
   // ranking: opções pela ordem baralhada; o telemóvel devolve os números originais (i)
   if (t === 'rank') p.ordered = !!q.ordered;
   if (t === 'rank') p.items = rankOrder(q).map((i, k) => ({ i, text: hide ? '' : q.options[i], letter: LETTERS[k] }));
@@ -191,6 +265,8 @@ function solutionOf(q) {
   if (t === 'fill') return { blanks: q.blanks };
   if (t === 'open') return { accepted: q.accepted || [] };
   if (t === 'rank' && q.ordered) return { order: q.options };
+  if (t === 'scramble' || t === 'guess') return { answer: q.answer };
+  if (t === 'cross') return { words: q.cross.words.map(w => ({ n: w.n, dir: w.dir, word: w.word, display: w.display })) };
   return {};
 }
 
@@ -202,6 +278,8 @@ function plainCorrect(q) {
   if (t === 'fill') return fillSentence(q, q.blanks);
   if (t === 'open') return (q.accepted || []).length ? q.accepted.join(' / ') : 'Sem resposta modelo (validada pelo formador)';
   if (t === 'rank' && q.ordered) return q.options.map((o, k) => `${k + 1}. ${o}`).join('; ');
+  if (t === 'scramble' || t === 'guess') return String(q.answer).toUpperCase();
+  if (t === 'cross') return q.cross.words.map(w => `${w.n} ${w.dir === 'a' ? 'horizontal' : 'vertical'}: ${w.display}`).join('; ');
   return '—';
 }
 function plainAnswer(q, a) {
@@ -212,7 +290,10 @@ function plainAnswer(q, a) {
   if (t === 'scale') { const lab = a.value === 1 ? q.scaleMin : a.value === 5 ? q.scaleMax : ''; return `${a.value} de 5${lab ? ' (' + lab + ')' : ''}`; }
   if (t === 'cloud') return (a.value || []).join(', ');
   if (t === 'rank') return (a.value || []).map((k, pos) => `${pos + 1}. ${q.options[k]}`).join('; ');
+  if (t === 'scramble') return String(a.value || '').toUpperCase();
+  if (t === 'cross') return q.cross.words.map((w, k) => `${w.n} ${w.dir === 'a' ? 'horizontal' : 'vertical'}: ${(a.value || [])[k] || '(em branco)'}${(a.value || [])[k] === w.word ? ' ✓' : ' ✗'}`).join('; ');
+  if (t === 'guess') return `Tentativas: ${(a.value || []).join(', ')}${a.correct ? ` — acertou à ${a.tries}ª` : ' — não acertou'}`;
   return String(a.value ?? '');
 }
 
-module.exports = { rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
+module.exports = { guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };

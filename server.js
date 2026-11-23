@@ -96,6 +96,7 @@ function persistSession() {
     code: session.code,
     anonymous: !!session.settings.anonymous,
     submitted: session.submitted || null,
+    guesses: session.guesses || null,
     answers: session.answers,
     asked: session.asked,
   };
@@ -157,6 +158,17 @@ function hostView() {
   if (qt === 'scale') { const vals = Object.values(ans).map(a => a.value); extra.scaleAvg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null; }
   // nuvem: cada palavra (sem contar maiúsculas/acentos) com o nº de pessoas que a escreveram
   if (qt === 'cloud') { const m = new Map(); Object.values(ans).forEach(a => (a.value || []).forEach(w => { const k = Q.norm(w); const e = m.get(k) || { text: w, count: 0 }; e.count++; m.set(k, e); })); extra.cloud = [...m.values()].sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, 'pt')).slice(0, 80); }
+  // letras baralhadas: tentativas agrupadas (certas e erradas)
+  if (qt === 'scramble') { const m = new Map(); Object.values(ans).forEach(a => { const k = Q.norm(a.value); const e = m.get(k) || { text: String(a.value).toUpperCase(), count: 0, correct: a.correct }; e.count++; m.set(k, e); }); extra.attempts = [...m.values()].sort((a, b) => (b.correct === true) - (a.correct === true) || b.count - a.count).slice(0, 30); }
+  // adivinha a palavra: só as cores de cada um (sem letras: não estraga o jogo a ninguém)
+  if (qt === 'guess') {
+    const g = (session.guesses || {})[session.qIndex] || {};
+    extra.guessBoards = Object.entries(g).map(([sid, tries]) => ({ studentId: sid, colors: tries.map(t => t.colors), solved: !!(ans[sid] && ans[sid].correct), done: !!ans[sid] }));
+    extra.guessDist = Array.from({ length: q.maxTries || 6 }, (_, k) => Object.values(ans).filter(a => a.correct && a.tries === k + 1).length);
+    extra.guessSolved = Object.values(ans).filter(a => a.correct).length;
+  }
+  // palavras cruzadas: quantos acertaram em cada palavra
+  if (qt === 'cross') extra.crossStats = q.cross.words.map((w, k) => Object.values(ans).filter(a => (a.value || [])[k] === w.word).length);
   // ranking: posição média de cada opção (1 = primeiro lugar) e quantos a puseram em 1º
   if (qt === 'rank') {
     const list = Object.values(ans);
@@ -228,8 +240,12 @@ function playerView(p) {
       if (showScore) v.me.teamScore = (ts.find(t => t.id === p.team) || {}).score;
     }
   }
+  const myGuess = i => { const tries = ((session.guesses || {})[i] || {})[p.studentId] || [], a = (session.answers[i] || {})[p.studentId];
+    return { tries: tries.map(t => ({ word: t.word, colors: t.colors })), done: !!a, solved: !!(a && a.correct) }; };
+  if (q && Q.typeOf(q) === 'guess') v.guess = myGuess(session.qIndex);
   if (session.phase === 'exam') {
     v.exam = {
+      guess: Object.fromEntries(session.questions.map((qq, i) => Q.typeOf(qq) === 'guess' ? [i, myGuess(i)] : null).filter(Boolean)),
       questions: session.questions.map(qq => Q.publicQuestion(qq, false)),
       mine: Object.fromEntries(session.questions.map((qq, i) => { const a = (session.answers[i] || {})[p.studentId]; return [i, a ? (a.option ?? a.value) : null]; }).filter(([, o]) => o != null)),
       remainingMs: Math.max(0, session.deadline - Date.now()),
@@ -348,9 +364,17 @@ function scheduleAuto() {
   autoTimer = setTimeout(() => { autoTimer = null; advance(); }, ms * 1000);
 }
 
+// adivinha a palavra: quem ainda estava a tentar quando a pergunta fechou fica com a resposta "não acertou"
+function finalizeGuesses(i) {
+  const q = session.questions[i]; if (!q || Q.typeOf(q) !== 'guess') return;
+  const ans = answersFor(i), g = (session.guesses || {})[i] || {};
+  for (const [sid, tries] of Object.entries(g)) if (!ans[sid] && tries.length)
+    ans[sid] = { value: tries.map(t => t.word), colors: tries.map(t => t.colors), tries: tries.length, correct: false, frac: 0, points: 0, timeMs: tries[tries.length - 1].ms || 0, at: Date.now() };
+}
 function closeQuestion() {
   if (!session || session.phase !== 'question') return;
   clearTimeout(timer); timer = null;
+  finalizeGuesses(session.qIndex);
   // tempo esgotado / fechado pelo formador → já não aceita respostas e mostra a sondagem
   session.phase = 'closed';
   session.deadline = null;
@@ -377,6 +401,8 @@ function startExam() {
 function endExam() {
   if (!session || session.phase !== 'exam') return;
   clearTimeout(timer); timer = null;
+  session.questions.forEach((_, i) => finalizeGuesses(i));
+  Object.values(session.players).forEach(examRecompute);
   session.deadline = null; session.endedAt = Date.now(); session.phase = 'end';
   persistSession(); broadcast();
 }
@@ -656,7 +682,7 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
     rows = [['Curso', 'Questionário', 'Nº', 'Pergunta', 'Opções', 'Resposta correta', 'Aluno', 'Resposta dada', 'Correta?', 'Tempo (s)', 'Pontos']];
     r.questions.forEach((q, i) => {
       const t = Q.typeOf(q);
-      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'cloud' ? 'Nuvem de palavras' : t === 'rank' ? 'Ordenar: ' + q.options.join(' | ') : t === 'scale' ? 'Escala 1–5' : 'Resposta livre';
+      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'cloud' ? 'Nuvem de palavras' : t === 'scramble' ? 'Letras baralhadas' : t === 'guess' ? `Adivinha a palavra (${q.maxTries || 6} tentativas)` : t === 'cross' ? 'Palavras cruzadas: ' + q.cross.words.map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${w.clue}`).join(' | ') : t === 'rank' ? 'Ordenar: ' + q.options.join(' | ') : t === 'scale' ? 'Escala 1–5' : 'Resposta livre';
       for (const p of people) {
         const a = (r.answers[i] || {})[p.id];
         let given, ok = '';
@@ -835,6 +861,8 @@ io.on('connection', socket => {
     socket.on('host:end', guard(() => {
       if (!session) return;
       clearTimeout(timer); clearTimeout(autoTimer); session.autoAt = null;
+      if (session.phase === 'question') finalizeGuesses(session.qIndex);
+      if (session.phase === 'exam') { session.questions.forEach((_, i) => finalizeGuesses(i)); Object.values(session.players).forEach(examRecompute); }
       session.phase = 'end'; session.endedAt = Date.now(); session.deadline = null;
       persistSession(); broadcast();
     }));
@@ -985,6 +1013,35 @@ io.on('connection', socket => {
     cb({ ok: true });
     socket.emit('roster', rosterForPlayers(socket));
     broadcast();
+  });
+
+  // adivinha a palavra: cada tentativa é avaliada aqui (a palavra nunca sai do servidor)
+  socket.on('player:guess', (data, cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    if (!session || !me || me.socketId !== socket.id || session.players[me.studentId] !== me) return cb({ error: 'Não identificado' });
+    const exam = session.phase === 'exam';
+    const i = exam ? parseInt(data && data.q, 10) : session.qIndex, q = session.questions[i];
+    if (!q || Q.typeOf(q) !== 'guess') return cb({ error: 'Pedido inválido.' });
+    if (exam ? (Date.now() > session.deadline || (session.submitted || {})[me.studentId]) : session.phase !== 'question') return cb({ error: 'Tempo esgotado' });
+    const ans = answersFor(i);
+    if (ans[me.studentId]) return cb({ error: 'Já terminaste esta palavra.' });
+    const secret = Q.cwNorm(q.answer), word = Q.cwNorm(data && data.word);
+    if (word.length !== secret.length) return cb({ error: `A palavra tem ${secret.length} letras.` });
+    const tries = ((session.guesses ||= {})[i] ||= {})[me.studentId] ||= [];
+    if (tries.length >= (q.maxTries || 6)) return cb({ error: 'Já não tens tentativas.' });
+    const colors = Q.guessColors(secret, word), solved = word === secret;
+    const ms = exam ? Date.now() - session.examStart : Date.now() - session.questionStartedAt;
+    tries.push({ word, colors, ms });
+    let points = 0;
+    if (solved || tries.length >= (q.maxTries || 6)) {
+      const entry = { value: tries.map(t => t.word), colors: tries.map(t => t.colors), tries: tries.length, correct: solved, frac: solved ? Q.guessFrac(q, tries.length) : 0 };
+      points = pointsFor(q, entry, exam ? 0 : ms, exam ? false : session.settings.speedPoints);
+      ans[me.studentId] = { ...entry, timeMs: ms, points, at: Date.now() };
+      if (exam) examRecompute(me); else me.score += points;
+    }
+    persistSession();
+    cb({ ok: true, colors, solved, done: !!ans[me.studentId] });
+    if (!exam && timedMode() && allAnswered()) closeQuestion(); else broadcast();
   });
 
   socket.on('player:examAnswer', (data, cb) => {
