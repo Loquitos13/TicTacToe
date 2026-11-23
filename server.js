@@ -846,11 +846,25 @@ io.on('connection', socket => {
     if (typeof name !== 'string' || !name.trim() || name.length > 80) return cb({ error: 'Escreve o teu nome completo.' });
     const T = norm(name).split(' ').filter(Boolean);
     if (!T.length) return cb({ error: 'Escreve o teu nome completo.' });
-    const found = session.roster.filter(st => matchesStudent(st, T));
+    let found = session.roster.filter(st => matchesStudent(st, T));
     if (found.length === 0) return cb({ notFound: true });
-    if (found.length > 1) return cb({ error: 'Escreve o teu nome completo (nome e apelidos).' });
+    // vários servem (ex.: "Rui" e "Rui Santos" na turma e escreveu "Rui Santos"): fica o mais específico,
+    // ou seja, o que usa mais palavras do nome escrito; o nome exatamente igual ganha sempre
+    if (found.length > 1) {
+      const typed = T.join(' ');
+      const score = st => (norm(st.name) === typed ? 100 : 0) + (st.key || [0]).length;
+      const best = Math.max(...found.map(score));
+      found = found.filter(st => score(st) === best);
+    }
+    if (found.length > 1) return cb({ error: 'Há mais do que uma pessoa com esse nome. Escreve o teu nome completo (nome e apelidos).' });
     const st = found[0];
-    if (session.players[st.id]) return cb({ error: `${st.short} já entrou noutro dispositivo. Se mudaste de telemóvel, pede ao formador o código de reentrada.` });
+    if (session.players[st.id]) {
+      // já entrou alguém com este nome: pode ser outra pessoa com o mesmo primeiro nome
+      const homonyms = session.roster.some(o => o !== st && norm(o.name).split(' ')[0] === T[0]);
+      return cb({ taken: true, error: T.length === 1 || (homonyms && T.join(' ') !== norm(st.name))
+        ? `Já entrou um "${st.short}". Se não és tu, escreve mais alguma coisa do teu nome (por exemplo, o apelido). Se és tu e mudaste de telemóvel, pede ao formador o código de reentrada.`
+        : `${st.short} já entrou noutro dispositivo. Se mudaste de telemóvel, pede ao formador o código de reentrada.` });
+    }
     attach(newPlayer(st), cb);
   });
 

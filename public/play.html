@@ -18,6 +18,7 @@
   .search { width: 100%; padding: 14px 16px; border-radius: 14px; border: 0; font-size: 1.05em; margin: 10px 0 14px; }
   .code-in { text-align: center; font-size: 1.8em; letter-spacing: .25em; text-transform: uppercase; font-weight: 700; }
   .middle p { margin: 0; }
+  .join-err { background: #fff3cd; color: #7a4b00; border-radius: 12px; padding: 10px 14px; margin: -6px 0 12px !important; text-align: left; font-weight: 600; line-height: 1.35; }
   .ph-demo { height: 150px; display: grid; place-items: end center; }
   .ph-demo.small .dancer { --s: .7; }
   .ph-demo.small { height: 115px; }
@@ -134,7 +135,11 @@ socket.on('reload', () => { state = null; joinStep = { kind: 'form' }; store(nul
 socket.on('released', () => { state = null; store(null); joinStep = { kind: 'form' }; toast('O formador libertou o teu lugar. Para voltar, usa o código de reentrada que ele te der.', 6000); render(); });
 
 function joined(res) {
-  if (res.error) { toast(res.error, 5000); lastKey = ''; render(); return; }
+  if (res.error) {
+    // no formulário do nome, a explicação fica escrita por baixo do campo (não desaparece)
+    if (joinStep.kind === 'form' && !(state && state.me)) { joinStep = { kind: 'form', msg: res.error }; lastKey = ''; render(); setTimeout(() => { const n = $('#nm'); if (n) { n.focus(); n.select(); } }, 60); return; }
+    toast(res.error, 5000); lastKey = ''; render(); return;
+  }
   store({ sessionId: res.sessionId, studentId: res.studentId, token: res.token });
   joinStep = { kind: 'form' };
   Sound.play('pop');
@@ -202,10 +207,11 @@ function render() {
       $('#anonGo').onclick = () => { Sound.init(); socket.emit('player:join', { name: '' }, joined); };
     });
   }
-  set('form', logo() + `<form class="middle" id="joinForm" autocomplete="off">
-      <div class="big-emoji wiggle">👋</div>
+  set('form' + (joinStep.msg || ''), logo() + `<form class="middle" id="joinForm" autocomplete="off">
+      ${joinStep.msg ? '' : '<div class="big-emoji wiggle">👋</div>'}
       <h1 style="font-size:1.6em">Escreve o teu nome completo</h1>
       <input class="search" id="nm" name="nome" placeholder="Nome completo" maxlength="80" autocapitalize="words" enterkeyhint="go" required value="${esc(typed)}">
+      ${joinStep.msg ? `<p class="join-err" role="alert">⚠️ ${esc(joinStep.msg)}</p>` : ''}
       <button class="btn primary" style="width:100%;font-size:1.15em">Entrar 🚀</button>
       <button type="button" class="btn ghost" id="rj" style="font-size:.9em">Mudei de telemóvel: tenho um código de reentrada</button>
     </form>`, () => {

@@ -70,6 +70,9 @@ Segurança:
 
 **📋 Lista de soluções:** em Questionários, o botão **📋 Soluções** de cada questionário mostra todas as perguntas com a resposta correta **destacada a verde**: todas as opções (a correta marcada), a frase completa nos espaços, a resposta de referência das respostas livres e a escala 1–5 com as legendas. Podes **imprimir / guardar PDF** ou descarregar em **Word** (A4 vertical).
 
+> **Nomes parecidos.** Se na turma houver um "Rui" e um "Rui Santos", quem escreve "Rui Santos" entra sempre como Rui Santos (ganha o nome mais completo). Se alguém escrever só "Rui" (maiúsculas e acentos não contam) e já tiver entrado um Rui, o telemóvel explica, por baixo do campo, que já entrou um "Rui" e pede para escrever mais alguma coisa do nome (o apelido) — ou, se for o próprio e mudou de telemóvel, para pedir o código de reentrada.
+
+
 ## 4. Durante a sessão
 **🎮 Jogo**: escolhe o curso, o questionário e os alunos e clica em **Abrir sala**. Aparece o QR code.
 Cada sala aberta tem um **código único** (ex.: `K7P4QX`), que vai dentro do QR code e aparece por baixo dele. Sem o código certo não se entra, e o código de uma sessão anterior deixa de funcionar.
