@@ -192,6 +192,26 @@
   .v-who { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
   .v-answer { background: #f6f3fb; border-radius: 14px; padding: 18px; font-size: 1.4em; font-weight: 600; white-space: pre-wrap; word-break: break-word; }
   .v-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; } .v-btns .btn { font-size: 1.2em; padding: 14px; }
+  /* ----- Feedback anónimo ----- */
+  .fb-warn { background: #fef9c3; color: #854d0e; border-radius: 10px; padding: 8px 12px; margin: 10px 0 0; }
+  .fb-share-body { display: flex; gap: 32px; align-items: center; justify-content: center; flex-wrap: wrap; padding: 16px 0 4px; }
+  .fb-qr { width: min(62vh, 82vw, 440px); aspect-ratio: 1; background: #fff; border-radius: 16px; padding: 10px; border: 2px solid #eee; }
+  .fb-share-info { display: flex; flex-direction: column; gap: 14px; align-items: center; text-align: center; max-width: 420px; }
+  .fb-step { font-size: 1.3em; margin: 0; overflow-wrap: anywhere; }
+  .fb-code { font-size: 3em; font-weight: 800; letter-spacing: .2em; background: #f1edf8; border-radius: 16px; padding: 6px 22px; }
+  .fb-count { display: flex; flex-direction: column; align-items: center; } .fb-count span { font-size: 3.4em; font-weight: 800; color: var(--d); line-height: 1; }
+  .fb-kpis { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+  .fb-kpis div { background: #f1edf8; border-radius: 14px; padding: 10px 18px; display: flex; flex-direction: column; } .fb-kpis b { font-size: 2em; color: var(--d); line-height: 1.1; } .fb-kpis span { color: var(--muted); font-size: .9em; }
+  .fb-res-q { margin-top: 14px; break-inside: avoid; }
+  .fb-res-t { display: flex; justify-content: space-between; gap: 12px; font-weight: 700; font-size: 1.1em; margin-bottom: 10px; } .fb-res-t small { font-weight: 400; white-space: nowrap; }
+  .fb-avg { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; } .fb-avg b { font-size: 2.4em; color: var(--d); } .fb-stars { color: #f59e0b; font-size: 1.3em; margin-left: 8px; letter-spacing: 2px; }
+  .fb-bars { display: flex; flex-direction: column; gap: 6px; }
+  .fb-bar-row { display: grid; grid-template-columns: minmax(90px, 32%) 1fr 90px; gap: 10px; align-items: center; }
+  .fb-bl { overflow-wrap: anywhere; } .fb-bn { text-align: right; white-space: nowrap; color: var(--muted); } .fb-bn b { color: var(--ink); }
+  .fb-bt { height: 18px; background: #f1edf8; border-radius: 99px; overflow: hidden; } .fb-bt i { display: block; height: 100%; background: var(--d); border-radius: 99px; min-width: 2px; }
+  .fb-bt i.s5 { background: #16a34a; } .fb-bt i.s4 { background: #65a30d; } .fb-bt i.s3 { background: #eab308; } .fb-bt i.s2 { background: #f97316; } .fb-bt i.s1 { background: #dc2626; }
+  .fb-comments { display: flex; flex-direction: column; gap: 8px; } .fb-comment { background: #f6f3fb; border-radius: 12px; padding: 10px 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  @media (max-width: 600px) { .fb-bar-row { grid-template-columns: 1fr 70px; } .fb-bt { grid-column: 1 / -1; grid-row: 2; } .fb-item { flex-wrap: wrap; } }
   @media print {
     .page-break { height: 0; margin: 0; background: none; break-after: page; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -222,17 +242,20 @@
     <button data-tab="students">👥 Alunos</button>
     <button data-tab="quizzes">📝 Questionários</button>
     <button data-tab="results">📊 Resultados</button>
+    <button data-tab="feedback">💬 Feedback</button>
   </nav>
   <section id="tab-game"></section>
   <section id="tab-students" class="wrap hidden"></section>
   <section id="tab-quizzes" class="wrap hidden"></section>
   <section id="tab-results" class="wrap hidden"></section>
+  <section id="tab-feedback" class="wrap hidden"></section>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="common.js"></script>
 <script src="qtypes.js"></script>
 <script src="sound.js"></script>
+<script src="feedback-admin.js"></script>
 <script>
 let PW = sessionStorage.getItem('aq_pw') || '';
 let socket = null, S = null; // estado do servidor
@@ -278,10 +301,11 @@ async function start() {
 function showTab(t) {
   tab = t;
   $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
-  ['game', 'students', 'quizzes', 'results'].forEach(x => $('#tab-' + x).classList.toggle('hidden', x !== t));
+  ['game', 'students', 'quizzes', 'results', 'feedback'].forEach(x => $('#tab-' + x).classList.toggle('hidden', x !== t));
   if (t === 'students') renderStudents();
   if (t === 'quizzes') renderQuizzes();
   if (t === 'results') renderResultsList();
+  if (t === 'feedback') { fbView = { kind: 'list' }; renderFeedback(); }
   if (t === 'game') renderGame(true);
 }
 

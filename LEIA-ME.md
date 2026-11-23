@@ -164,6 +164,23 @@ O indicador não aparece nas fichas, no Excel nem aos formandos.
 As respostas são gravadas no disco a cada resposta (`data/results/`), por isso nada se perde se o servidor for abaixo.
 Os alunos, fotografias e questionários ficam em `data/`. **Faz cópia desta pasta** e apaga-a no fim da formação se não precisares dos dados pessoais (fotografias).
 
+## 5b. Feedback anónimo da formação (separador 💬 Feedback)
+
+Um formulário simples para avaliar a formação, **à parte dos quizzes**: sem tempo, sem jogo, sem ranking e **completamente anónimo**.
+
+1. **💬 Feedback → + Novo (modelo de satisfação)** cria um questionário já preenchido (avaliação geral, utilidade, formador, duração, sala, ritmo, recomendação e dois comentários livres). Ajusta, apaga ou acrescenta perguntas e carrega em **Guardar**.
+   - Tipos de pergunta: escala de 1 a 5 (com legenda para o 1 e o 5), verdadeiro/falso, escolher uma opção, escolher várias e resposta livre.
+   - Cada pergunta pode ser obrigatória ou opcional.
+2. **Abrir e mostrar QR**: os formandos leem o QR code (ou abrem o link / escrevem o código de 5 letras) e respondem ao seu ritmo, no telemóvel. A contagem de respostas sobe no teu ecrã em tempo real.
+   - Se fecharem a página a meio, as respostas ficam guardadas no telemóvel até enviarem.
+   - Depois de enviar, o telemóvel mostra "Já respondeste" (num telemóvel partilhado há um botão para outra pessoa responder).
+3. **⏹ Fechar respostas** quando terminar. Podes voltar a abrir mais tarde.
+4. **📊 Resultados**: média geral, média de cada escala com gráfico de 1 a 5, percentagens das opções e a lista de comentários. Exporta para **Excel (CSV)** ou **Imprimir / PDF**.
+
+**Anonimato:** não se pede nome nem fotografia, e não se guarda IP, dispositivo nem hora de envio. As respostas e os comentários aparecem por ordem aleatória, para não dar para adivinhar quem respondeu pela ordem de chegada. Com menos de 3 respostas aparece um aviso, porque aí pode ser fácil adivinhar.
+
+Depois de haver respostas, só podes corrigir os textos; para mudar perguntas usa **Duplicar** (assim os resultados nunca ficam misturados).
+
 ## 6. Pôr acessível pela internet
 Se os alunos estiverem na mesma rede Wi-Fi do teu computador, basta usar o endereço "Na rede" que aparece ao arrancar.
 Para outra rede (ex.: dados móveis), usa um túnel. Por exemplo, com o Cloudflare (gratuito, não precisa de conta):

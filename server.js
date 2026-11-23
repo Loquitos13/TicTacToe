@@ -420,6 +420,9 @@ function auth(req, res, next) {
   setTimeout(() => res.status(401).json({ error: 'Palavra-passe do formador inválida' }), FAIL_DELAY_MS);
 }
 
+// Questionários de feedback anónimos (módulo à parte)
+require('./feedback')(app, { auth, DATA_DIR });
+
 app.post('/api/login', (req, res) => {
   const ok = pwOk(req.body && req.body.password);
   if (ok) return res.json({ ok });
