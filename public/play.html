@@ -18,6 +18,13 @@
   .search { width: 100%; padding: 14px 16px; border-radius: 14px; border: 0; font-size: 1.05em; margin: 10px 0 14px; }
   .code-in { text-align: center; font-size: 1.8em; letter-spacing: .25em; text-transform: uppercase; font-weight: 700; }
   .middle p { margin: 0; }
+  .cloud-in { display: flex; flex-direction: column; gap: 0; margin-top: 6px; } .cloud-in .search { margin: 0 0 10px; }
+  .rank-list { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+  .rank-item { display: flex; align-items: center; gap: 10px; color: #fff; border-radius: 16px; padding: 12px 14px; min-height: 58px; font-weight: 600; font-size: 1.05em; text-align: left; box-shadow: 0 5px 0 rgba(0,0,0,.25); opacity: .92; overflow-wrap: anywhere; }
+  .rank-item.on { opacity: 1; box-shadow: 0 0 0 3px #fff, 0 5px 0 rgba(0,0,0,.25); }
+  .rank-n { flex: none; width: 2.2em; height: 2.2em; border-radius: 50%; background: rgba(255,255,255,.25); display: grid; place-items: center; font-weight: 800; }
+  .rank-item.on .rank-n { background: #fff; color: var(--ink); }
+  .rank-t { flex: 1; min-width: 0; }
   .join-err { background: #fff3cd; color: #7a4b00; border-radius: 12px; padding: 10px 14px; margin: -6px 0 12px !important; text-align: left; font-weight: 600; line-height: 1.35; }
   .ph-demo { height: 150px; display: grid; place-items: end center; }
   .ph-demo.small .dancer { --s: .7; }
@@ -275,12 +282,13 @@ function renderGameInner() {
     if (state.answered) {
       const revealLater = (s.settings.revealMode || 'each') !== 'each';
       const t = q.type || 'mc', mineV = t === 'mc' || t === 'tf' ? state.myOption : state.myValue;
-      return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">${revealLater || t === 'scale' ? '✅' : '🤞'}</div><h1>Resposta enviada!</h1>
+      return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">${revealLater || isOpinion(q) ? '✅' : '🤞'}</div><h1>Resposta enviada!</h1>
         ${t === 'mc' || t === 'tf' ? `<div class="ans opt-${state.myOption}" style="min-height:auto;width:100%"><span class="letter">${LETTERS[state.myOption]}</span>${esc(q.options[state.myOption] || '')}</div>` : `<div class="correct-box" style="width:100%">${answerSummary(q, mineV)}</div>`}
-        <p>${revealLater || t === 'scale' || t === 'open' ? 'Aguarda a próxima pergunta' : 'Vamos ver se acertaste'}<span class="dots"></span></p></div>`);
+        <p>${revealLater || isOpinion(q) || t === 'open' ? 'Aguarda a próxima pergunta' : 'Vamos ver se acertaste'}<span class="dots"></span></p></div>`);
     }
     const w = answerWidget(q, null, false), t = q.type || 'mc';
-    const hint = { mc: '👆 Escolhe a tua resposta', tf: '👆 Verdadeiro ou falso?', scale: '👆 Escolhe de 1 a 5', fill: '✏️ Completa os espaços', open: '✍️ Escreve a tua resposta' }[t];
+    const hint = { mc: '👆 Escolhe a tua resposta', tf: '👆 Verdadeiro ou falso?', scale: '👆 Escolhe de 1 a 5', fill: '✏️ Completa os espaços', open: '✍️ Escreve a tua resposta',
+      cloud: `☁️ Escreve até ${q.words || 3} palavra${(q.words || 3) > 1 ? 's' : ''}`, rank: '🔢 Toca nas opções pela ordem: 1º, 2º, 3º…' }[t];
     set('q' + s.qIndex, header() + qmeta() + `${q.hidden ? onScreenNote : t === 'fill' && q.parts ? '' : `<div class="qtext slide-up">${esc(q.text)}</div>`}${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
       ${timedMode ? '<div class="timebar"><div id="tb"></div></div>' : `<p class="center" style="margin:10px 0;opacity:.85">${hint}</p>`}
       ${w.html}`, () => {
@@ -309,31 +317,32 @@ function renderGameInner() {
     return set('rv-hidden' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="result none pop-in">
       <div class="big-emoji">${state.answered ? '📨' : '😴'}</div>
       <h2>${state.answered ? 'Resposta registada' : 'Sem resposta'}</h2>
-      ${state.answered ? `<div class="correct-box">A tua resposta: ${optLabel(state.question.options, state.myOption)}</div>` : ''}
+      ${state.answered ? `<div class="correct-box">A tua resposta: ${state.myOption != null ? optLabel(state.question.options, state.myOption) : answerSummary(state.question, state.myValue)}</div>` : ''}
       <p style="margin-top:12px">${atEnd ? 'As respostas corretas são mostradas no fim do quiz. 🤫' : 'Nesta avaliação as respostas corretas não são mostradas.'}</p>
       </div><p>Aguarda a próxima pergunta<span class="dots"></span></p></div>`);
   }
   if ((ph === 'reveal' || ph === 'leaderboard') && state.answered && (state.graded === false || state.wasCorrect == null)) {
     // escala (opinião) ou resposta livre por avaliar: não há certo/errado agora
-    const q = state.question, sc = (q.type || 'mc') === 'scale';
+    const q = state.question, sc = isOpinion(q);
     set('rev-neutral' + s.qIndex + ph, header() + qmeta() + `<div class="middle"><div class="result none pop-in">
-      <div class="big-emoji">${sc ? '⭐' : '📝'}</div><h2>${sc ? 'Obrigado pela tua opinião!' : 'Resposta registada'}</h2>
+      <div class="big-emoji">${q.type === 'cloud' ? '☁️' : q.type === 'rank' ? '🔢' : sc ? '⭐' : '📝'}</div><h2>${sc ? 'Obrigado pela tua opinião!' : 'Resposta registada'}</h2>
       <div class="correct-box">${answerSummary(q, state.myValue)}</div>
       ${sc ? '' : '<p style="margin-top:10px">O formador vai avaliar a tua resposta.</p>'}</div>${ph === 'leaderboard' ? rankBox() : ''}</div>`);
     return;
   }
   if (ph === 'reveal' || ph === 'leaderboard') {
     const q = state.question, t = q.type || 'mc';
-    const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : (t === 'fill' && state.right) ? 'part' : 'bad';
+    const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : ((t === 'fill' || t === 'rank') && state.right) ? 'part' : 'bad';
     const sol = state.solution || {};
     const solHtml = t === 'fill' ? `Palavras certas:<br>${(sol.blanks || []).map((w, i) => `${i + 1}. ${esc(w)}`).join('<br>')}`
       : t === 'open' ? `Resposta modelo:<br>${(sol.accepted || []).map(esc).join(' · ')}`
+      : t === 'rank' ? `Ordem certa:<br>${(sol.order || []).map((o, k) => `${k + 1}. ${esc(o)}`).join('<br>')}`
       : `Resposta correta:<br>${(state.correct || []).map(i => optLabel(q.options, i)).join('<br>')}`;
     const key = 'rev' + s.qIndex + ph;
     const isNew = !lastKey.startsWith('rev' + s.qIndex);
     set(key, header() + qmeta() + `<div class="middle"><div class="result ${cls} ${isNew ? (state.wasCorrect ? 'pop-in' : 'shake') : ''}">
       <div class="big-emoji">${!state.answered ? '😴' : state.wasCorrect ? '🎉' : '😅'}</div>
-      <h2>${!state.answered ? 'Sem resposta' : state.wasCorrect ? 'Certo!' : t === 'fill' && state.right ? `${state.right} de ${q.blanks} certas` : 'Errado'}</h2>
+      <h2>${!state.answered ? 'Sem resposta' : state.wasCorrect ? 'Certo!' : t === 'fill' && state.right ? `${state.right} de ${q.blanks} certas` : t === 'rank' && state.right ? `${state.right} de ${q.items.length} no lugar certo` : 'Errado'}</h2>
       ${state.points ? `<div style="font-size:1.5em;font-weight:700">+${state.points} pontos</div>` : ''}
       ${!state.wasCorrect ? `<div class="correct-box">${solHtml}</div>` : ''}
       </div>${ph === 'leaderboard' ? rankBox() : ''}</div>`);
@@ -352,7 +361,7 @@ function renderGameInner() {
         ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
       ${state.review ? `<h2 style="margin:10px 0 0">As respostas corretas</h2><div class="review">${state.review.map((r, i) => `
         <div class="rv-item ${r.mine == null ? 'none' : r.ok === true ? 'ok' : r.ok === false ? 'bad' : 'none'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
-          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
+          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'cloud' ? '☁️ Nuvem de palavras' : r.type === 'rank' ? ((r.solution.order || []).length ? '✅ ' + r.solution.order.map((o, k) => `${k + 1}. ${esc(o)}`).join(' · ') : '🔢 Ranking de opinião') : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
           <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${r.type === 'mc' || r.type === 'tf' || !r.type ? optLabel(r.options, r.mine) : esc(r.mineText || '')} ${r.ok === true ? '✓' : r.ok === false ? '✗' : ''}`}</div></div>`).join('')}</div>` : ''}
       ${(!state.review || !state.review.some(r => r.graded || r.ok != null)) && m.score == null ? `<div class="result none" style="margin-top:6px"><div class="big-emoji">📨</div><h2>Respostas enviadas!</h2>
         <p>Respondeste a ${state.answeredCount ?? 0} de ${s.total} perguntas. As tuas respostas foram registadas.</p></div>` : ''}
@@ -543,6 +552,7 @@ function renderExam() {
   exClockStart();
 }
 
+const isOpinion = q => { const t = (q && q.type) || 'mc'; return t === 'scale' || t === 'cloud' || (t === 'rank' && !q.ordered); };
 const optLabel = (opts, i) => opts && opts[i] ? `${LETTERS[i]}) ${esc(opts[i])}` : LETTERS[i];
 const onScreenNote = `<div class="on-screen pop-in">👀 A pergunta e as opções estão no <b>ecrã do formador</b>.<br>Responde aqui com a letra.</div>`;
 
@@ -571,6 +581,43 @@ function answerWidget(q, cur, exam) {
       ${q.scaleMin || q.scaleMax ? `<div class="scale-labels"><span>1 = ${esc(q.scaleMin)}</span><span>5 = ${esc(q.scaleMax)}</span></div>` : ''}`,
     bind: on => $$('.scale-btns .ans').forEach(b => b.onclick = () => on(+b.dataset.v, b)),
   };
+  if (t === 'cloud') {
+    const n = q.words || 3, vals = Array.isArray(cur) ? cur : [];
+    return {
+      html: `<div class="cloud-in">${Array.from({ length: n }, (_, i) => `<input class="search cloud-w" maxlength="30" autocomplete="off" autocapitalize="none" enterkeyhint="${i < n - 1 ? 'next' : 'send'}" placeholder="${n > 1 ? `Palavra ${i + 1}${i ? ' (opcional)' : ''}` : 'A tua palavra'}" value="${esc(vals[i] || '')}">`).join('')}</div>
+        <button class="btn primary" id="cloudSend" style="width:100%;margin-top:4px">${exam ? '💾 Guardar resposta' : '☁️ Enviar'}</button>`,
+      bind: on => {
+        const ins = $$('.cloud-w');
+        ins.forEach((el, i) => el.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); if (ins[i + 1]) ins[i + 1].focus(); else $('#cloudSend').click(); } });
+        $('#cloudSend').onclick = () => { const w = ins.map(x => x.value.trim()).filter(Boolean); if (!w.length) return toast('Escreve pelo menos uma palavra.'); on(w, $('#cloudSend')); };
+      },
+    };
+  }
+  if (t === 'rank') {
+    // toca nas opções pela ordem; tocar numa já numerada tira-a (e as seguintes sobem)
+    let order = Array.isArray(cur) ? cur.slice() : [];
+    const items = q.items || [];
+    const html = () => items.map((it, k) => { const pos = order.indexOf(it.i);
+      return `<button class="rank-item opt-${k % 6} ${pos >= 0 ? 'on' : ''}" data-i="${it.i}"><span class="rank-n">${pos >= 0 ? pos + 1 + 'º' : ''}</span><span class="letter">${it.letter}</span><span class="rank-t">${esc(it.text)}</span></button>`; }).join('');
+    return {
+      html: `<div class="rank-list" id="rankList">${html()}</div>
+        <div class="row" style="margin-top:10px;flex-wrap:nowrap"><button class="btn ghost" id="rankReset" style="flex:none">↺ Limpar</button>
+        <button class="btn primary" id="rankSend" style="flex:1" ${order.length === items.length ? '' : 'disabled'}>${exam ? '💾 Guardar ordem' : '📨 Enviar ordem'}</button></div>`,
+      bind: on => {
+        const refresh = () => { $('#rankList').innerHTML = html(); bindItems(); $('#rankSend').disabled = order.length !== items.length; };
+        const bindItems = () => $$('.rank-item').forEach(b => b.onclick = () => {
+          const i = +b.dataset.i, pos = order.indexOf(i);
+          if (pos >= 0) order.splice(pos, 1); else { order.push(i); Sound.play('pop'); }
+          // falta só uma: entra sozinha em último
+          if (order.length === items.length - 1) order.push(items.find(it => !order.includes(it.i)).i);
+          refresh();
+        });
+        bindItems();
+        $('#rankReset').onclick = () => { order = []; refresh(); };
+        $('#rankSend').onclick = () => on(order.slice(), $('#rankSend'));
+      },
+    };
+  }
   if (t === 'open') return {
     html: `<textarea id="openIn" class="open-in" maxlength="300" rows="4" placeholder="Escreve a tua resposta…">${esc(typeof cur === 'string' ? cur : '')}</textarea>
       <button class="btn primary" id="openSend" style="width:100%;margin-top:10px">${exam ? '💾 Guardar resposta' : '📨 Enviar resposta'}</button>`,
@@ -623,6 +670,8 @@ function answerSummary(q, v) {
   if (t === 'scale') return `⭐ ${v} de 5`;
   if (t === 'fill') return (v || []).join(' · ');
   if (t === 'open') return `“${esc(v)}”`;
+  if (t === 'cloud') return '☁️ ' + (v || []).map(esc).join(' · ');
+  if (t === 'rank') { const txt = i => { const it = (q.items || []).find(x => x.i === i); return it ? (it.text ? esc(it.text) : it.letter) : '?'; }; return `<div style="text-align:left">${(v || []).map((i, k) => `${k + 1}º ${txt(i)}`).join('<br>')}</div>`; }
   return optLabel(q.options, v);
 }
 

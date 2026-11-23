@@ -125,6 +125,18 @@ function hostView() {
   if (qt === 'fill') extra.fillStats = q.blanks.map((w, b) => ({ word: w, right: Object.values(ans).filter(a => Q.norm((a.value || [])[b]) === Q.norm(w)).length }));
   if (qt === 'open') { const m = new Map(); Object.values(ans).forEach(a => { const k = Q.norm(a.value); const e = m.get(k) || { text: a.value, count: 0, correct: a.correct }; e.count++; m.set(k, e); }); extra.openAnswers = [...m.values()].sort((a, b) => b.count - a.count).slice(0, 40); }
   if (qt === 'scale') { const vals = Object.values(ans).map(a => a.value); extra.scaleAvg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null; }
+  // nuvem: cada palavra (sem contar maiúsculas/acentos) com o nº de pessoas que a escreveram
+  if (qt === 'cloud') { const m = new Map(); Object.values(ans).forEach(a => (a.value || []).forEach(w => { const k = Q.norm(w); const e = m.get(k) || { text: w, count: 0 }; e.count++; m.set(k, e); })); extra.cloud = [...m.values()].sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, 'pt')).slice(0, 80); }
+  // ranking: posição média de cada opção (1 = primeiro lugar) e quantos a puseram em 1º
+  if (qt === 'rank') {
+    const list = Object.values(ans);
+    extra.rankOrder = Q.rankOrder(q);
+    extra.rankStats = q.options.map((text, i) => {
+      const pos = list.map(a => (a.value || []).indexOf(i) + 1).filter(Boolean);
+      return { i, text, avg: pos.length ? pos.reduce((x, y) => x + y, 0) / pos.length : null, first: pos.filter(x => x === 1).length };
+    });
+    if (q.ordered) extra.rankPerfect = list.filter(a => a.correct === true).length;
+  }
   const examProgress = isExam() ? Object.fromEntries(Object.values(session.players).map(p => [p.studentId, {
     answered: session.questions.filter((_, i) => (session.answers[i] || {})[p.studentId]).length,
     submitted: !!(session.submitted || {})[p.studentId],
@@ -359,7 +371,9 @@ function advance() {
   // quando as respostas corretas não são mostradas aos formandos, depois da sondagem segue logo para a próxima
   const skipReveal = (session.settings.revealMode || 'each') !== 'each';
   if (ph === 'closed' && !skipReveal) return setPhase('reveal');
-  if (ph === 'reveal' && session.settings.rankEach) return setPhase('leaderboard');
+  // pergunta de opinião (escala, nuvem, ranking sem ordem certa): ninguém ganha pontos, por isso não há Top 5
+  const opinion = (q => !Q.isGraded(q) && Q.typeOf(q) !== 'open')(currentQ());
+  if (ph === 'reveal' && session.settings.rankEach && !opinion) return setPhase('leaderboard');
   if (ph === 'reveal' || ph === 'leaderboard' || (ph === 'closed' && skipReveal)) {
     if (session.qIndex + 1 < session.questions.length) return startQuestion(session.qIndex + 1);
     session.endedAt = Date.now();
@@ -564,7 +578,7 @@ function participants(r) {
 }
 const answerText = (q, a) => a == null ? '' : Q.answerText(q, a);
 const correctText = q => Q.correctText(q);
-const okText = (q, a) => Q.typeOf(q) === 'scale' ? '—' : a.correct === true ? 'Sim' : a.correct === false ? 'Não' : 'Por avaliar';
+const okText = (q, a) => (!Q.isGraded(q) && Q.typeOf(q) !== 'open') ? '—' : a.correct === true ? 'Sim' : a.correct === false ? 'Não' : 'Por avaliar';
 
 app.get('/api/results/:id/csv', auth, (req, res) => {
   const f = resultFile(path.basename(req.params.id));
@@ -596,7 +610,7 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
     rows = [['Curso', 'Questionário', 'Nº', 'Pergunta', 'Opções', 'Resposta correta', 'Aluno', 'Resposta dada', 'Correta?', 'Tempo (s)', 'Pontos']];
     r.questions.forEach((q, i) => {
       const t = Q.typeOf(q);
-      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'scale' ? 'Escala 1–5' : 'Resposta livre';
+      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'cloud' ? 'Nuvem de palavras' : t === 'rank' ? 'Ordenar: ' + q.options.join(' | ') : t === 'scale' ? 'Escala 1–5' : 'Resposta livre';
       for (const p of people) {
         const a = (r.answers[i] || {})[p.id];
         let given, ok = '';

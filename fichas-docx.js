@@ -28,11 +28,11 @@ function studentBlock(r, p, ctx) {
     let res, color;
     if (!asked) { res = 'Não feita'; color = '777777'; }
     else if (!a) { res = joined.has(p.id) ? 'Sem resposta' : 'Ausente'; color = '777777'; }
-    else if (t === 'scale') { res = 'Opinião'; color = '555555'; }
+    else if (t === 'scale' || t === 'cloud' || (t === 'rank' && !q.ordered)) { res = 'Opinião'; color = '555555'; }
     else if (a.correct === true) { res = '✓ Certa'; color = '166534'; }
-    else if (a.correct === false) { if (t === 'fill' && a.right) { res = `${a.right}/${q.blanks.length} certas`; color = '92400E'; } else { res = '✗ Errada'; color = '991B1B'; } }
+    else if (a.correct === false) { if ((t === 'fill' || t === 'rank') && a.right) { res = `${a.right}/${t === 'fill' ? q.blanks.length : q.options.length} certas`; color = '92400E'; } else { res = '✗ Errada'; color = '991B1B'; } }
     else { res = 'Por validar'; color = '854D0E'; }
-    const qsub = t === 'mc' || t === 'tf' ? 'Opções: ' + q.options.join(' · ') : { fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5' }[t];
+    const qsub = t === 'mc' || t === 'tf' ? 'Opções: ' + q.options.join(' · ') : { fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5', cloud: 'Nuvem de palavras', rank: 'Ranking de opções' + (q.ordered ? ' (ordem certa)' : ' (opinião)') }[t];
     return new TableRow({ cantSplit: true, children: [
       cell(String(i + 1), { width: COLS[0], align: AlignmentType.CENTER }),
       cell([{ text: Q.displayText(q), bold: true }, { text: qsub, size: 15, color: '666666', break: 1 }], { width: COLS[1] }),
@@ -91,7 +91,7 @@ function para(runs, o = {}) { return new Paragraph({ children: runs, spacing: { 
 
 function keyBlock(q, i) {
   const t = Q.typeOf(q), out = [];
-  const label = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5' }[t];
+  const label = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5', cloud: 'Nuvem de palavras', rank: 'Ranking de opções' }[t];
   out.push(para([run(`${i + 1}. `, { bold: true, size: 23 }), run(Q.displayText(q), { bold: true, size: 23 })], { before: 200, after: 40, keepNext: true }));
   out.push(para([run(`${label} · ${q.time} s`, { size: 17, color: '777777' })], { after: 80, keepNext: true }));
   if (t === 'mc' || t === 'tf') {
@@ -107,6 +107,16 @@ function keyBlock(q, i) {
     if ((q.accepted || []).length) out.push(para([run('Resposta de referência: ', { bold: true, color: GREEN }), run(q.accepted.join(' / '), { bold: true, color: GREEN, bg: GREEN_BG })], { indent: 360 }));
     else out.push(para([run('⚠ Sem resposta de referência — edita a pergunta para a acrescentar.', { bold: true, color: '991B1B' })], { indent: 360 }));
     out.push(para([run('Validada pelo formador, resposta a resposta.', { size: 17, color: '777777', italics: true })], { indent: 360 }));
+  } else if (t === 'cloud') {
+    out.push(para([run(`Cada formando escreve até ${q.words || 3} palavra(s). Nuvem de palavras: não tem resposta certa.`, { size: 18, color: '555555', italics: true })], { indent: 360 }));
+  } else if (t === 'rank') {
+    if (q.ordered) {
+      out.push(para([run('Ordem correta:', { bold: true, color: GREEN })], { indent: 360, after: 30 }));
+      q.options.forEach((o, k) => out.push(para([run(`${k + 1}.  `, { bold: true, color: GREEN }), run(o, { bold: true, color: GREEN, bg: GREEN_BG })], { indent: 540, after: 20 })));
+    } else {
+      q.options.forEach(o => out.push(para([run('•  '), run(o)], { indent: 540, after: 20 })));
+      out.push(para([run('Ranking de opinião: não tem ordem certa (resultado = posição média de cada opção).', { size: 17, color: '777777', italics: true })], { indent: 360 }));
+    }
   } else {
     out.push(para([1, 2, 3, 4, 5].map(n => run(`  ${n}  `, { bold: true, bg: 'EDE9FE' })).flatMap((r, k) => k ? [run('  '), r] : [r]), { indent: 360 }));
     if (q.scaleMin || q.scaleMax) out.push(para([run(`1 = ${q.scaleMin || '—'}     ·     5 = ${q.scaleMax || '—'}`, { size: 18, color: '555555' })], { indent: 360 }));
