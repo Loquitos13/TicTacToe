@@ -43,7 +43,12 @@
   .joined { display: flex; flex-wrap: wrap; gap: 18px; align-content: flex-start; }
   .joined .p { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 110px; text-align: center; font-weight: 600; line-height: 1.1; }
   .joined .p.off { opacity: .35; }
-  .joined.many { gap: 10px; } .joined.many .p { width: 84px; font-size: .9em; } .joined.many .avatar.lg { width: 56px; height: 56px; font-size: 1.3em; }
+  /* turmas grandes: cartões compactos para caberem todos num projetor de 1024x768 */
+  .joined.many { gap: 6px 8px; } .joined.many .p { width: 64px; font-size: .78em; gap: 3px; } .joined.many .avatar.lg { width: 44px; height: 44px; font-size: 1em; border-width: 2px; }
+  .joined.many .p span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .teams-lobby.many .tl-cols { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
+  .teams-lobby.many .tl-col { padding: 6px; gap: 3px; } .teams-lobby.many .tl-head { font-size: .9em; white-space: nowrap; gap: 4px; }
+  .teams-lobby.many .tl-p { min-height: 0; padding: 2px 6px; gap: 5px; font-size: .85em; border-radius: 8px; } .teams-lobby.many .tl-p .avatar.sm { width: 22px; height: 22px; font-size: .6em; border-width: 1px; }
   .count-big { font-size: 3.2em; font-weight: 700; }
   .question-title { background: #fff; color: var(--ink); border-radius: 24px; padding: 26px 30px; font-size: clamp(1.6em, 3.4vw, 3em); font-weight: 600; text-align: center; margin: 14px 0; line-height: 1.2; overflow-wrap: anywhere; }
   .question-title.long { font-size: clamp(1.3em, 2.4vw, 2.2em); padding: 18px 24px; }
@@ -491,7 +496,7 @@ function lobbyHtml() {
     <div>
       <div class="row"><div class="count-big" id="joinCount">${connectedN()}</div><div style="font-size:1.3em">${S.settings.anonymous ? `participantes<br>anónimos já entraram` : `de <span id="rosterN">${S.roster.length}</span> alunos<br>já entraram`}</div></div>
       ${S.settings.teams ? `<div class="row noprint" style="margin-top:14px"><button class="btn small" id="btnShuffleTeams">🔀 Baralhar equipas</button><span class="muted" style="color:#ddd">Toca num formando para o mudar de equipa.</span></div>
-        <div class="teams-lobby" id="teamsLobby">${teamsLobbyHtml()}</div>` : `<div class="joined ${S.roster.length > 20 ? 'many' : ''}" id="joined" style="margin-top:20px">${joinedHtml()}</div>`}
+        <div class="teams-lobby ${S.roster.length > 20 ? 'many' : ''}" id="teamsLobby">${teamsLobbyHtml()}</div>` : `<div class="joined ${S.roster.length > 20 ? 'many' : ''}" id="joined" style="margin-top:20px">${joinedHtml()}</div>`}
     </div></div>`;
 }
 // sala de espera com equipas: uma coluna por equipa; quem ainda não entrou fica por baixo

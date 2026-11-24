@@ -27,7 +27,7 @@ Se `data/db.json` ficar estragado (ex.: editado à mão com um erro), a app **n�
 
 Segurança:
 - A palavra-passe nunca vai no endereço das páginas (só em cabeçalhos), por isso não fica no histórico do browser.
-- Cada tentativa errada demora 1,5 s a responder, para travar quem tente adivinhar.
+- As tentativas de palavra-passe de cada computador são vistas uma de cada vez, com 1,5 s de espera depois de cada erro (menos de 1 por segundo, mesmo atacando em paralelo). O teu computador nunca fica à espera por causa de outro, por isso ninguém te consegue bloquear.
 - Um pedido forjado (de quem quer que seja) nunca deita o servidor abaixo: recebe "Pedido inválido".
 - No Excel, respostas que começam por `=`, `+`, `-` ou `@` ficam como texto (não viram fórmulas).
 - Os alunos nunca recebem a resposta correta, a pontuação, o nº de certas nem a posição da pergunta em curso antes de mostrares a resposta correta.

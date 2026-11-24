@@ -43,6 +43,26 @@ function pwOk(given) {
 // Tentativas erradas respondem com atraso (trava quem tenta adivinhar). Não há bloqueio,
 // para que um aluno nunca consiga impedir o formador de entrar.
 const FAIL_DELAY_MS = 1500;
+// Palavra-passe: as tentativas de cada origem (computador) são vistas uma de cada vez e cada erro faz esperar
+// 1,5 s antes da seguinte — tentar em paralelo deixa de ajudar. Quem acerta (o formador) não espera, e as
+// tentativas de outro computador nunca atrasam o do formador. Mais de 20 em fila: recusadas sem as ver.
+const pwQueues = new Map();
+const originOf = (ip, cf) => /^(::1|127\.0\.0\.1|::ffff:127\.0\.0\.1)$/.test(ip || '') ? (cf ? 'cf:' + cf : 'local') : ip;
+function pwCheck(origin, password, done) {
+  let q = pwQueues.get(origin);
+  if (!q) pwQueues.set(origin, q = { busy: false, items: [] });
+  if (q.items.length >= 20) return done(null);
+  q.items.push([password, done]);
+  if (!q.busy) pwNext(origin, q);
+}
+function pwNext(origin, q) {
+  const it = q.items.shift();
+  if (!it) { pwQueues.delete(origin); return; }
+  q.busy = true;
+  const ok = pwOk(it[0]);
+  it[1](ok);
+  setTimeout(() => { q.busy = false; pwNext(origin, q); }, ok ? 0 : FAIL_DELAY_MS);
+}
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 [UPLOADS, RESULTS].forEach(d => fs.mkdirSync(d, { recursive: true }));
 
@@ -506,17 +526,16 @@ app.get('/formador', (req, res) => res.redirect('/host.html'));
 
 // Só aceita a palavra-passe no cabeçalho (nunca no endereço, para não ficar no histórico)
 function auth(req, res, next) {
-  if (pwOk(req.get('x-host-password'))) return next();
-  setTimeout(() => res.status(401).json({ error: 'Palavra-passe do formador inválida' }), FAIL_DELAY_MS);
+  pwCheck(originOf(req.ip, req.get('cf-connecting-ip')), req.get('x-host-password'), ok => ok ? next()
+    : res.status(ok === null ? 429 : 401).json({ error: ok === null ? 'Demasiadas tentativas. Espera um pouco.' : 'Palavra-passe do formador inválida' }));
 }
 
 // Questionários de feedback anónimos (módulo à parte)
 require('./feedback')(app, { auth, DATA_DIR });
 
 app.post('/api/login', (req, res) => {
-  const ok = pwOk(req.body && req.body.password);
-  if (ok) return res.json({ ok });
-  setTimeout(() => res.json({ ok }), FAIL_DELAY_MS);
+  pwCheck(originOf(req.ip, req.get('cf-connecting-ip')), req.body && req.body.password, ok =>
+    ok === null ? res.status(429).json({ ok: false, error: 'Demasiadas tentativas. Espera um pouco.' }) : res.json({ ok }));
 });
 
 // Alunos
@@ -777,8 +796,8 @@ io.on('connection', socket => {
     }
   };
 
-  if (role === 'host') {
-    if (!pwOk(socket.handshake.auth.password)) { setTimeout(() => { socket.emit('auth_error'); socket.disconnect(); }, FAIL_DELAY_MS); return; }
+  if (role === 'host') return pwCheck(originOf(socket.handshake.address, socket.handshake.headers['cf-connecting-ip']), socket.handshake.auth.password, ok => {
+    if (!ok) { socket.emit('auth_error'); socket.disconnect(); return; }
     socket.join('hosts');
     socket.emit('state', hostView());
 
@@ -918,8 +937,7 @@ io.on('connection', socket => {
       cb({ rejoin: p.rejoin });
       broadcast();
     }));
-    return;
-  }
+  });
 
   // ----- aluno -----
   // todas as mensagens dos alunos passam pelo guard: um pedido forjado devolve erro em vez de parar o servidor
