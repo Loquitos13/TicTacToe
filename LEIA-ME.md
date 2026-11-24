@@ -244,7 +244,16 @@ Para os alunos entrarem de qualquer rede (ex.: dados móveis), **arranca em modo
 ```bash
 npm run online
 ```
-No Windows também podes dar **duplo clique em `iniciar-online.bat`**: liga tudo e abre o painel do formador.
+No Windows basta **duplo clique em `iniciar-online.bat`**. Este corre o script `iniciar-online.ps1`, que:
+- verifica se há Node.js;
+- instala o `cloudflared` sozinho com o winget, se faltar;
+- faz o `npm install` da primeira vez;
+- liga o servidor e o túnel;
+- abre o painel do formador.
+
+Para desligar, fecha a janela.
+
+Também podes abrir o `.ps1` diretamente: botão direito → **Executar com o PowerShell**. Com duplo clique, o Windows abre-o no Bloco de Notas; é por isso que existe o `.bat`.
 
 Só da primeira vez, instala o `cloudflared` (gratuito, não precisa de conta):
 ```bash
