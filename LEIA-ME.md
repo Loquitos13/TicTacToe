@@ -233,13 +233,20 @@ Um formulário simples para avaliar a formação, **à parte dos quizzes**: sem 
 Depois de haver respostas, só podes corrigir os textos; para mudar perguntas usa **Duplicar** (assim os resultados nunca ficam misturados).
 
 ## 6. Pôr acessível pela internet
-Se os alunos estiverem na mesma rede Wi-Fi do teu computador, basta usar o endereço "Na rede" que aparece ao arrancar.
-Para outra rede (ex.: dados móveis), usa um túnel. Por exemplo, com o Cloudflare (gratuito, não precisa de conta):
+Se os alunos estiverem na mesma rede Wi-Fi do teu computador, o QR code já aponta para o endereço do computador nessa rede.
+
+Para os alunos entrarem de qualquer rede (ex.: dados móveis), **arranca em modo online** — o túnel da Cloudflare liga-se sozinho e o endereço dele vai logo para o QR code:
 ```bash
-cloudflared tunnel --url http://localhost:3000
+npm run online
 ```
-Depois, no ecrã da sala, clica em **Mudar endereço** debaixo do QR code e cola o endereço `https://….trycloudflare.com` para o QR code apontar para lá.
-(Alternativa: `ngrok http 3000`.) Também podes arrancar com `PUBLIC_URL=https://o-teu-endereco npm start`.
+No Windows também podes dar **duplo clique em `iniciar-online.bat`**: liga tudo e abre o painel do formador.
+
+Só da primeira vez, instala o `cloudflared` (gratuito, não precisa de conta):
+```bash
+winget install --id Cloudflare.cloudflared
+```
+O endereço `https://….trycloudflare.com` muda de cada vez que arrancas; a app trata disso (até um endereço antigo guardado é ignorado). Se o `cloudflared` não estiver instalado ou não houver internet, a app avisa e continua a funcionar na rede local.
+A palavra-passe do formador fica em `data/palavra-passe-formador.txt` (gerada no 1.º arranque; podes trocá-la por uma tua, comprida).
 
 ## Som
 A música e os efeitos são gerados pelo próprio browser (sem ficheiros nem direitos de autor). Liga o som do projetor; o botão 🔊 no canto liga/desliga.

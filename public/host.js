@@ -26,7 +26,9 @@ async function start() {
   muteButton();
   [students, quizzes, courses] = await Promise.all([api('GET', '/api/students'), api('GET', '/api/quizzes'), api('GET', '/api/courses')]);
   const info = await api('GET', '/api/joininfo');
-  joinUrl = localStorage.getItem('aq_joinurl') || info.suggestions[0];
+  // o túnel da Cloudflare (npm run online) ganha sempre; um endereço trycloudflare antigo guardado já não serve
+  const saved = localStorage.getItem('aq_joinurl') || '';
+  joinUrl = info.tunnel || (/trycloudflare\.com/.test(saved) ? '' : saved) || info.suggestions[0];
   window._joinSuggestions = info.suggestions;
   socket = io({ auth: { role: 'host', token: PW } });
   socket.on('auth_error', () => { sessionStorage.removeItem('aq_tok'); location.reload(); });
@@ -34,6 +36,8 @@ async function start() {
   socket.on('connect', () => document.body.classList.remove('offline'));
   socket.on('state', st => { const prev = S; S = st.session; onState(prev); });
   socket.on('toast', m => toast(m));
+  // o túnel ficou pronto depois de a página abrir: o QR code passa a usar o endereço da internet
+  socket.on('tunnel', u => { joinUrl = u; window._joinSuggestions = [u, ...window._joinSuggestions.filter(x => x !== u)]; toast('🌍 Online: o QR code já usa ' + u, 5000); if (S && S.phase === 'lobby') renderGame(true); });
   $$('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
   document.addEventListener('keydown', e => {
     if (tab !== 'game' || !S || e.repeat || S.phase === 'exam' || document.querySelector('.dlg') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;

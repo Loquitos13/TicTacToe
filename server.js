@@ -807,10 +807,14 @@ function lanIps() {
 app.get('/api/joininfo', auth, (req, res) => {
   const base = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
   const suggestions = [];
+  if (tunnelUrl) suggestions.push(tunnelUrl);
   if (base) suggestions.push(base);
-  suggestions.push(`${req.protocol}://${req.get('host')}`);
+  // aberto como "localhost": os telemóveis não chegam lá, por isso o endereço da rede Wi-Fi vem primeiro
+  const here = `${req.protocol}://${req.get('host')}`, local = /^https?:\/\/(localhost|127\.)/.test(here);
+  if (!local) suggestions.push(here);
   lanIps().forEach(ip => suggestions.push(`http://${ip}:${PORT}`));
-  res.json({ suggestions: [...new Set(suggestions)] });
+  if (local) suggestions.push(here);
+  res.json({ suggestions: [...new Set(suggestions)], tunnel: tunnelUrl || null });
 });
 app.get('/api/qr', safe(async (req, res) => {
   const url = String(req.query.url || '');
@@ -1208,6 +1212,23 @@ try {
   }
 } catch (e) { console.error('Não foi possível retomar a sessão anterior:', e.message); }
 
+// npm run online: liga também o túnel da Cloudflare e põe o endereço dele no QR code (sem copiar nada à mão)
+let tunnelUrl = '';
+if (process.argv.includes('--online')) {
+  const cf = require('child_process').spawn('cloudflared', ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`], { windowsHide: true });
+  const look = d => {
+    const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(String(d));
+    if (!m || tunnelUrl) return;
+    tunnelUrl = m[0];
+    console.log(`\n  🌍 Online: ${tunnelUrl}   (já está no QR code)\n`);
+    io.to('hosts').emit('tunnel', tunnelUrl);
+  };
+  cf.stdout.on('data', look); cf.stderr.on('data', look);
+  cf.on('error', () => console.error('\n✗ Não encontrei o cloudflared. Instala-o com:  winget install --id Cloudflare.cloudflared\n  (depois fecha e volta a abrir a janela). A app continua a funcionar na rede local.\n'));
+  cf.on('exit', () => { if (tunnelUrl) console.error('✗ O túnel da Cloudflare fechou. Volta a arrancar para ter um endereço novo.'); tunnelUrl = ''; });
+  const stop = () => { cf.kill(); process.exit(0); };
+  process.on('SIGINT', stop); process.on('SIGTERM', stop); process.on('exit', () => cf.kill());
+}
 server.headersTimeout = 15000; server.requestTimeout = 120000;
 server.listen(PORT, () => {
   console.log('\n  🎉 Quiz a correr!');
