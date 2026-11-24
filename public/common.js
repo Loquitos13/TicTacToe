@@ -75,3 +75,5 @@ function dancer(p, move = 'wave', color = '#ffd93d', crown = false) {
       <div class="head">${avatar(p)}</div>
     </div></div>`;
 }
+// botões de imprimir (sem código no HTML, por causa da política de segurança)
+document.addEventListener('click', e => { if (e.target.closest('.js-print')) print(); });

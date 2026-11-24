@@ -29,6 +29,10 @@ Segurança:
 - A palavra-passe nunca vai no endereço das páginas (só em cabeçalhos), por isso não fica no histórico do browser.
 - As tentativas de palavra-passe de cada computador são vistas uma de cada vez, com 1,5 s de espera depois de cada erro (menos de 1 por segundo, mesmo atacando em paralelo). O teu computador nunca fica à espera por causa de outro, por isso ninguém te consegue bloquear.
 - Um pedido forjado (de quem quer que seja) nunca deita o servidor abaixo: recebe "Pedido inválido".
+- **Sessão do formador:** a palavra-passe só é enviada no login; depois o painel usa um código de sessão aleatório que expira em 12 horas (se o servidor reiniciar, voltas a escrever a palavra-passe).
+- **Injeção de código (XSS):** além de todo o texto dos alunos aparecer só como texto, o browser só corre o código dos ficheiros da app (política de segurança de conteúdo); código injetado é recusado e nada pode ser enviado para outros sites. Imagens de perguntas só da própria app (as que carregas no editor).
+- **Quem tenta esgotar o servidor:** cada computador tem limites de pedidos por segundo, de ligações abertas e de mensagens por ligação, folgados para uma turma inteira atrás do mesmo router. Corpos grandes só depois de confirmar o formador; pedidos deixados pendurados de propósito são fechados; fotografias têm de ser mesmo imagens. Testado: com um atacante a fazer 250 mil pedidos, 400 ligações, rajadas de mensagens e pedidos pendurados, uma turma de 30 continuou a responder em ~20 ms.
+- **Ataques em grande escala (DDoS com milhares de computadores)** não se travam dentro de uma app: na rede da sala não há exposição à internet; pela internet, usa o túnel da Cloudflare, que absorve esse tipo de ataque antes de chegar ao teu computador.
 - No Excel, respostas que começam por `=`, `+`, `-` ou `@` ficam como texto (não viram fórmulas).
 - Os alunos nunca recebem a resposta correta, a pontuação, o nº de certas nem a posição da pergunta em curso antes de mostrares a resposta correta.
 

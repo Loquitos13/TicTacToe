@@ -55,6 +55,16 @@ function pwCheck(origin, password, done) {
   q.items.push([password, done]);
   if (!q.busy) pwNext(origin, q);
 }
+// Depois do login o formador usa um token aleatório (12 h). Se for roubado expira; a palavra-passe nunca fica no browser.
+const hostTokens = new Map();
+function newHostToken() {
+  const now = Date.now();
+  for (const [t, exp] of hostTokens) if (exp < now) hostTokens.delete(t);
+  const t = crypto.randomBytes(24).toString('base64url');
+  hostTokens.set(t, now + 12 * 3600e3);
+  return t;
+}
+const tokenOk = t => typeof t === 'string' && (hostTokens.get(t) || 0) > Date.now();
 function pwNext(origin, q) {
   const it = q.items.shift();
   if (!it) { pwQueues.delete(origin); return; }
@@ -514,8 +524,31 @@ function allAnswered() {
 // ---------- HTTP ----------
 const app = express();
 app.disable('x-powered-by');
-app.use((req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "frame-ancestors 'none'" }); next(); });
-app.use(express.json({ limit: '15mb' }));
+// Só corre código dos nossos ficheiros: um script injetado (XSS) é recusado pelo browser.
+// 'unsafe-eval' + blob: só por causa do conversor de fotografias do iPhone (HEIC).
+const CSP = ["default-src 'self'", "script-src 'self' 'unsafe-eval'", "worker-src 'self' blob:", "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src https://fonts.gstatic.com", "img-src 'self' data: blob:", "connect-src 'self'", "media-src 'self' blob:", "object-src 'none'",
+  "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'"].join('; ');
+app.use((req, res, next) => {
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': CSP, 'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'camera=(self), microphone=(), geolocation=()', 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Resource-Policy': 'same-origin' });
+  next();
+});
+// Limite de pedidos por origem (computador): chega para uma turma inteira atrás do mesmo router,
+// mas um só atacante não consegue ocupar o servidor. Os ficheiros das páginas não contam.
+const buckets = new Map();
+setInterval(() => { const now = Date.now(); for (const [k, b] of buckets) if (now - b.t > 60000) buckets.delete(k); }, 60000).unref();
+function allow(key, perSec, burst) {
+  const now = Date.now(), b = buckets.get(key) || { n: burst, t: now };
+  b.n = Math.min(burst, b.n + (now - b.t) / 1000 * perSec); b.t = now; buckets.set(key, b);
+  if (b.n < 1) return false;
+  b.n--; return true;
+}
+app.use('/api', (req, res, next) => allow('http:' + originOf(req.ip, req.get('cf-connecting-ip')), 40, 200) ? next()
+  : res.status(429).json({ error: 'Demasiados pedidos. Espera um pouco.' }));
+// Corpo dos pedidos: pequeno para todos; grande (fotografias) só depois de confirmar que é o formador
+const bigJson = express.json({ limit: '15mb' }), smallJson = express.json({ limit: '100kb' });
+app.use((req, res, next) => /^\/api\/(students|quizzes)(\/|$)/.test(req.path) ? next() : smallJson(req, res, next));
 app.use(express.static(path.join(__dirname, 'public')));
 // conversor de fotografias do iPhone (HEIC → JPEG), carregado só quando é preciso
 app.get('/vendor/heic2any.min.js', (req, res) => res.sendFile(path.join(__dirname, 'node_modules/heic2any/dist/heic2any.min.js'), { maxAge: '7d' }));
@@ -526,6 +559,7 @@ app.get('/formador', (req, res) => res.redirect('/host.html'));
 
 // Só aceita a palavra-passe no cabeçalho (nunca no endereço, para não ficar no histórico)
 function auth(req, res, next) {
+  if (tokenOk(req.get('x-host-token'))) return next();
   pwCheck(originOf(req.ip, req.get('cf-connecting-ip')), req.get('x-host-password'), ok => ok ? next()
     : res.status(ok === null ? 429 : 401).json({ error: ok === null ? 'Demasiadas tentativas. Espera um pouco.' : 'Palavra-passe do formador inválida' }));
 }
@@ -535,7 +569,7 @@ require('./feedback')(app, { auth, DATA_DIR });
 
 app.post('/api/login', (req, res) => {
   pwCheck(originOf(req.ip, req.get('cf-connecting-ip')), req.body && req.body.password, ok =>
-    ok === null ? res.status(429).json({ ok: false, error: 'Demasiadas tentativas. Espera um pouco.' }) : res.json({ ok }));
+    ok === null ? res.status(429).json({ ok: false, error: 'Demasiadas tentativas. Espera um pouco.' }) : res.json(ok ? { ok, token: newHostToken() } : { ok }));
 });
 
 // Alunos
@@ -544,11 +578,13 @@ function savePhoto(dataUrl) {
   const m = /^data:image\/(png|jpe?g|webp);base64,(.+)$/.exec(dataUrl || '');
   if (!m) return null;
   const ext = m[1] === 'png' ? 'png' : m[1] === 'webp' ? 'webp' : 'jpg';
+  const buf = Buffer.from(m[2], 'base64'), sig = buf.subarray(0, 12).toString('hex');
+  if (!(sig.startsWith('ffd8ff') || sig.startsWith('89504e47') || (sig.startsWith('52494646') && sig.slice(16, 24) === '57454250'))) return null;
   const name = uid(12) + '.' + ext;
-  fs.writeFileSync(path.join(UPLOADS, name), Buffer.from(m[2], 'base64'));
+  fs.writeFileSync(path.join(UPLOADS, name), buf);
   return '/uploads/' + name;
 }
-app.post('/api/students', auth, (req, res) => {
+app.post('/api/students', auth, bigJson, (req, res) => {
   const list = Array.isArray(req.body) ? req.body : [req.body];
   const added = [], skipped = [];
   for (const s of list) {
@@ -564,7 +600,7 @@ app.post('/api/students', auth, (req, res) => {
   if (!added.length && skipped.length) return res.status(409).json({ error: `Já existe um aluno chamado "${skipped[0]}". Acrescenta um apelido para distinguir.` });
   res.json(added.map(a => ({ ...a, skipped })));
 });
-app.put('/api/students/:id', auth, (req, res) => {
+app.put('/api/students/:id', auth, bigJson, (req, res) => {
   const st = db.students.find(s => s.id === req.params.id);
   if (!st) return res.status(404).end();
   if (req.body.name) {
@@ -614,7 +650,7 @@ function cleanQuiz(q) {
   };
 }
 app.get('/api/quizzes', auth, (req, res) => res.json(db.quizzes));
-app.post('/api/quizzes', auth, (req, res) => {
+app.post('/api/quizzes', auth, bigJson, (req, res) => {
   if (!db.courses.length) return res.status(400).json({ error: 'Cria primeiro um curso' });
   const q = cleanQuiz(req.body);
   const i = db.quizzes.findIndex(x => x.id === q.id);
@@ -784,8 +820,25 @@ app.get('/api/qr', safe(async (req, res) => {
 }));
 
 // ---------- Socket.IO ----------
-const server = http.createServer(app);
+// verifica os prazos dos pedidos a cada 2 s (por omissão 30 s): pedidos pendurados de propósito saem depressa
+const server = http.createServer({ connectionsCheckingInterval: 2000 }, app);
 io = new Server(server, { maxHttpBufferSize: 1e6 });
+// Ligações abertas por origem: uma turma atrás do mesmo router cabe folgada; um só atacante não esgota o servidor
+const sockCount = new Map();
+io.use((socket, next) => {
+  const k = originOf(socket.handshake.address, socket.handshake.headers['cf-connecting-ip']), n = (sockCount.get(k) || 0) + 1;
+  if (n > 250 || io.engine.clientsCount > 3000) return next(new Error('Demasiadas ligações'));
+  sockCount.set(k, n);
+  socket.on('disconnect', () => { const m = (sockCount.get(k) || 1) - 1; m ? sockCount.set(k, m) : sockCount.delete(k); });
+  // mensagens por ligação: um telemóvel real manda poucas por segundo; inundações são ignoradas
+  let ignored = 0;
+  socket.use((packet, nextPacket) => {
+    if (allow('ws:' + socket.id, 15, 40)) { ignored = 0; return nextPacket(); }
+    const cb = packet[packet.length - 1]; if (typeof cb === 'function') cb({ error: 'Demasiados pedidos. Espera um pouco.' });
+    if (++ignored > 300) socket.disconnect(true);
+  });
+  next();
+});
 
 io.on('connection', socket => {
   const role = socket.handshake.auth && socket.handshake.auth.role;
@@ -796,7 +849,8 @@ io.on('connection', socket => {
     }
   };
 
-  if (role === 'host') return pwCheck(originOf(socket.handshake.address, socket.handshake.headers['cf-connecting-ip']), socket.handshake.auth.password, ok => {
+  const hostAuth = (pw, done) => tokenOk(socket.handshake.auth.token) ? done(true) : pwCheck(originOf(socket.handshake.address, socket.handshake.headers['cf-connecting-ip']), pw, done);
+  if (role === 'host') return hostAuth(socket.handshake.auth.password, ok => {
     if (!ok) { socket.emit('auth_error'); socket.disconnect(); return; }
     socket.join('hosts');
     socket.emit('state', hostView());
@@ -983,6 +1037,7 @@ io.on('connection', socket => {
     const { name } = (data && typeof data === 'object') ? data : {};
     if (!codeOk(socket.data.code)) return cb({ error: 'Código da sessão inválido ou sessão terminada. Lê de novo o QR code.' });
     if (me && session.players[me.studentId] === me) return cb({ error: 'Já entraste neste dispositivo.' });
+    if (Object.keys(session.players).length >= 500) return cb({ error: 'A sessão está cheia.' });
     if (session.settings.anonymous) {
       // cada dispositivo é um participante anónimo com um código aleatório (não fica registado quem é)
       let code; do { code = Array.from(crypto.randomBytes(3), b => CODE_ABC[b % CODE_ABC.length]).join(''); } while (session.roster.some(r => r.name.endsWith('#' + code)));
@@ -1153,6 +1208,7 @@ try {
   }
 } catch (e) { console.error('Não foi possível retomar a sessão anterior:', e.message); }
 
+server.headersTimeout = 15000; server.requestTimeout = 120000;
 server.listen(PORT, () => {
   console.log('\n  🎉 Quiz a correr!');
   console.log(`  Formador:  http://localhost:${PORT}/host.html`);
