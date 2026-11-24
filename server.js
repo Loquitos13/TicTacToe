@@ -930,6 +930,7 @@ io.on('connection', socket => {
       if (session.settings.noRanking) { delete s.rankEach; delete s.finalPodium; }
       if (session.settings.revealMode !== 'each') delete s.rankEach;
       if ('showPoll' in s) s.showPoll = !!s.showPoll;
+      if ('openJoin' in s) s.openJoin = !!s.openJoin;
       Object.assign(session.settings, s);
       persistSession();
       if ('paused' in s || 'rankEach' in s) scheduleAuto();
@@ -1063,7 +1064,7 @@ io.on('connection', socket => {
     if (!T.length) return cb({ error: 'Escreve o teu nome completo.' });
     // os convidados (entraram sem estar na lista) só se comparam pelo nome exato, mais abaixo
     let found = session.roster.filter(st => !st.guest && matchesStudent(st, T));
-    if (found.length === 0 && session.settings.openJoin) {
+    if (found.length === 0 && session.settings.openJoin !== false) {   // sessões retomadas de versões antigas não têm a opção: conta como ligada
       // aluno registado que não foi escolhido para esta sessão: entra com a ficha dele (e a fotografia)
       const others = db.students.filter(s => !session.roster.some(r => r.id === s.id)).map(s => ({ ...s }));
       assignShortNames(others);

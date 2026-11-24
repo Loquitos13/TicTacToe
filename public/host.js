@@ -171,6 +171,7 @@ function lobbyHtml() {
     </div>
     <div>
       <div class="row"><div class="count-big" id="joinCount">${connectedN()}</div><div style="font-size:1.3em">${S.settings.anonymous ? `participantes<br>anónimos já entraram` : `de <span id="rosterN">${S.roster.length}</span> alunos<br>já entraram`}</div></div>
+      ${S.settings.anonymous ? '' : `<label class="switch noprint" style="margin-top:10px;color:#fff"><input type="checkbox" id="setOpen" ${S.settings.openJoin !== false ? 'checked' : ''}> 🙋 Deixar entrar quem não está na lista</label>`}
       ${S.settings.teams ? `<div class="row noprint" style="margin-top:14px"><button class="btn small" id="btnShuffleTeams">🔀 Baralhar equipas</button><span class="muted" style="color:#ddd">Toca num formando para o mudar de equipa.</span></div>
         <div class="teams-lobby ${S.roster.length > 20 ? 'many' : ''}" id="teamsLobby">${teamsLobbyHtml()}</div>` : `<div class="joined ${S.roster.length > 20 ? 'many' : ''}" id="joined" style="margin-top:20px">${joinedHtml()}</div>`}
     </div></div>`;
@@ -608,6 +609,7 @@ function bindGame() {
   on('btnPlayers', playersDialog);
   on('btnAnswers', () => { showAnswersList = !showAnswersList; if (showAnswersList) Sound.play('revealCorrect'); renderGame(true); });
   const ss = $('#setSee'); if (ss) ss.onchange = e => { seeAnswers = e.target.checked; try { localStorage.setItem('aq_see_answers', seeAnswers ? '1' : '0'); } catch {} renderGame(true); };
+  const so = $('#setOpen'); if (so) so.onchange = e => socket.emit('host:settings', { openJoin: e.target.checked });
   const sw = $('#setWho'); if (sw) sw.onchange = e => socket.emit('host:settings', { showWho: e.target.checked });
   const sp = $('#setPoll'); if (sp) sp.onchange = e => socket.emit('host:settings', { showPoll: e.target.checked });
   const sr = $('#setRank'); if (sr) sr.onchange = e => socket.emit('host:settings', { rankEach: e.target.checked });
