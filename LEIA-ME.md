@@ -246,7 +246,8 @@ npm run online
 ```
 No Windows basta **duplo clique em `iniciar-online.bat`**. Este corre o script `iniciar-online.ps1`, que:
 - verifica se há Node.js;
-- instala o `cloudflared` sozinho com o winget, se faltar;
+- instala o `cloudflared` sozinho, se faltar (com o winget ou, se não houver winget, descarregando-o da Cloudflare para a pasta `ferramentas\`);
+- se a porta 3000 já estiver ocupada (o quiz aberto noutra janela), pergunta se a fecha;
 - faz o `npm install` da primeira vez;
 - liga o servidor e o túnel;
 - abre o painel do formador.

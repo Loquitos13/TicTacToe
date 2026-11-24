@@ -1223,7 +1223,9 @@ try {
 // npm run online: liga também o túnel da Cloudflare e põe o endereço dele no QR code (sem copiar nada à mão)
 let tunnelUrl = '';
 if (process.argv.includes('--online')) {
-  const cf = require('child_process').spawn('cloudflared', ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`], { windowsHide: true });
+  // o iniciar-online.ps1 pode ter descarregado o cloudflared para a pasta ferramentas/
+  const localCf = path.join(__dirname, 'ferramentas', process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared');
+  const cf = require('child_process').spawn(fs.existsSync(localCf) ? localCf : 'cloudflared', ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`], { windowsHide: true });
   const look = d => {
     const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(String(d));
     if (!m || tunnelUrl) return;
@@ -1232,12 +1234,18 @@ if (process.argv.includes('--online')) {
     io.to('hosts').emit('tunnel', tunnelUrl);
   };
   cf.stdout.on('data', look); cf.stderr.on('data', look);
-  cf.on('error', () => console.error('\n✗ Não encontrei o cloudflared. Instala-o com:  winget install --id Cloudflare.cloudflared\n  (depois fecha e volta a abrir a janela). A app continua a funcionar na rede local.\n'));
+  cf.on('error', () => console.error('\n✗ Não encontrei o cloudflared. Abre o iniciar-online.bat (descarrega-o sozinho)\n  ou instala-o com:  winget install --id Cloudflare.cloudflared A app continua a funcionar na rede local.\n'));
   cf.on('exit', () => { if (tunnelUrl) console.error('✗ O túnel da Cloudflare fechou. Volta a arrancar para ter um endereço novo.'); tunnelUrl = ''; });
   const stop = () => { cf.kill(); process.exit(0); };
   process.on('SIGINT', stop); process.on('SIGTERM', stop); process.on('exit', () => cf.kill());
 }
 server.headersTimeout = 15000; server.requestTimeout = 120000;
+// porta ocupada (normalmente o quiz já está aberto noutra janela): mensagem clara em vez do erro técnico
+server.on('error', e => {
+  if (e.code === 'EADDRINUSE') console.error(`\n✗ A porta ${PORT} já está ocupada — o quiz já deve estar a correr noutra janela.\n  Fecha essa janela (ou o outro programa) e volta a tentar.\n`);
+  else console.error('\n✗ Não consegui arrancar o servidor:', e.message, '\n');
+  process.exit(1);
+});
 server.listen(PORT, () => {
   console.log('\n  🎉 Quiz a correr!');
   console.log(`  Formador:  http://localhost:${PORT}/host.html`);
