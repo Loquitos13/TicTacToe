@@ -654,6 +654,35 @@ function layoutCloud(el, spans) {
   }
 }
 window.addEventListener('resize', () => $$('#tab-game .cloud').forEach(c => S && renderCloud(c, S.cloud)));
+// letras baralhadas: calculadas da mesma maneira que no servidor, para o projetor mostrar as mesmas que os telemóveis
+function scrambleTilesOf(q) {
+  const letters = [...String(q.answer || '').toUpperCase()].filter(ch => /\p{L}/u.test(ch));
+  let h = 2166136261; for (const c of String(q.id || q.answer)) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  const rnd = () => (h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0, h / 4294967296);
+  const out = letters.slice();
+  for (let k = 0; k < 20; k++) { for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; } if (out.join('') !== letters.join('') || new Set(letters).size < 2) break; }
+  return out;
+}
+const scrambleShapeOf = q => String(q.answer || '').trim().split(/\s+/).map(w => [...w].filter(ch => /\p{L}/u.test(ch)).length).filter(Boolean);
+// palavras cruzadas no projetor: grelha + pistas (com a solução, se for altura)
+function crossStageHtml(q, showSol) {
+  const cw = q.cross, sol = {};
+  if (showSol) cw.words.forEach(w => crossCellsOf(w).forEach((k, i) => sol[k] = w.word[i]));
+  const clues = dir => cw.words.filter(w => w.dir === dir).map(w => {
+    const k = cw.words.indexOf(w), st = S.crossStats ? S.crossStats[k] : null, tot = S.answeredIds.length;
+    return `<li><b>${w.n}.</b> ${esc(w.clue)} <small>(${w.len})</small>${showSol ? ` <span class="cw-sol">${esc(w.display.toUpperCase())}</span>` : ''}${st != null && pollOn() && S.phase !== 'question' ? ` <span class="cw-st">${st}/${tot}</span>` : ''}</li>`; }).join('');
+  return `<div class="cw-stage">${crossGridHtml(cw, sol, showSol ? Object.fromEntries(Object.keys(sol).map(k => [k, 'ok'])) : {}, 'big')}
+    <div class="cw-clues">${cw.words.some(w => w.dir === 'a') ? `<h4>➡ Horizontais</h4><ul>${clues('a')}</ul>` : ''}${cw.words.some(w => w.dir === 'd') ? `<h4>⬇ Verticais</h4><ul>${clues('d')}</ul>` : ''}</div></div>`;
+}
+// adivinha a palavra: o quadro de cada um, só com as cores (sem letras)
+function guessBoardsHtml() {
+  const bs = S.guessBoards || [];
+  if (!bs.length) return '<p class="cloud-empty" style="font-size:1.2em">À espera das primeiras tentativas<span class="dots"></span></p>';
+  const byId = new Map(S.roster.map(r => [r.id, r]));
+  return bs.map(b => { const st = byId.get(b.studentId) || { name: '?' };
+    return `<div class="gb ${b.solved ? 'solved' : b.done ? 'out' : ''}">${b.colors.map(row => `<div class="gb-row">${row.map(c => `<i class="${c}"></i>`).join('')}</div>`).join('')}
+      <div class="gb-name">${b.solved ? '🎉 ' : b.done ? '😵 ' : ''}${esc(st.short || st.name)}</div></div>`; }).join('');
+}
 function scaleRowHtml(q) {
   return `<div class="scale-row">${[1, 2, 3, 4, 5].map((n, i) => `<div class="scale-box opt-${i} pop-in" style="animation-delay:${i * 80}ms">${n}</div>`).join('')}</div>
     ${q.scaleMin || q.scaleMax ? `<div class="scale-labels"><span>1 = ${esc(q.scaleMin || '')}</span><span>5 = ${esc(q.scaleMax || '')}</span></div>` : ''}`;
