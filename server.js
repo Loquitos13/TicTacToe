@@ -199,6 +199,14 @@ function hostView() {
     extra.guessDist = Array.from({ length: q.maxTries || 6 }, (_, k) => Object.values(ans).filter(a => a.correct && a.tries === k + 1).length);
     extra.guessSolved = Object.values(ans).filter(a => a.correct).length;
   }
+  // número: quantos escolheram cada valor e a média
+  if (qt === 'number') { const vals = Object.values(ans).map(a => a.value), m = new Map(); vals.forEach(v => m.set(v, (m.get(v) || 0) + 1));
+    extra.numberStats = { counts: [...m.entries()].sort((a, b) => a[0] - b[0]), avg: vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null, exact: Object.values(ans).filter(a => a.correct).length }; }
+  // correspondência: quantos ligaram bem cada item
+  if (qt === 'match') extra.matchOrder = Q.matchOrder(q);
+  if (qt === 'match') extra.matchStats = q.pairs.map((_, i) => Object.values(ans).filter(a => (a.value || [])[i] === i).length);
+  // encontrar na imagem: onde tocou cada um (sem nomes)
+  if (qt === 'spot') extra.spotHits = Object.values(ans).slice(0, 300).map(a => [a.value[0], a.value[1], a.correct]);
   // palavras cruzadas: quantos acertaram em cada palavra
   if (qt === 'cross') extra.crossStats = q.cross.words.map((w, k) => Object.values(ans).filter(a => (a.value || [])[k] === w.word).length);
   // ranking: posição média de cada opção (1 = primeiro lugar) e quantos a puseram em 1º
@@ -747,7 +755,7 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
     rows = [['Curso', 'Questionário', 'Nº', 'Pergunta', 'Opções', 'Resposta correta', 'Aluno', 'Resposta dada', 'Correta?', 'Tempo (s)', 'Pontos']];
     r.questions.forEach((q, i) => {
       const t = Q.typeOf(q);
-      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'cloud' ? 'Nuvem de palavras' : t === 'scramble' ? 'Letras baralhadas' : t === 'guess' ? `Adivinha a palavra (${q.maxTries || 6} tentativas)` : t === 'cross' ? 'Palavras cruzadas: ' + q.cross.words.map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${w.clue}`).join(' | ') : t === 'rank' ? 'Ordenar: ' + q.options.join(' | ') : t === 'scale' ? 'Escala 1–5' : 'Resposta livre';
+      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'cloud' ? 'Nuvem de palavras' : t === 'number' ? `Número de ${q.min} a ${q.max}` : t === 'match' ? 'Ligar: ' + q.pairs.map(p => p.left).join(' | ') : t === 'spot' ? 'Encontrar na imagem' : t === 'scramble' ? 'Letras baralhadas' : t === 'guess' ? `Adivinha a palavra (${q.maxTries || 6} tentativas)` : t === 'cross' ? 'Palavras cruzadas: ' + q.cross.words.map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${w.clue}`).join(' | ') : t === 'rank' ? 'Ordenar: ' + q.options.join(' | ') : t === 'scale' ? 'Escala 1–5' : 'Resposta livre';
       for (const p of people) {
         const a = (r.answers[i] || {})[p.id];
         let given, ok = '';

@@ -14,7 +14,10 @@
 //  guess — adivinha a palavra: palavra secreta com N letras e várias tentativas; cada letra fica
 //          verde (sítio certo), laranja (existe noutro sítio) ou vermelha (não existe).
 //          As tentativas são avaliadas no servidor: a palavra nunca vai para o telemóvel.
-const TYPES = ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess'];
+//  number — adivinhar um número num intervalo: certo se acertar em cheio; perto ainda dá metade dos pontos (ou menos)
+//  match — correspondência: cada item da esquerda liga-se a uma opção da direita (baralhadas); pontos por ligação certa
+//  spot — encontrar na imagem: toca no sítio certo da imagem; o formador marca a zona no editor (nunca vai para o telemóvel)
+const TYPES = ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot'];
 const { buildCrossword, cwNorm } = require('./public/crossword.js');
 const LETTERS = 'ABCDEF';
 const norm = t => String(t ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -86,7 +89,7 @@ function cleanQuestion(x, uid, savePhoto) {
   const base = {
     id: x.id || uid(), type, text: String(x.text || '').trim(),
     time: Math.max(5, Math.min(300, parseInt(x.time, 10) || 20)),
-    image: x.image && String(x.image).startsWith('data:') ? savePhoto(x.image) : (x.image || null),
+    image: x.image && String(x.image).startsWith('data:') ? savePhoto(x.image) : /^\/uploads\/[\w.-]+$/.test(x.image || '') ? x.image : null,
     options: [], correct: [],
   };
   if (!base.text) return null;
@@ -115,6 +118,18 @@ function cleanQuestion(x, uid, savePhoto) {
   } else if (type === 'scramble') {
     base.answer = String(x.answer || '').trim().replace(/\s+/g, ' ').slice(0, 30);
     if (cwNorm(base.answer).length < 2) return null;
+  } else if (type === 'number') {
+    const num = v => (v === '' || v == null || !isFinite(Number(v))) ? null : Number(v);
+    base.min = num(x.min) ?? 0; base.max = num(x.max) ?? 10; base.answer = num(x.answer);
+    base.step = num(x.step) > 0 ? num(x.step) : 1;
+    if (base.answer == null || !(base.min < base.max) || base.answer < base.min || base.answer > base.max || (base.max - base.min) / base.step > 100000) return null;
+  } else if (type === 'match') {
+    base.pairs = (x.pairs || []).map(p => ({ left: String(p.left || '').trim().slice(0, 150), right: String(p.right || '').trim().slice(0, 150) })).filter(p => p.left && p.right).slice(0, 6);
+    if (base.pairs.length < 2) return null;
+  } else if (type === 'spot') {
+    const z = x.zone || {}, f = v => Math.max(0, Math.min(1, Number(v) || 0));
+    base.zone = { x: f(z.x), y: f(z.y), w: f(z.w), h: f(z.h) };
+    if (!base.image || base.zone.w < 0.01 || base.zone.h < 0.01) return null;
   } else if (type === 'guess') {
     base.answer = String(x.answer || '').trim().slice(0, 20);
     base.maxTries = Math.max(3, Math.min(8, parseInt(x.maxTries, 10) || 6));
@@ -179,6 +194,30 @@ function grade(q, raw) {
     return { entry: { value, correct: ok, frac: ok ? 1 : 0 } };
   }
   if (t === 'guess') return { error: 'Usa o teclado do jogo para adivinhar a palavra.' };
+  if (t === 'number') {
+    const v = Number(raw);
+    if (raw === '' || raw == null || !isFinite(v) || v < q.min || v > q.max) return { error: `Escolhe um número entre ${q.min} e ${q.max}.` };
+    const diff = Math.abs(v - q.answer), ok = diff < 1e-9;
+    // perto também conta: até metade dos pontos, a descer até zero a meio do intervalo de distância
+    const frac = ok ? 1 : Math.max(0, 0.5 * (1 - diff / ((q.max - q.min) / 2)));
+    return { entry: { value: v, correct: ok, frac: Math.round(frac * 100) / 100, diff } };
+  }
+  if (t === 'match') {
+    const n = q.pairs.length;
+    if (!Array.isArray(raw) || raw.length !== n) return { error: 'Liga todos os itens.' };
+    const shown = raw.map(v => parseInt(v, 10));
+    if (shown.some(v => !(v >= 0 && v < n))) return { error: 'Resposta inválida.' };
+    const order = matchOrder(q), value = shown.map(k => order[k]);   // posição em que o telemóvel via → par original
+    const right = value.filter((v, i) => v === i).length;
+    return { entry: { value, correct: right === n, frac: right / n, right } };
+  }
+  if (t === 'spot') {
+    if (!Array.isArray(raw) || raw.length !== 2) return { error: 'Toca na imagem.' };
+    const [px, py] = raw.map(Number), z = q.zone, m = 0.01;
+    if (![px, py].every(v => v >= 0 && v <= 1)) return { error: 'Resposta inválida.' };
+    const ok = px >= z.x - m && px <= z.x + z.w + m && py >= z.y - m && py <= z.y + z.h + m;
+    return { entry: { value: [Math.round(px * 1000) / 1000, Math.round(py * 1000) / 1000], correct: ok, frac: ok ? 1 : 0 } };
+  }
   if (t === 'cross') {
     const ws = q.cross.words;
     if (!Array.isArray(raw) || raw.length !== ws.length) return { error: 'Resposta inválida.' };
@@ -201,6 +240,9 @@ function grade(q, raw) {
 function answerText(q, a) {
   if (!a) return '';
   const t = typeOf(q);
+  if (t === 'number') return String(a.value);
+  if (t === 'match') return q.pairs.map((p, i) => `${p.left} → ${(q.pairs[(a.value || [])[i]] || {}).right || '—'}`).join(' | ');
+  if (t === 'spot') return a.correct ? 'Na zona certa' : 'Fora da zona';
   if (t === 'mc' || t === 'tf') return `${LETTERS[a.option]}) ${q.options[a.option]}`;
   if (t === 'fill') return (a.value || []).join(' | ');
   if (t === 'cloud') return (a.value || []).join(', ');
@@ -211,6 +253,9 @@ function answerText(q, a) {
 }
 function answerShort(q, a) {
   const t = typeOf(q);
+  if (t === 'number') return String(a.value);
+  if (t === 'match') return `${a.right ?? 0}/${q.pairs.length}`;
+  if (t === 'spot') return a.correct ? 'zona' : 'fora';
   if (t === 'mc') return LETTERS[a.option];
   if (t === 'tf') return a.option === 0 ? 'V' : 'F';
   if (t === 'fill') return `${a.right ?? 0}/${q.blanks.length}`;
@@ -224,6 +269,9 @@ function answerShort(q, a) {
 }
 function correctText(q) {
   const t = typeOf(q);
+  if (t === 'number') return String(q.answer);
+  if (t === 'match') return q.pairs.map(p => `${p.left} → ${p.right}`).join(' | ');
+  if (t === 'spot') return '(zona marcada na imagem)';
   if (t === 'mc' || t === 'tf') return q.correct.map(i => `${LETTERS[i]}) ${q.options[i]}`).join(' | ');
   if (t === 'fill') return q.blanks.join(' | ');
   if (t === 'open') return (q.accepted || []).length ? 'Modelo: ' + q.accepted.join(' | ') + ' (validada pelo formador)' : '(resposta livre — validada pelo formador)';
@@ -235,6 +283,9 @@ function correctText(q) {
 }
 function correctShort(q) {
   const t = typeOf(q);
+  if (t === 'number') return String(q.answer);
+  if (t === 'match') return q.pairs.length + ' pares';
+  if (t === 'spot') return 'zona';
   if (t === 'mc') return q.correct.map(i => LETTERS[i]).join('/');
   if (t === 'tf') return q.correct[0] === 0 ? 'V' : 'F';
   if (t === 'fill') return q.blanks.join(', ');
@@ -249,7 +300,10 @@ function correctShort(q) {
 // O que o telemóvel recebe da pergunta (nunca a resposta certa). hide = só no ecrã do formador.
 function publicQuestion(q, hide) {
   const t = typeOf(q);
-  const p = { type: t, time: q.time, text: hide ? '' : displayText(q), image: hide ? null : (q.image || null), hidden: !!hide };
+  // na imagem do "encontrar na imagem" é a própria pergunta: vai sempre (a zona certa nunca vai)
+  const p = { type: t, time: q.time, text: hide ? '' : displayText(q), image: hide && t !== 'spot' ? null : (q.image || null), hidden: !!hide };
+  if (t === 'number') Object.assign(p, { min: q.min, max: q.max, step: q.step });
+  if (t === 'match') { p.lefts = q.pairs.map((x, i) => hide ? '' : x.left); p.rights = matchOrder(q).map((i, k) => ({ k, text: hide ? '' : q.pairs[i].right, letter: LETTERS[k] })); }
   if (t === 'mc' || t === 'tf') p.options = hide ? q.options.map(() => '') : q.options;
   if (t === 'fill') { p.blanks = q.blanks.length; p.bank = wordBank(q); if (!hide) p.parts = String(q.text).split(BLANK_RE).filter((_, i) => i % 2 === 0); }
   if (t === 'scale') { p.scaleMin = q.scaleMin || ''; p.scaleMax = q.scaleMax || ''; }
@@ -267,6 +321,9 @@ function publicQuestion(q, hide) {
 // a resposta certa, para mostrar ao formando quando chega a altura
 function solutionOf(q) {
   const t = typeOf(q);
+  if (t === 'number') return { answer: q.answer };
+  if (t === 'match') return { pairs: q.pairs };
+  if (t === 'spot') return { zone: q.zone };
   if (t === 'mc' || t === 'tf') return { correct: q.correct };
   if (t === 'fill') return { blanks: q.blanks };
   if (t === 'open') return { accepted: q.accepted || [] };
@@ -280,6 +337,9 @@ function solutionOf(q) {
 const fillSentence = (q, words) => { let k = 0; return String(q.text).replace(BLANK_RE, () => { const w = words[k++]; return w ? w : '_____'; }); };
 function plainCorrect(q) {
   const t = typeOf(q);
+  if (t === 'number') return String(q.answer);
+  if (t === 'match') return q.pairs.map(p => `${p.left} → ${p.right}`).join('; ');
+  if (t === 'spot') return 'A zona marcada na imagem';
   if (t === 'mc' || t === 'tf') return q.correct.map(i => q.options[i]).join(' / ');
   if (t === 'fill') return fillSentence(q, q.blanks);
   if (t === 'open') return (q.accepted || []).length ? q.accepted.join(' / ') : 'Sem resposta modelo (validada pelo formador)';
@@ -291,6 +351,9 @@ function plainCorrect(q) {
 function plainAnswer(q, a) {
   if (!a) return '';
   const t = typeOf(q);
+  if (t === 'number') return String(a.value) + (a.correct ? '' : ` (a resposta era ${q.answer})`);
+  if (t === 'match') return q.pairs.map((p, i) => `${p.left} → ${(q.pairs[(a.value || [])[i]] || {}).right || '—'}${(a.value || [])[i] === i ? ' ✓' : ' ✗'}`).join('; ');
+  if (t === 'spot') return a.correct ? 'Tocou na zona certa' : 'Tocou fora da zona certa';
   if (t === 'mc' || t === 'tf') return q.options[a.option];
   if (t === 'fill') return fillSentence(q, a.value || []);
   if (t === 'scale') { const lab = a.value === 1 ? q.scaleMin : a.value === 5 ? q.scaleMax : ''; return `${a.value} de 5${lab ? ' (' + lab + ')' : ''}`; }
@@ -303,6 +366,12 @@ function plainAnswer(q, a) {
 }
 
 // resposta guardada → como o telemóvel a conhece (o ranking volta à ordem em que ele vê as opções)
-function forPhone(q, v) { return typeOf(q) === 'rank' && Array.isArray(v) ? v.map(i => rankOrder(q).indexOf(i)) : v; }
+function forPhone(q, v) {
+  if (typeOf(q) === 'rank' && Array.isArray(v)) return v.map(i => rankOrder(q).indexOf(i));
+  if (typeOf(q) === 'match' && Array.isArray(v)) return v.map(i => matchOrder(q).indexOf(i));
+  return v;
+}
+// correspondência: ordem (sempre igual) em que as opções da direita aparecem no telemóvel e no projetor
+const matchOrder = q => rankOrder({ id: q.id + ':m', options: q.pairs });
 
-module.exports = { forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
+module.exports = { matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };

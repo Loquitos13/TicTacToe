@@ -55,6 +55,9 @@ Segurança:
    | **🔤 Letras baralhadas** | vê as letras baralhadas e toca nelas pela ordem para formar a palavra (tocar numa casa devolve a letra) | a pergunta é a **pista**; escreves a palavra (pode ter duas, ex.: "pós venda"). O projetor mostra as mesmas letras baralhadas. Acentos e maiúsculas não contam |
    | **✏️ Palavras cruzadas** | grelha + pistas: toca numa pista (ou numa casa) e escreve a palavra; as letras aparecem na grelha | escreves as **palavras e as pistas** e a grelha **monta-se sozinha** (pré-visualização no editor; avisa se alguma palavra não cruza). Pontos por cada palavra certa (ex.: "3 de 5"). No projetor aparece a grelha com as pistas e, na resposta, a grelha resolvida e quantos acertaram cada palavra |
    | **🟩 Adivinha a palavra** | escreve palavras com o mesmo nº de letras no teclado do jogo; cada letra fica **verde** (sítio certo), **laranja** (existe noutro sítio) ou **vermelha** (não existe) | escolhes a palavra secreta (3 a 12 letras) e o nº de tentativas (3 a 8). Mais pontos com menos tentativas (tudo à 1ª, metade na última). A palavra **nunca vai para o telemóvel**: cada tentativa é avaliada no servidor. No projetor vês o quadro de cada um só com as cores (sem letras) e, no fim, em que tentativa acertaram |
+   | **🔢 Adivinhar um número** | escolhe um número numa barra (ou com − / +); começa em "?" para não dar a resposta de bandeja | defines mínimo, máximo, resposta e passo. Em cheio ganha tudo; perto ganha parte (menos quanto mais longe). No projetor vês quantos escolheram cada número e a média |
+   | **🔗 Correspondência** | para cada item toca na letra da opção certa (cada letra só pode ser usada uma vez; o último liga-se sozinho) | escreves os pares (2 a 6): item → opção certa. As opções aparecem baralhadas e os pares certos **nunca vão para o telemóvel**. Pontos por cada ligação certa |
+   | **🎯 Encontrar na imagem** | toca no sítio da imagem e confirma | carregas a imagem e **arrastas por cima dela** para marcar a zona certa (retângulo verde). A zona nunca vai para o telemóvel. No fim, o projetor mostra onde cada um tocou (verde = dentro, vermelho = fora) |
 
    Podes colar várias perguntas de uma vez em texto (uma por bloco, separadas por linha em branco):
    ```
@@ -110,6 +113,8 @@ Segurança:
 
 > **Nomes parecidos.** Se na turma houver um "Rui" e um "Rui Santos", quem escreve "Rui Santos" entra sempre como Rui Santos (ganha o nome mais completo). Se alguém escrever só "Rui" (maiúsculas e acentos não contam) e já tiver entrado um Rui, o telemóvel explica, por baixo do campo, que já entrou um "Rui" e pede para escrever mais alguma coisa do nome (o apelido) — ou, se for o próprio e mudou de telemóvel, para pedir o código de reentrada.
 
+
+**Exemplo pronto:** `exemplos/formatar-documentos.json` (8 perguntas sobre formatação de documentos, com todos os tipos novos). Em ❓ Questionários → **Importar JSON** no curso que quiseres. A imagem da pergunta 3 é um documento de exemplo (`exemplos/documento-colado.jpg`); para usar outra, edita a pergunta, remove a imagem, carrega a tua e marca a zona.
 
 ## 4. Durante a sessão
 **🎮 Jogo**: escolhe o curso, o questionário e os alunos e clica em **Abrir sala**. Aparece o QR code.

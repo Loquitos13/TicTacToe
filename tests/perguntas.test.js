@@ -55,3 +55,22 @@ test('letras baralhadas e cruzadas ignoram acentos e maiúsculas', () => {
   const q = make({ type: 'cross', text: 'a', entries: [{ word: 'Negociação', clue: 'a' }, { word: 'Cliente', clue: 'b' }, { word: 'Fecho', clue: 'c' }] });
   assert.equal(Q.grade(q, q.cross.words.map(w => w.display.toLowerCase())).entry.correct, true);
 });
+
+test('número, correspondência e encontrar na imagem', () => {
+  const num = make({ type: 'number', text: 'a', min: 0, max: 10, answer: 5 });
+  assert.equal(Q.grade(num, 5).entry.correct, true);
+  assert.ok(Q.grade(num, 4).entry.frac > 0 && Q.grade(num, 4).entry.frac < 1, 'perto dá parte dos pontos');
+  assert.ok(Q.grade(num, 11).error);
+  const m = make({ type: 'match', text: 'a', pairs: [{ left: 'a', right: '1' }, { left: 'b', right: '2' }, { left: 'c', right: '3' }] });
+  const pub = Q.publicQuestion(m, false);
+  assert.ok(!JSON.stringify(pub).includes('pairs'), 'os pares certos não vão para o telemóvel');
+  const shown = ['1', '2', '3'].map(t => pub.rights.find(r => r.text === t).k);
+  assert.equal(Q.grade(m, shown).entry.correct, true);
+  assert.deepEqual(Q.forPhone(m, Q.grade(m, shown).entry.value), shown);
+  const sp = make({ type: 'spot', text: 'a', image: '/uploads/x.jpg', zone: { x: .1, y: .4, w: .8, h: .2 } });
+  assert.ok(!JSON.stringify(Q.publicQuestion(sp, false)).includes('zone'), 'a zona não vai para o telemóvel');
+  assert.equal(Q.grade(sp, [.5, .5]).entry.correct, true);
+  assert.equal(Q.grade(sp, [.5, .1]).entry.correct, false);
+  assert.ok(Q.grade(sp, ['x', 1]).error);
+  assert.equal(make({ type: 'spot', text: 'a', image: 'https://fora.com/x.jpg', zone: { x: 0, y: 0, w: .5, h: .5 } }), null, 'imagem de fora é recusada');
+});

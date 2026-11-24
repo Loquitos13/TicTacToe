@@ -187,8 +187,8 @@ function renderGameInner() {
     }
     const w = answerWidget(q, null, false), t = q.type || 'mc';
     const hint = { mc: '👆 Escolhe a tua resposta', tf: '👆 Verdadeiro ou falso?', scale: '👆 Escolhe de 1 a 5', fill: '✏️ Completa os espaços', open: '✍️ Escreve a tua resposta',
-      cloud: `☁️ Escreve até ${q.words || 3} palavra${(q.words || 3) > 1 ? 's' : ''}`, rank: '🔢 Toca nas opções pela ordem: 1º, 2º, 3º…', scramble: '🔤 Toca nas letras pela ordem para formar a palavra', guess: `🟩 Adivinha a palavra de ${q.len} letras`, cross: '✏️ Toca numa pista (ou numa casa) e escreve a palavra' }[t];
-    set('q' + s.qIndex, header() + qmeta() + `${q.hidden ? onScreenNote : t === 'fill' && q.parts ? '' : `<div class="qtext slide-up">${esc(q.text)}</div>`}${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
+      cloud: `☁️ Escreve até ${q.words || 3} palavra${(q.words || 3) > 1 ? 's' : ''}`, rank: '🔢 Toca nas opções pela ordem: 1º, 2º, 3º…', scramble: '🔤 Toca nas letras pela ordem para formar a palavra', guess: `🟩 Adivinha a palavra de ${q.len} letras`, cross: '✏️ Toca numa pista (ou numa casa) e escreve a palavra', number: '🔢 Escolhe o número', match: '🔗 Para cada item, toca na letra certa', spot: '🎯 Toca no sítio certo da imagem' }[t];
+    set('q' + s.qIndex, header() + qmeta() + `${q.hidden ? onScreenNote : t === 'fill' && q.parts ? '' : `<div class="qtext slide-up">${esc(q.text)}</div>`}${q.image && t !== 'spot' ? `<img class="qimg" src="${esc(q.image)}">` : ''}
       ${timedMode ? '<div class="timebar"><div id="tb"></div></div>' : `<p class="center" style="margin:10px 0;opacity:.85">${hint}</p>`}
       ${w.html}`, () => {
       w.bind((value, btn, meta) => {
@@ -231,11 +231,14 @@ function renderGameInner() {
   }
   if (ph === 'reveal' || ph === 'leaderboard') {
     const q = state.question, t = q.type || 'mc';
-    const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : ((t === 'fill' || t === 'rank' || t === 'cross') && state.right) ? 'part' : 'bad';
+    const cls = !state.answered ? 'none' : state.wasCorrect ? 'ok' : ((t === 'fill' || t === 'rank' || t === 'cross' || t === 'match') && state.right) || (t === 'number' && state.points > 0) ? 'part' : 'bad';
     const sol = state.solution || {};
     const solHtml = t === 'fill' ? `Palavras certas:<br>${(sol.blanks || []).map((w, i) => `${i + 1}. ${esc(w)}`).join('<br>')}`
       : t === 'open' ? `Resposta modelo:<br>${(sol.accepted || []).map(esc).join(' · ')}`
       : t === 'rank' ? `Ordem certa:<br>${(sol.order || []).map((o, k) => `${k + 1}. ${esc(o)}`).join('<br>')}`
+      : t === 'number' ? `A resposta era:<br><b style="font-size:1.6em">${esc(String(sol.answer))}</b>${state.answered ? `<br><small>Escolheste ${esc(String(state.myValue))}</small>` : ''}`
+      : t === 'match' ? `Ligações certas:<br>${(sol.pairs || []).map(p => `${esc(p.left)} → <b>${esc(p.right)}</b>`).join('<br>')}`
+      : t === 'spot' ? `A zona certa está marcada a verde:${spotHtml(q, state.myValue, sol.zone)}`
       : t === 'guess' ? `A palavra era:<br><b style="font-size:1.4em;letter-spacing:.08em">${esc(String(sol.answer || '').toUpperCase())}</b>`
       : t === 'scramble' ? `A palavra era:<br><b style="font-size:1.4em;letter-spacing:.08em">${esc(String(sol.answer || '').toUpperCase())}</b>`
       : t === 'cross' ? `Solução:<br>${(sol.words || []).map((w, k) => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.display.toUpperCase())} ${(state.myValue || [])[k] === w.word ? '✓' : '✗'}`).join('<br>')}`
@@ -244,7 +247,7 @@ function renderGameInner() {
     const isNew = !lastKey.startsWith('rev' + s.qIndex);
     set(key, header() + qmeta() + `<div class="middle"><div class="result ${cls} ${isNew ? (state.wasCorrect ? 'pop-in' : 'shake') : ''}">
       <div class="big-emoji">${!state.answered ? '😴' : state.wasCorrect ? '🎉' : '😅'}</div>
-      <h2>${!state.answered ? 'Sem resposta' : state.wasCorrect ? 'Certo!' : t === 'fill' && state.right ? `${state.right} de ${q.blanks} certas` : t === 'rank' && state.right ? `${state.right} de ${q.items.length} no lugar certo` : t === 'cross' && state.right ? `${state.right} de ${q.cross.words.length} palavras certas` : 'Errado'}</h2>
+      <h2>${!state.answered ? 'Sem resposta' : state.wasCorrect ? 'Certo!' : t === 'fill' && state.right ? `${state.right} de ${q.blanks} certas` : t === 'rank' && state.right ? `${state.right} de ${q.items.length} no lugar certo` : t === 'cross' && state.right ? `${state.right} de ${q.cross.words.length} palavras certas` : t === 'match' && state.right ? `${state.right} de ${q.lefts.length} ligações certas` : t === 'number' && state.points > 0 ? 'Quase!' : 'Errado'}</h2>
       ${state.points ? `<div style="font-size:1.5em;font-weight:700">+${state.points} pontos</div>` : ''}
       ${!state.wasCorrect ? `<div class="correct-box">${solHtml}</div>` : ''}
       </div>${ph === 'leaderboard' ? rankBox() : ''}</div>`);
@@ -264,7 +267,7 @@ function renderGameInner() {
       ${m.team && m.teamPosition ? teamCard(true) : ''}
       ${state.review ? `<h2 style="margin:10px 0 0">As respostas corretas</h2><div class="review">${state.review.map((r, i) => `
         <div class="rv-item ${r.mine == null ? 'none' : r.ok === true ? 'ok' : r.ok === false ? 'bad' : 'none'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
-          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'cloud' ? '☁️ Nuvem de palavras' : r.type === 'scramble' || r.type === 'guess' ? '✅ ' + esc(String(r.solution.answer || '').toUpperCase()) : r.type === 'cross' ? '✅ ' + (r.solution.words || []).map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.display.toUpperCase())}`).join(' · ') : r.type === 'rank' ? ((r.solution.order || []).length ? '✅ ' + r.solution.order.map((o, k) => `${k + 1}. ${esc(o)}`).join(' · ') : '🔢 Ranking de opinião') : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
+          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'cloud' ? '☁️ Nuvem de palavras' : r.type === 'number' ? '✅ ' + esc(String(r.solution.answer)) : r.type === 'match' ? '✅ ' + (r.solution.pairs || []).map(p => `${esc(p.left)} → ${esc(p.right)}`).join(' · ') : r.type === 'spot' ? '🎯 Zona marcada na imagem' : r.type === 'scramble' || r.type === 'guess' ? '✅ ' + esc(String(r.solution.answer || '').toUpperCase()) : r.type === 'cross' ? '✅ ' + (r.solution.words || []).map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.display.toUpperCase())}`).join(' · ') : r.type === 'rank' ? ((r.solution.order || []).length ? '✅ ' + r.solution.order.map((o, k) => `${k + 1}. ${esc(o)}`).join(' · ') : '🔢 Ranking de opinião') : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
           <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${r.type === 'mc' || r.type === 'tf' || !r.type ? optLabel(r.options, r.mine) : esc(r.mineText || '')} ${r.ok === true ? '✓' : r.ok === false ? '✗' : ''}`}</div></div>`).join('')}</div>` : ''}
       ${(!state.review || !state.review.some(r => r.graded || r.ok != null)) && m.score == null ? `<div class="result none" style="margin-top:6px"><div class="big-emoji">📨</div><h2>Respostas enviadas!</h2>
         <p>Respondeste a ${state.answeredCount ?? 0} de ${s.total} perguntas. As tuas respostas foram registadas.</p></div>` : ''}
@@ -434,7 +437,7 @@ function renderExam() {
   set('ex' + exIdx + JSON.stringify(ex.mine), header() + top + `
     <div class="ex-chips">${ex.questions.map((_, i) => `<button class="ex-chip ${ex.mine[i] != null ? 'done' : ''} ${i === exIdx ? 'cur' : ''}" data-go="${i}">${i + 1}</button>`).join('')}</div>
     <div class="qmeta"><span>Pergunta ${exIdx + 1} de ${n}</span><span>${mine != null ? '✅ respondida' : ''}</span></div>
-    ${(q.type === 'fill' && q.parts) ? '' : `<div class="qtext">${esc(q.text)}</div>`}${q.image ? `<img class="qimg" src="${esc(q.image)}">` : ''}
+    ${(q.type === 'fill' && q.parts) ? '' : `<div class="qtext">${esc(q.text)}</div>`}${q.image && q.type !== 'spot' ? `<img class="qimg" src="${esc(q.image)}">` : ''}
     ${exW.html}
     <div class="ex-nav"><button class="btn ghost" id="exPrev" ${exIdx === 0 ? 'disabled' : ''}>← Anterior</button>
       ${exIdx < n - 1 ? `<button class="btn ghost" id="exNext">Seguinte →</button>` : `<button class="btn primary" id="exEnd">Rever e entregar ✅</button>`}</div>
@@ -613,6 +616,72 @@ function answerWidget(q, cur, exam) {
       },
     };
   }
+  if (t === 'number') {
+    // adivinhar um número: barra + botões − / + (o número grande é o que vai ser enviado)
+    const st = q.step || 1, dec = (String(st).split('.')[1] || '').length;
+    // começa em "?" (o meio do intervalo pode ser a resposta certa): só dá para enviar depois de escolher
+    let v = typeof cur === 'number' ? cur : null;
+    const mid = Math.round(((q.min + q.max) / 2) / st) * st, fmt = x => x == null ? '?' : Number(x.toFixed(dec)).toLocaleString('pt-PT');
+    return {
+      draft: () => v,
+      html: `<div class="num-box"><div class="num-val pop-in" id="numVal">${fmt(v)}</div>
+        <div class="num-row"><button class="btn ghost num-pm" id="numMinus" aria-label="menos">−</button>
+        <input type="range" id="numRange" class="${v == null ? 'unset' : ''}" min="${q.min}" max="${q.max}" step="${st}" value="${v ?? mid}" aria-label="número">
+        <button class="btn ghost num-pm" id="numPlus" aria-label="mais">+</button></div>
+        <div class="scale-labels"><span>${fmt(q.min)}</span><span>${fmt(q.max)}</span></div></div>
+        <button class="btn primary" id="numSend" style="width:100%;margin-top:12px" ${v == null ? 'disabled' : ''}>${exam ? '💾 Guardar' : '📨 Enviar'}</button>`,
+      bind: on => {
+        const r = $('#numRange'), setV = x => { v = Math.min(q.max, Math.max(q.min, Number(x.toFixed(dec + 2)))); r.value = v; r.classList.remove('unset'); $('#numVal').textContent = fmt(v); $('#numSend').disabled = false; };
+        r.oninput = () => setV(Number(r.value));
+        $('#numMinus').onclick = () => { setV(v == null ? mid : v - st); Sound.play('pop'); };
+        $('#numPlus').onclick = () => { setV(v == null ? mid : v + st); Sound.play('pop'); };
+        $('#numSend').onclick = () => v != null && on(v, $('#numSend'));
+      },
+    };
+  }
+  if (t === 'match') {
+    // correspondência: cada item da esquerda recebe uma letra da direita (uma letra não se repete)
+    const lefts = q.lefts || [], rights = q.rights || [];
+    const pick = Array.isArray(cur) ? cur.slice() : lefts.map(() => null);
+    const html = () => `<div class="match-rights">${rights.map(r => `<div class="match-r opt-${r.k % 6} ${pick.includes(r.k) ? 'used' : ''}"><span class="letter">${r.letter}</span>${esc(r.text)}</div>`).join('')}</div>
+      <div class="match-list">${lefts.map((l, i) => `<div class="match-row"><div class="match-l">${esc(l) || 'Item ' + (i + 1)}</div><div class="match-btns">${rights.map(r =>
+        `<button class="match-b opt-${r.k % 6} ${pick[i] === r.k ? 'on' : ''}" data-i="${i}" data-k="${r.k}">${r.letter}</button>`).join('')}</div></div>`).join('')}</div>`;
+    return {
+      draft: () => pick.every(x => x == null) ? null : pick.slice(),
+      html: `<div id="matchBox">${html()}</div><button class="btn primary" id="matchSend" style="width:100%;margin-top:12px" ${pick.every(x => x != null) ? '' : 'disabled'}>${exam ? '💾 Guardar' : '📨 Enviar ligações'}</button>`,
+      bind: on => {
+        const refresh = () => { $('#matchBox').innerHTML = html(); bindIt(); $('#matchSend').disabled = !pick.every(x => x != null); };
+        const bindIt = () => $$('.match-b').forEach(b => b.onclick = () => {
+          const i = +b.dataset.i, k = +b.dataset.k;
+          if (pick[i] === k) pick[i] = null;
+          else { const j = pick.indexOf(k); if (j >= 0) pick[j] = null; pick[i] = k; Sound.play('pop'); }
+          // falta só um item e só sobra uma letra: liga sozinho
+          const free = pick.map((x, n) => x == null ? n : -1).filter(n => n >= 0);
+          if (free.length === 1) { const left = rights.find(r => !pick.includes(r.k)); if (left) pick[free[0]] = left.k; }
+          refresh();
+        });
+        bindIt();
+        $('#matchSend').onclick = () => on(pick.slice(), $('#matchSend'));
+      },
+    };
+  }
+  if (t === 'spot') {
+    let pt = Array.isArray(cur) ? cur.slice() : null;
+    return {
+      draft: () => pt,
+      html: `<div id="spotBox">${spotHtml(q, pt, null, true)}</div>
+        <button class="btn primary" id="spotSend" style="width:100%;margin-top:12px" ${pt ? '' : 'disabled'}>${exam ? '💾 Guardar' : '🎯 Confirmar'}</button>`,
+      bind: on => {
+        const bindIt = () => { const img = $('#spotBox img'); img.onclick = e => {
+          const r = img.getBoundingClientRect();
+          pt = [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))].map(x => Math.round(x * 1000) / 1000);
+          $('#spotBox').innerHTML = spotHtml(q, pt, null, true); bindIt(); $('#spotSend').disabled = false; Sound.play('pop'); navigator.vibrate && navigator.vibrate(20);
+        }; };
+        bindIt();
+        $('#spotSend').onclick = () => pt && on(pt, $('#spotSend'));
+      },
+    };
+  }
   if (t === 'rank') {
     // toca nas opções pela ordem; tocar numa já numerada tira-a (e as seguintes sobem)
     let order = Array.isArray(cur) ? cur.slice() : [];
@@ -699,6 +768,13 @@ function guessBoardHtml(q, tries, typed, live) {
   }
   return `<div class="gw" style="--len:${L}">${rows.join('')}</div>`;
 }
+// imagem do "encontrar na imagem", com o ponto tocado e (na revelação) a zona certa
+function spotHtml(q, pt, zone, live) {
+  const pc = x => (x * 100).toFixed(1) + '%';
+  return `<div class="spot ${live ? 'live' : ''}"><img src="${esc(q.image || '')}" alt="imagem da pergunta" draggable="false">
+    ${zone ? `<div class="spot-zone" style="left:${pc(zone.x)};top:${pc(zone.y)};width:${pc(zone.w)};height:${pc(zone.h)}"></div>` : ''}
+    ${pt ? `<div class="spot-pin pop-in" style="left:${pc(pt[0])};top:${pc(pt[1])}"></div>` : ''}</div>`;
+}
 // resumo da resposta dada, para mostrar depois de enviar
 function answerSummary(q, v) {
   const t = q.type || 'mc';
@@ -709,6 +785,9 @@ function answerSummary(q, v) {
   if (t === 'cloud') return '☁️ ' + (v || []).map(esc).join(' · ');
   if (t === 'scramble') return `<b style="font-size:1.4em;letter-spacing:.08em">${esc(String(v).toUpperCase())}</b>`;
   if (t === 'guess') return (v || []).map(esc).join(' → ');
+  if (t === 'number') return `<b style="font-size:1.6em">${esc(Number(v).toLocaleString('pt-PT'))}</b>`;
+  if (t === 'match') return `<div style="text-align:left">${(q.lefts || []).map((l, i) => { const r = (q.rights || [])[(v || [])[i]]; return `${esc(l)} → ${r ? `<b>${r.letter}</b> ${esc(r.text)}` : '—'}`; }).join('<br>')}</div>`;
+  if (t === 'spot') return `🎯 Tocaste na imagem${spotHtml(q, v, null)}`;
   if (t === 'cross') return `<div style="text-align:left">${q.cross.words.map((w, k) => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc((v || [])[k] || '—')}`).join('<br>')}</div>`;
   if (t === 'rank') { const txt = i => { const it = (q.items || []).find(x => x.i === i); return it ? (it.text ? esc(it.text) : it.letter) : '?'; }; return `<div style="text-align:left">${(v || []).map((i, k) => `${k + 1}º ${txt(i)}`).join('<br>')}</div>`; }
   return optLabel(q.options, v);

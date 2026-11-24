@@ -1,6 +1,6 @@
 // Ajudas partilhadas (formador e formandos) para os tipos de pergunta.
-const QTYPE_LABEL = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5', cloud: '☁️ Nuvem de palavras', rank: '🔢 Ranking de opções', scramble: '🔤 Letras baralhadas', cross: '✏️ Palavras cruzadas', guess: '🟩 Adivinha a palavra' };
-const qType = q => (q && ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess'].includes(q.type)) ? q.type : 'mc';
+const QTYPE_LABEL = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5', cloud: '☁️ Nuvem de palavras', rank: '🔢 Ranking de opções', scramble: '🔤 Letras baralhadas', cross: '✏️ Palavras cruzadas', guess: '🟩 Adivinha a palavra', number: '🔢 Adivinhar um número', match: '🔗 Correspondência', spot: '🎯 Encontrar na imagem' };
+const qType = q => (q && ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot'].includes(q.type)) ? q.type : 'mc';
 // tem resposta certa? (ranking só quando tem ordem certa)
 const qGraded = q => { const t = qType(q); return t === 'rank' ? !!q.ordered : !['scale', 'open', 'cloud'].includes(t); };
 const BLANK_RX = /\[\[([^\]]+?)\]\]/g;
@@ -28,6 +28,9 @@ function solutionText(q) {
   if (t === 'open') return (q.accepted || []).length ? 'Modelo: ' + q.accepted.join(' · ') + ' (validada pelo formador)' : 'Resposta livre (validada pelo formador)';
   if (t === 'cloud') return 'Nuvem de palavras (sem resposta certa)';
   if (t === 'scramble' || t === 'guess') return String(q.answer || '').toUpperCase();
+  if (t === 'number') return String(q.answer);
+  if (t === 'match') return (q.pairs || []).map(p => `${p.left} → ${p.right}`).join(' · ');
+  if (t === 'spot') return 'A zona marcada na imagem';
   if (t === 'cross') return ((q.cross || {}).words || []).map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${w.display}`).join(' · ');
   if (t === 'rank') return q.ordered ? 'Ordem: ' + q.options.map((o, k) => `${k + 1}. ${o}`).join(' · ') : 'Ranking de opinião (sem ordem certa)';
   return 'Escala 1–5 (sem resposta certa)';
@@ -42,6 +45,9 @@ function plainCorrectOf(q) {
   if (t === 'open') return (q.accepted || []).length ? q.accepted.join(' / ') : 'Sem resposta modelo (validada pelo formador)';
   if (t === 'rank' && q.ordered) return q.options.map((o, k) => `${k + 1}. ${o}`).join('; ');
   if (t === 'scramble' || t === 'guess') return String(q.answer || '').toUpperCase();
+  if (t === 'number') return String(q.answer);
+  if (t === 'match') return (q.pairs || []).map(p => `${p.left} → ${p.right}`).join('; ');
+  if (t === 'spot') return 'A zona marcada na imagem';
   if (t === 'cross') return ((q.cross || {}).words || []).map(w => `${w.n} ${w.dir === 'a' ? 'horizontal' : 'vertical'}: ${w.display}`).join('; ');
   return '—';
 }
@@ -54,6 +60,9 @@ function plainAnswerOf(q, a) {
   if (t === 'cloud') return (a.value || []).join(', ');
   if (t === 'rank') return (a.value || []).map((k, pos) => `${pos + 1}. ${q.options[k]}`).join('; ');
   if (t === 'scramble') return String(a.value || '').toUpperCase();
+  if (t === 'number') return String(a.value) + (a.correct ? '' : ` (a resposta era ${q.answer})`);
+  if (t === 'match') return (q.pairs || []).map((p, i) => `${p.left} → ${((q.pairs || [])[(a.value || [])[i]] || {}).right || '—'}${(a.value || [])[i] === i ? ' ✓' : ' ✗'}`).join('; ');
+  if (t === 'spot') return a.correct ? 'Tocou na zona certa' : 'Tocou fora da zona certa';
   if (t === 'guess') return `Tentativas: ${(a.value || []).join(', ')}${a.correct ? ` — acertou à ${a.tries}ª` : ' — não acertou'}`;
   if (t === 'cross') return ((q.cross || {}).words || []).map((w, k) => `${w.n} ${w.dir === 'a' ? 'horizontal' : 'vertical'}: ${(a.value || [])[k] || '(em branco)'}${(a.value || [])[k] === w.word ? ' ✓' : ' ✗'}`).join('; ');
   return String(a.value ?? '');
