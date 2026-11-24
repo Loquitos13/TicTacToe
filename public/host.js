@@ -297,10 +297,14 @@ const fmtN = n => Number(n).toLocaleString('pt-PT');
 // correspondência no projetor: itens numerados à esquerda, opções baralhadas (com letra) à direita
 function matchStageHtml(q, showSol) {
   const order = S.matchOrder || q.pairs.map((_, i) => i), st = S.matchStats || [], total = S.answeredIds.length;
-  const letterOf = i => LETTERS[order.indexOf(i)];
-  return `<div class="match-stage"><div class="match-col">${q.pairs.map((p, i) => `<div class="opt match-left pop-in" style="animation-delay:${i * 80}ms"><span class="letter">${i + 1}</span><span class="txt">${esc(p.left)}</span>
-      ${showSol ? `<span class="cnt" style="font-size:.6em">→ ${letterOf(i)}${total ? ` · ${st[i] || 0}/${total} ✓` : ''}</span>` : ''}</div>`).join('')}</div>
-    <div class="match-col">${order.map((i, k) => `<div class="opt opt-${k % 6} pop-in" style="animation-delay:${k * 80 + 200}ms"><span class="letter">${LETTERS[k]}</span><span class="txt">${esc(q.pairs[i].right)}</span></div>`).join('')}</div></div>`;
+  const right = (i, k, d) => `<div class="opt opt-${k % 6} pop-in" style="animation-delay:${d}ms"><span class="letter">${LETTERS[k]}</span><span class="txt">${esc(q.pairs[i].right)}</span></div>`;
+  // solução: cada opção da direita fica ao lado do item certo (com a letra que os formandos viram), ligada por uma seta
+  if (showSol) return `<div class="match-stage sol">${q.pairs.map((p, i) => `
+    <div class="opt match-left right pop-in" style="animation-delay:${i * 120}ms"><span class="letter">${i + 1}</span><span class="txt">${esc(p.left)}</span>${total ? `<span class="cnt" style="font-size:.6em">${st[i] || 0}/${total} ✓</span>` : ''}</div>
+    <div class="match-arrow pop-in" style="animation-delay:${i * 120 + 60}ms">➜</div>
+    ${right(i, order.indexOf(i), i * 120 + 100)}`).join('')}</div>`;
+  return `<div class="match-stage"><div class="match-col">${q.pairs.map((p, i) => `<div class="opt match-left pop-in" style="animation-delay:${i * 80}ms"><span class="letter">${i + 1}</span><span class="txt">${esc(p.left)}</span></div>`).join('')}</div>
+    <div class="match-col">${order.map((i, k) => right(i, k, k * 80 + 200)).join('')}</div></div>`;
 }
 // encontrar na imagem no projetor: a imagem; nos resultados, os toques da turma e (com solução) a zona certa
 function spotStageHtml(q, showSol, hits) {
@@ -492,7 +496,7 @@ function resultsOtherHtml(withAnswer, animate) {
     if (showSol) body = `<div class="accepted">✅ Resposta certa: <b style="font-size:1.4em">${esc(fmtN(q.answer))}</b></div>` + body;
   } else if (t === 'match') {
     body = matchStageHtml(q, showSol);
-    if (showSol) body += `<div class="accepted">✅ ${q.pairs.map(p => `${esc(p.left)} → <b>${esc(p.right)}</b>`).join(' · ')}</div>`;
+    if (showSol) { const order = S.matchOrder || q.pairs.map((_, i) => i); body += `<div class="accepted">✅ Resposta: <b style="font-size:1.3em;letter-spacing:.04em">${q.pairs.map((_, i) => `${i}-${LETTERS[order.indexOf(i)]}`.replace(/^\d+/, n => +n + 1)).join(' · ')}</b></div>`; }
   } else if (t === 'spot') {
     body = spotStageHtml(q, showSol, poll || showSol ? S.spotHits : []);
   } else if (t === 'rank') {
