@@ -126,3 +126,5 @@ input, select, textarea { font: inherit; }
 @keyframes d-robot-l { 0% { transform: rotate(90deg); } 25% { transform: rotate(180deg); } 50% { transform: rotate(30deg); } 75% { transform: rotate(90deg); } }
 @keyframes d-robot-r { 0% { transform: rotate(-30deg); } 25% { transform: rotate(-90deg); } 50% { transform: rotate(-180deg); } 75% { transform: rotate(-90deg); } }
 /* os bonecos dançam sempre, enquanto o pódio estiver no ecrã */
+/* textos compridos sem espaços (links, palavras coladas) partem a linha em vez de alargar a página no telemóvel */
+h1, h2, h3, h4, p, li, label, .intro { overflow-wrap: anywhere; }
