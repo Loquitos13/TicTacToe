@@ -114,7 +114,7 @@ Segurança:
 > **Nomes parecidos.** Se na turma houver um "Rui" e um "Rui Santos", quem escreve "Rui Santos" entra sempre como Rui Santos (ganha o nome mais completo). Se alguém escrever só "Rui" (maiúsculas e acentos não contam) e já tiver entrado um Rui, o telemóvel explica, por baixo do campo, que já entrou um "Rui" e pede para escrever mais alguma coisa do nome (o apelido) — ou, se for o próprio e mudou de telemóvel, para pedir o código de reentrada.
 
 
-**Exemplo pronto:** `exemplos/formatar-documentos.json` (8 perguntas sobre formatação de documentos, com todos os tipos novos). Em ❓ Questionários → **Importar JSON** no curso que quiseres. A imagem da pergunta 3 é um documento de exemplo (`exemplos/documento-colado.jpg`); para usar outra, edita a pergunta, remove a imagem, carrega a tua e marca a zona.
+**Exemplo pronto:** `exemplos/formatar-documentos.json` (8 perguntas sobre formatação de documentos, com todos os tipos novos). Em ❓ Questionários → **Importar JSON** no curso que quiseres. A imagem da pergunta 3 é `exemplos/regulamento-ferias.png`, com a zona do parágrafo cinzento já marcada; para usar outra, edita a pergunta, remove a imagem, carrega a tua e marca a zona.
 
 ## 4. Durante a sessão
 **🎮 Jogo**: escolhe o curso, o questionário e os alunos e clica em **Abrir sala**. Aparece o QR code.
