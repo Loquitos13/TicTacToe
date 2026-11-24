@@ -902,6 +902,7 @@ io.on('connection', socket => {
       if (fixed >= 5) qs.forEach(q => q.time = Math.min(300, fixed));
       // anónimo: nenhuma ligação à turma (sem nomes, fotos nem ranking)
       settings.anonymous = !!quiz.anonymous;
+      settings.openJoin = settings.openJoin !== false;   // quem não está na lista pode entrar com o nome que escreve
       if (settings.anonymous) { settings.noRanking = true; settings.rankEach = false; settings.finalPodium = false; settings.showWho = false; }
       // jogos em grupo: 2 a 6 equipas (não há equipas no anónimo nem sem ranking)
       const nt = parseInt(settings.teams, 10);
@@ -1060,7 +1061,28 @@ io.on('connection', socket => {
     if (typeof name !== 'string' || !name.trim() || name.length > 80) return cb({ error: 'Escreve o teu nome completo.' });
     const T = norm(name).split(' ').filter(Boolean);
     if (!T.length) return cb({ error: 'Escreve o teu nome completo.' });
-    let found = session.roster.filter(st => matchesStudent(st, T));
+    // os convidados (entraram sem estar na lista) só se comparam pelo nome exato, mais abaixo
+    let found = session.roster.filter(st => !st.guest && matchesStudent(st, T));
+    if (found.length === 0 && session.settings.openJoin) {
+      // aluno registado que não foi escolhido para esta sessão: entra com a ficha dele (e a fotografia)
+      const others = db.students.filter(s => !session.roster.some(r => r.id === s.id)).map(s => ({ ...s }));
+      assignShortNames(others);
+      const fromDb = others.filter(st => matchesStudent(st, T));
+      if (fromDb.length === 1) {
+        session.roster.push(fromDb[0]);
+        assignShortNames(session.roster.filter(r => !r.guest && !r.anon));
+        return attach(newPlayer(fromDb[0]), cb);
+      }
+      // não está registado: entra como convidado com o nome que escreveu
+      const typed = T.join(' '), same = session.roster.find(r => r.guest && norm(r.name) === typed);
+      if (same) return cb({ taken: true, error: `Já entrou alguém com o nome "${same.name}". Se não és tu, escreve também o apelido. Se és tu e mudaste de telemóvel, pede ao formador o código de reentrada.` });
+      let clean = name.trim().replace(/\s+/g, ' ').slice(0, 60);
+      if (clean === clean.toLowerCase()) clean = clean.replace(/(^|\s)(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
+      const w = clean.split(' ');
+      const st = { id: 'g' + uid(8), name: clean, short: w.length > 2 ? w[0] + ' ' + w[w.length - 1] : clean, photo: null, guest: true };
+      session.roster.push(st);
+      return attach(newPlayer(st), cb);
+    }
     if (found.length === 0) return cb({ notFound: true });
     // vários servem (ex.: "Rui" e "Rui Santos" na turma e escreveu "Rui Santos"): fica o mais específico,
     // ou seja, o que usa mais palavras do nome escrito; o nome exatamente igual ganha sempre

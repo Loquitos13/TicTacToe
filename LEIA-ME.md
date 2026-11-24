@@ -111,6 +111,15 @@ Segurança:
 
 **📋 Lista de soluções:** em Questionários, o botão **📋 Soluções** de cada questionário mostra todas as perguntas com a resposta correta **destacada a verde**: todas as opções (a correta marcada), a frase completa nos espaços, a resposta de referência das respostas livres e a escala 1–5 com as legendas. Podes **imprimir / guardar PDF** ou descarregar em **Word** (A4 vertical).
 
+**🙋 Alunos sem registo.** Não é obrigatório registar os alunos antes. Ao abrir a sala, a opção **"Deixar entrar quem não está na lista"** vem ligada.
+
+Com ela ligada, pode abrir a sala sem alunos registados ou sem marcar ninguém. Quem entra:
+- **Não está registado:** escreve o nome no telemóvel e pode tirar a fotografia.
+- **Está registado mas não foi marcado:** entra com a ficha dele, incluindo a fotografia.
+- **Nome já usado por outra pessoa:** é-lhe pedido o apelido.
+
+Nos resultados, quem não estava marcado aparece como "(extra)". Se a desligar, só entram os alunos marcados.
+
 > **Nomes parecidos.** Se na turma houver um "Rui" e um "Rui Santos", quem escreve "Rui Santos" entra sempre como Rui Santos (ganha o nome mais completo). Se alguém escrever só "Rui" (maiúsculas e acentos não contam) e já tiver entrado um Rui, o telemóvel explica, por baixo do campo, que já entrou um "Rui" e pede para escrever mais alguma coisa do nome (o apelido) — ou, se for o próprio e mudou de telemóvel, para pedir o código de reentrada.
 
 

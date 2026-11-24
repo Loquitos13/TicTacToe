@@ -778,13 +778,14 @@ function renderSetup(el) {
         <label class="switch"><input type="checkbox" id="sSpeed" checked> Pontos extra por responder depressa</label>
         <label class="switch"><input type="checkbox" id="sShuffle"> Baralhar a ordem das perguntas</label>
         <p class="muted" style="margin:4px 0">Independentemente destas opções, a grelha final regista sempre quem respondeu o quê.</p>
-        <button class="btn primary" id="sGo" ${!qz.length || !students.length ? 'disabled' : ''}>Abrir sala 🎉</button>
+        <button class="btn primary" id="sGo" ${!qz.length ? 'disabled' : ''}>Abrir sala 🎉</button>
         <p class="key-warn" id="goHint" hidden></p>
       </div>
     </div>
     <div class="card slide-up" style="animation-delay:.1s">
       <h2>👥 Turma (${students.length})</h2>
-      ${!students.length ? '<p>Ainda não há alunos. Adiciona-os no separador <b>Alunos</b>.</p>' : `
+      <label class="switch" id="openJoinL"><input type="checkbox" id="sOpen" checked> 🙋 <span><b>Deixar entrar quem não está na lista</b> — escreve o nome no telemóvel e pode tirar a fotografia. Alunos registados que não marcaste também entram (com a fotografia deles).</span></label>
+      ${!students.length ? '<p class="muted">Ainda não há alunos registados: os formandos entram escrevendo o nome. Se quiseres, regista-os antes (com fotografia) no separador <b>Alunos</b>.</p>' : `
       <div class="row" style="margin-bottom:8px"><button class="btn small" id="allOn">Todos</button><button class="btn small" id="allOff">Nenhum</button><span class="muted">Desmarca quem não participa nesta sessão.</span></div>
       <div class="chips">${students.map(s => `<label class="chip"><input type="checkbox" class="sStu" value="${s.id}" checked>${avatar(s, 'sm')}${esc(s.name)}</label>`).join('')}</div>`}
     </div></div></div>`;
@@ -802,7 +803,8 @@ function renderSetup(el) {
     // explica porque é que "Abrir sala" está desligado (o questionário anónimo não precisa de alunos)
     const why = !qz.length ? 'Para abrir a sala, cria (ou importa) primeiro um questionário no separador 📝 Questionários.'
       : !qq ? 'Este curso ainda não tem questionários: escolhe outro curso ou importa um no separador 📝 Questionários.'
-      : !students.length && !anon ? 'Para abrir a sala, adiciona primeiro os alunos no separador 👥 Alunos (ou usa um questionário anónimo).' : '';
+      : !anon && !$('#sOpen').checked && !$$('.sStu').some(c => c.checked) ? 'Marca pelo menos um aluno da turma, ou liga "Deixar entrar quem não está na lista".' : '';
+    $('#openJoinL').hidden = anon;
     go.disabled = !!why; $('#goHint').hidden = !why; $('#goHint').textContent = why;
     $('#sWho').disabled = anon; if (anon) $('#sWho').checked = false;
     const turma = $('.chips'); if (turma) turma.style.opacity = anon ? .35 : 1;
@@ -832,16 +834,17 @@ function renderSetup(el) {
   };
   $('#sRevEach').onchange = syncSetup; $('#sHide').onchange = syncSetup; $('#sTeams').onchange = syncSetup;
   $$('[name=sMode]').forEach(r => r.onchange = syncSetup); $('#sRanking').onchange = syncSetup; syncSetup();
-  if ($('#allOn')) { $('#allOn').onclick = () => $$('.sStu').forEach(c => c.checked = true); $('#allOff').onclick = () => $$('.sStu').forEach(c => c.checked = false); }
+  if ($('#allOn')) { $('#allOn').onclick = () => { $$('.sStu').forEach(c => c.checked = true); syncAnon(); }; $('#allOff').onclick = () => { $$('.sStu').forEach(c => c.checked = false); syncAnon(); }; }
+  $('#sOpen').onchange = syncAnon; $$('.sStu').forEach(c => c.onchange = syncAnon);
   go.onclick = () => {
     const ids = $$('.sStu').filter(c => c.checked).map(c => c.value);
     const anonQ = (qz.find(x => x.id === $('#sQuiz').value) || {}).anonymous;
-    if (!ids.length && !anonQ) return toast('Escolhe pelo menos um aluno');
+    if (!ids.length && !anonQ && !$('#sOpen').checked) return toast('Escolhe pelo menos um aluno');
     go.disabled = true; Sound.init();
     socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sRevEach').checked ? 'each' : ($('#sRevEnd').checked ? 'end' : 'never'), revealEnd: $('#sRevEnd').checked,
       rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
       autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, hideOnPhones: $('#sHide').checked, examMinutes: +$('#tTotal').value, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked,
-      teams: $('#sTeams').checked ? +$('#sTeamsN').value : 0 } });
+      teams: $('#sTeams').checked ? +$('#sTeamsN').value : 0, openJoin: $('#sOpen').checked } });
   };
 }
 
