@@ -1,4 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap');
+/* o atributo hidden esconde sempre, mesmo em elementos com display próprio */
+[hidden] { display: none !important; }
 :root {
   --bg1: #2b1055; --bg2: #7597de; --ink: #1d1433; --card: #ffffff; --muted: #6b6280;
   --a: #ff5d73; --b: #14b8a6; --c: #f59e0b; --d: #8b5cf6; --e: #3b82f6; --f: #ec4899;

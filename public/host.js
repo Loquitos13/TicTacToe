@@ -779,6 +779,7 @@ function renderSetup(el) {
         <label class="switch"><input type="checkbox" id="sShuffle"> Baralhar a ordem das perguntas</label>
         <p class="muted" style="margin:4px 0">Independentemente destas opções, a grelha final regista sempre quem respondeu o quê.</p>
         <button class="btn primary" id="sGo" ${!qz.length || !students.length ? 'disabled' : ''}>Abrir sala 🎉</button>
+        <p class="key-warn" id="goHint" hidden></p>
       </div>
     </div>
     <div class="card slide-up" style="animation-delay:.1s">
@@ -798,6 +799,11 @@ function renderSetup(el) {
     const qq = qz.find(x => x.id === $('#sQuiz').value), anon = !!(qq && qq.anonymous);
     $('#anonNote').hidden = !anon;
     $('#sRanking').disabled = anon; if (anon) $('#sRanking').value = 'none';
+    // explica porque é que "Abrir sala" está desligado (o questionário anónimo não precisa de alunos)
+    const why = !qz.length ? 'Para abrir a sala, cria (ou importa) primeiro um questionário no separador 📝 Questionários.'
+      : !qq ? 'Este curso ainda não tem questionários: escolhe outro curso ou importa um no separador 📝 Questionários.'
+      : !students.length && !anon ? 'Para abrir a sala, adiciona primeiro os alunos no separador 👥 Alunos (ou usa um questionário anónimo).' : '';
+    go.disabled = !!why; $('#goHint').hidden = !why; $('#goHint').textContent = why;
     $('#sWho').disabled = anon; if (anon) $('#sWho').checked = false;
     const turma = $('.chips'); if (turma) turma.style.opacity = anon ? .35 : 1;
   };
@@ -998,7 +1004,7 @@ function renderEditor(el) {
     <div id="qList">${q.questions.map((x, i) => qEditHtml(x, i)).join('')}</div>
     <button class="btn" id="addQ">+ Adicionar pergunta</button>
   </div>`;
-  el.oninput = () => sync();
+  el.oninput = () => { if ($('#qTitle')) sync(); };   // o separador também mostra outras coisas (lista, soluções)
   const sync = () => {
     q.title = $('#qTitle').value; q.courseId = $('#qCourse').value; q.anonymous = $('#qAnon').checked;
     $$('.qedit').forEach((box, i) => {
