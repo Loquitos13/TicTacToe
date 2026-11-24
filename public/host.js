@@ -281,8 +281,11 @@ function questionBodyHtml(q) {
       <div class="scr-slots">${scrambleShapeOf(q).map(n => `<span class="scr-word">${'<i></i>'.repeat(n)}</span>`).join('')}</div>
       <p class="cloud-hint">🔤 Forma a palavra no telemóvel, tocando nas letras pela ordem</p>`; }
   if (t === 'cross') return crossStageHtml(q, false);
-  if (t === 'number') return `<div class="num-stage pop-in"><span>${esc(fmtN(q.min))}</span><div class="num-track"><i></i></div><span>${esc(fmtN(q.max))}</span></div>
-    <p class="cloud-hint">🔢 Escolhe um número de ${esc(fmtN(q.min))} a ${esc(fmtN(q.max))} no telemóvel — em cheio ganha tudo, perto ainda ganha alguns pontos</p>`;
+  if (t === 'number') { const st = q.step || 1, n = Math.round((q.max - q.min) / st), few = n <= 20;
+    const ticks = few ? Array.from({ length: n + 1 }, (_, k) => Math.round((q.min + k * st) * 1e6) / 1e6) : [q.min, q.max];
+    return `<div class="num-stage pop-in"><div class="num-track"><i>?</i></div>
+      <div class="num-ticks">${ticks.map((v, k) => `<span style="left:${ticks.length > 1 ? k / (ticks.length - 1) * 100 : 50}%">${esc(fmtN(v))}</span>`).join('')}</div></div>
+    <p class="cloud-hint" style="margin-top:34px">🔢 Escolhe um número de ${esc(fmtN(q.min))} a ${esc(fmtN(q.max))} no telemóvel — em cheio ganha tudo, perto ainda ganha alguns pontos</p>`; }
   if (t === 'match') return matchStageHtml(q, false);
   if (t === 'spot') return `${spotStageHtml(q, false)}<p class="cloud-hint">🎯 Toca no sítio certo da imagem, no telemóvel</p>`;
   if (t === 'guess') return `<div class="scr-board">${Array.from({ length: cwNorm(q.answer).length }, (_, i) => `<span class="scr-tile gq pop-in" style="animation-delay:${i * 60}ms">?</span>`).join('')}</div>

@@ -220,6 +220,16 @@ function renderGameInner() {
       <p style="margin-top:12px">${atEnd ? 'As respostas corretas são mostradas no fim do quiz. 🤫' : 'Nesta avaliação as respostas corretas não são mostradas.'}</p>
       </div><p>Aguarda a próxima pergunta<span class="dots"></span></p></div>`);
   }
+  if (ph === 'leaderboard' && (state.board || []).length) {
+    // ecrã próprio do ranking: a lista de toda a gente, com o boneco do formando a dançar na sua linha
+    const m = state.me, mine = state.board.find(r => r.me) || {};
+    set('lb' + s.qIndex + JSON.stringify(state.board.map(r => [r.pos, r.score])), header() + qmeta() + `<div class="lb-wrap">
+      <h1 class="slide-up" style="margin:4px 0">🏆 Classificação</h1>
+      ${m.team ? teamCard(false) : ''}
+      <p class="lb-me-sum pop-in">Estás em <b>${ordinal(mine.pos)}</b> lugar${mine.score != null ? ` com <b>${mine.score}</b> pontos` : ''}${m.of ? ` · ${m.of} participantes` : ''}</p>
+      ${boardHtml(true)}</div>`, () => { const me = $('.lb-row.me'); if (me) me.scrollIntoView({ block: 'center', behavior: 'smooth' }); });
+    return;
+  }
   if ((ph === 'reveal' || ph === 'leaderboard') && state.answered && (state.graded === false || state.wasCorrect == null)) {
     // escala (opinião) ou resposta livre por avaliar: não há certo/errado agora
     const q = state.question, sc = isOpinion(q);
@@ -265,6 +275,7 @@ function renderGameInner() {
         ${m.score != null ? `<div style="font-size:2.4em;font-weight:700">${m.score} pts</div><div class="muted">${m.correct} de ${state.gradedTotal ?? s.total} respostas certas</div>` : ''}
         ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
       ${m.team && m.teamPosition ? teamCard(true) : ''}
+      ${(state.board || []).length && m.position != null ? `<h2 style="margin:10px 0 0">🏆 Classificação final</h2>${boardHtml(false)}` : ''}
       ${state.review ? `<h2 style="margin:10px 0 0">As respostas corretas</h2><div class="review">${state.review.map((r, i) => `
         <div class="rv-item ${r.mine == null ? 'none' : r.ok === true ? 'ok' : r.ok === false ? 'bad' : 'none'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
           <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'cloud' ? '☁️ Nuvem de palavras' : r.type === 'number' ? '✅ ' + esc(String(r.solution.answer)) : r.type === 'match' ? '✅ ' + (r.solution.pairs || []).map(p => `${esc(p.left)} → ${esc(p.right)}`).join(' · ') : r.type === 'spot' ? '🎯 Zona marcada na imagem' : r.type === 'scramble' || r.type === 'guess' ? '✅ ' + esc(String(r.solution.answer || '').toUpperCase()) : r.type === 'cross' ? '✅ ' + (r.solution.words || []).map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.display.toUpperCase())}`).join(' · ') : r.type === 'rank' ? ((r.solution.order || []).length ? '✅ ' + r.solution.order.map((o, k) => `${k + 1}. ${esc(o)}`).join(' · ') : '🔢 Ranking de opinião') : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
@@ -274,6 +285,15 @@ function renderGameInner() {
       <p>Obrigado por participares! 💜</p></div>`);
     if (isNew) { Sound.play('fanfare'); Confetti.burst(200); }
   }
+}
+const ordinal = n => n + '.º';
+// lista da classificação; dance = o formando aparece como boneco a dançar na sua linha
+function boardHtml(dance) {
+  return `<div class="lb-list">${state.board.map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''} slide-up" style="animation-delay:${Math.min(i, 15) * 40}ms">
+    <span class="lb-pos">${r.pos <= 3 ? ['🥇', '🥈', '🥉'][r.pos - 1] + ' ' : ''}${ordinal(r.pos)}</span>
+    ${r.me && dance ? `<div class="lb-dancer">${dancer({ ...state.me, photo: r.photo || state.me.photo }, r.pos === 1 ? 'jump' : 'disco', '#7c3aed', r.pos === 1)}</div>` : avatar(r, 'sm')}
+    <span class="lb-name">${esc(r.name)}${r.me ? ' <small>(tu)</small>' : ''}</span>
+    ${r.score != null ? `<span class="lb-pts">${r.score} pts</span>` : ''}</div>`).join('')}</div>`;
 }
 function rankBox() {
   const m = state.me;

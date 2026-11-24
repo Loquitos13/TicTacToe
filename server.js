@@ -271,6 +271,12 @@ function playerView(p) {
     },
     answered: !!mine, myOption: mine ? mine.option : null, myValue: mine ? Q.forPhone(q, mine.value) : null,
   };
+  // classificação completa para o ecrã de ranking do telemóvel (os mesmos dados que o projetor mostra)
+  if (showPos && (session.phase === 'leaderboard' || isEnd)) {
+    const row = (r, i) => { const x = session.players[r.studentId] || {}; return { pos: i + 1, name: x.short || r.name, photo: x.photo || null, score: showScore ? r.s : null, me: r.studentId === p.studentId }; };
+    v.board = rank.slice(0, 100).map(row);
+    if (pos > 100) v.board.push(row(rank[pos - 1], pos - 1));   // turmas enormes: os 100 primeiros + o próprio
+  }
   if (session.settings.teams && p.team != null) {
     v.me.team = teamInfo(p.team);
     v.me.teammates = Object.values(session.players).filter(x => x.team === p.team && x !== p).map(x => x.short || x.name);
@@ -1063,20 +1069,24 @@ io.on('connection', socket => {
     const T = norm(name).split(' ').filter(Boolean);
     if (!T.length) return cb({ error: 'Escreve o teu nome completo.' });
     // os convidados (entraram sem estar na lista) só se comparam pelo nome exato, mais abaixo
-    let found = session.roster.filter(st => !st.guest && matchesStudent(st, T));
+    // com a entrada aberta, um apelido escrito que não existe no nome do aluno quer dizer que é outra pessoa
+    // ("Ana Martins" não é a "Ana Costa" registada, mesmo sendo a única Ana)
+    const open = session.settings.openJoin !== false;
+    const same = st => matchesStudent(st, T) && (!open || T.length < 2 || norm(st.name).split(' ').includes(T[T.length - 1]));
+    let found = session.roster.filter(st => !st.guest && same(st));
     if (found.length === 0 && session.settings.openJoin !== false) {   // sessões retomadas de versões antigas não têm a opção: conta como ligada
       // aluno registado que não foi escolhido para esta sessão: entra com a ficha dele (e a fotografia)
       const others = db.students.filter(s => !session.roster.some(r => r.id === s.id)).map(s => ({ ...s }));
       assignShortNames(others);
-      const fromDb = others.filter(st => matchesStudent(st, T));
+      const fromDb = others.filter(same);
       if (fromDb.length === 1) {
         session.roster.push(fromDb[0]);
         assignShortNames(session.roster.filter(r => !r.guest && !r.anon));
         return attach(newPlayer(fromDb[0]), cb);
       }
       // não está registado: entra como convidado com o nome que escreveu
-      const typed = T.join(' '), same = session.roster.find(r => r.guest && norm(r.name) === typed);
-      if (same) return cb({ taken: true, error: `Já entrou alguém com o nome "${same.name}". Se não és tu, escreve também o apelido. Se és tu e mudaste de telemóvel, pede ao formador o código de reentrada.` });
+      const typed = T.join(' '), dup = session.roster.find(r => r.guest && norm(r.name) === typed);
+      if (dup) return cb({ taken: true, error: `Já entrou alguém com o nome "${dup.name}". Se não és tu, escreve também o apelido. Se és tu e mudaste de telemóvel, pede ao formador o código de reentrada.` });
       let clean = name.trim().replace(/\s+/g, ' ').slice(0, 60);
       if (clean === clean.toLowerCase()) clean = clean.replace(/(^|\s)(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
       const w = clean.split(' ');
