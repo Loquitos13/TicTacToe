@@ -132,7 +132,10 @@ function cleanQuestion(x, uid, savePhoto) {
 
 // Corrige uma resposta. raw: número (mc/tf/scale), lista de palavras (fill) ou texto (open).
 // Devolve { error } ou { entry: { option?, value?, correct, frac } } (frac = fração certa, 0..1).
+// o que vem do telemóvel só pode ser texto, número, ou uma lista deles (um objeto forjado rebentava as conversões)
+const plain = v => v == null || ['string', 'number', 'boolean'].includes(typeof v);
 function grade(q, raw) {
+  if (!(plain(raw) || (Array.isArray(raw) && raw.length <= 50 && raw.every(plain)))) return { error: 'Resposta inválida.' };
   const t = typeOf(q);
   if (t === 'mc' || t === 'tf') {
     const option = parseInt(raw, 10);
@@ -161,8 +164,10 @@ function grade(q, raw) {
   if (t === 'rank') {
     const n = q.options.length;
     if (!Array.isArray(raw) || raw.length !== n) return { error: 'Ordena todas as opções.' };
-    const value = raw.map(v => parseInt(v, 10));
-    if (new Set(value).size !== n || value.some(v => !(v >= 0 && v < n))) return { error: 'Resposta inválida.' };
+    // o telemóvel manda as posições em que VÊ as opções (baralhadas); aqui passam a ser as do editor
+    const shown = raw.map(v => parseInt(v, 10));
+    if (new Set(shown).size !== n || shown.some(v => !(v >= 0 && v < n))) return { error: 'Resposta inválida.' };
+    const order = rankOrder(q), value = shown.map(k => order[k]);
     if (!q.ordered) return { entry: { value, correct: null, frac: 0 } };
     const right = value.filter((v, pos) => v === pos).length;
     return { entry: { value, correct: right === n, frac: right / n, right } };
@@ -255,7 +260,8 @@ function publicQuestion(q, hide) {
   if (t === 'cross') p.cross = { rows: q.cross.rows, cols: q.cross.cols, words: q.cross.words.map(w => ({ n: w.n, dir: w.dir, r: w.r, c: w.c, len: w.len, clue: hide ? '' : w.clue })) };
   // ranking: opções pela ordem baralhada; o telemóvel devolve os números originais (i)
   if (t === 'rank') p.ordered = !!q.ordered;
-  if (t === 'rank') p.items = rankOrder(q).map((i, k) => ({ i, text: hide ? '' : q.options[i], letter: LETTERS[k] }));
+  // ranking: o telemóvel só conhece a ordem em que vê as opções (o nº do editor denunciaria a ordem certa)
+  if (t === 'rank') p.items = rankOrder(q).map((i, k) => ({ i: k, text: hide ? '' : q.options[i], letter: LETTERS[k] }));
   return p;
 }
 // a resposta certa, para mostrar ao formando quando chega a altura
@@ -296,4 +302,7 @@ function plainAnswer(q, a) {
   return String(a.value ?? '');
 }
 
-module.exports = { guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
+// resposta guardada → como o telemóvel a conhece (o ranking volta à ordem em que ele vê as opções)
+function forPhone(q, v) { return typeOf(q) === 'rank' && Array.isArray(v) ? v.map(i => rankOrder(q).indexOf(i)) : v; }
+
+module.exports = { forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };

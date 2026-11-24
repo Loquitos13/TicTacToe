@@ -135,8 +135,8 @@ async function fbShare(el) {
   $('#fbToggle').onclick = async () => { await api('POST', `/api/feedback/${f.id}/open`, { open: !f.open }); toast(f.open ? 'Fechado: já não aceita respostas' : 'Aberto: os formandos já podem responder'); renderFeedback(); };
   $('#fbCopy').onclick = async () => { try { await navigator.clipboard.writeText(link); toast('Link copiado'); } catch { prompt('Copia o link:', link); } };
   let last = f.responses;
-  fbPoll = setInterval(async () => {
-    if (tab !== 'feedback' || fbView.kind !== 'share') return clearInterval(fbPoll);
+  const poll = fbPoll = setInterval(async () => {
+    if (tab !== 'feedback' || fbView.kind !== 'share' || fbPoll !== poll) return clearInterval(poll);
     const n = ((await api('GET', '/api/feedback').catch(() => [])).find(x => x.id === f.id) || {}).responses;
     if (n != null && n !== last) { last = n; const s = $('#fbN'); if (s) { s.textContent = n; s.classList.remove('pop-in'); void s.offsetWidth; s.classList.add('pop-in'); } if (window.Sound) Sound.play('pop'); }
   }, 3000);
@@ -174,10 +174,5 @@ async function fbResults(el) {
   $('#fbBack').onclick = () => { fbView = { kind: 'list' }; renderFeedback(); };
   $('#fbRefresh').onclick = () => renderFeedback();
   $('#fbPrint').onclick = () => window.print();
-  $('#fbCsv').onclick = async () => {
-    const r = await fetch(`/api/feedback/${f.id}/csv`, { headers: { 'x-host-password': PW } });
-    const blob = await r.blob(), a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = (r.headers.get('Content-Disposition') || '').match(/filename="(.+)"/)?.[1] || 'feedback.csv'; a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  };
+  $('#fbCsv').onclick = () => downloadFile(`/api/feedback/${f.id}/csv`, 'feedback.csv');
 }

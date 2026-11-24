@@ -27,7 +27,9 @@
   .chip input { accent-color: var(--d); }
 
   /* ----- Palco (projetor) ----- */
-  #stage { min-height: calc(100vh - 60px); display: flex; flex-direction: column; padding: 18px 24px 100px; }
+  #stage { min-height: calc(100vh - 60px); display: flex; flex-direction: column; padding: 18px 24px 140px; }
+  #offline { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 200; background: #dc2626; color: #fff; text-align: center; font-weight: 700; padding: 8px; }
+  body.offline #offline { display: block; } body.offline .controls { opacity: .45; pointer-events: none; }
   .stage-top { display: flex; justify-content: space-between; align-items: center; font-size: 1.1em; opacity: .9; padding-right: 50px; }
   .controls { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(20,10,40,.85); backdrop-filter: blur(8px); padding: 12px 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; z-index: 30; }
   .controls .info { flex: 1; opacity: .85; min-width: 160px; }
@@ -41,6 +43,7 @@
   .joined { display: flex; flex-wrap: wrap; gap: 18px; align-content: flex-start; }
   .joined .p { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 110px; text-align: center; font-weight: 600; line-height: 1.1; }
   .joined .p.off { opacity: .35; }
+  .joined.many { gap: 10px; } .joined.many .p { width: 84px; font-size: .9em; } .joined.many .avatar.lg { width: 56px; height: 56px; font-size: 1.3em; }
   .count-big { font-size: 3.2em; font-weight: 700; }
   .question-title { background: #fff; color: var(--ink); border-radius: 24px; padding: 26px 30px; font-size: clamp(1.6em, 3.4vw, 3em); font-weight: 600; text-align: center; margin: 14px 0; line-height: 1.2; overflow-wrap: anywhere; }
   .question-title.long { font-size: clamp(1.3em, 2.4vw, 2.2em); padding: 18px 24px; }
@@ -294,6 +297,7 @@
   </div>
 </div>
 
+<div id="offline">⚠️ Sem ligação ao servidor — a tentar religar…</div>
 <div id="main" class="hidden">
   <nav>
     <div class="logo">🎯 <span>Quiz</span></div>
@@ -349,11 +353,13 @@ async function start() {
   window._joinSuggestions = info.suggestions;
   socket = io({ auth: { role: 'host', password: PW } });
   socket.on('auth_error', () => { sessionStorage.removeItem('aq_pw'); location.reload(); });
+  socket.on('disconnect', () => document.body.classList.add('offline'));
+  socket.on('connect', () => document.body.classList.remove('offline'));
   socket.on('state', st => { const prev = S; S = st.session; onState(prev); });
   socket.on('toast', m => toast(m));
   $$('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
   document.addEventListener('keydown', e => {
-    if (tab !== 'game' || !S || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+    if (tab !== 'game' || !S || e.repeat || S.phase === 'exam' || document.querySelector('.dlg') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
     if (e.key === ' ' || e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); next(); }
   });
 }
@@ -371,7 +377,7 @@ function showTab(t) {
 
 /* =================== JOGO =================== */
 let lastPhaseKey = '', tickTimer = null, lastControls = '';
-function next() { Sound.init(); socket.emit('host:next'); }
+function next() { Sound.init(); if (!socket.connected) return toast('Sem ligação ao servidor — espera que volte.'); socket.emit('host:next', lastPhaseKey); }
 const timed = () => S && S.settings.mode !== 'manual'; // por tempo ou automático
 const isAuto = () => S && S.settings.mode === 'auto';
 const isExamMode = () => S && S.settings.mode === 'exam';
@@ -435,7 +441,7 @@ function runAutoInfo() {
 
 function renderGame(full) {
   const el = $('#tab-game');
-  if (!S) return renderSetup(el);
+  if (!S) return full ? renderSetup(el) : undefined;
   if (!full) return updateLive();
   const ph = S.phase;
   let html = `<div id="stage"><div class="stage-top"><span>${S.courseName ? '🎓 ' + esc(S.courseName) + ' · ' : ''}📝 ${esc(S.quizTitle)}</span>
@@ -444,8 +450,8 @@ function renderGame(full) {
   if (ph === 'ready') html += readyHtml();
   if (ph === 'exam') html += examHtml();
   if (ph === 'question') html += questionHtml();
-  const firstPoll = ph === 'closed' && !closedShown.has(S.qIndex);
-  if (ph === 'closed') { html += resultsHtml(false, firstPoll); closedShown.add(S.qIndex); }
+  const firstPoll = ph === 'closed' && !closedShown.has(S.id + ':' + S.qIndex);
+  if (ph === 'closed') { html += resultsHtml(false, firstPoll); closedShown.add(S.id + ':' + S.qIndex); }
   if (ph === 'reveal') html += showCorrectHere() ? resultsHtml(true) + (hiddenReveal() ? `<p class="center private-note">👁 Só neste ecrã: os formandos não veem a resposta correta.</p>` : '') : hiddenRevealHtml();
   if (ph === 'leaderboard') html += S.settings.teams ? `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Equipas</div>` + teamPodiumHtml(false)
     : `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Top 5</div>` + podiumHtml(S.ranking.slice(0, 5), false);
@@ -485,7 +491,7 @@ function lobbyHtml() {
     <div>
       <div class="row"><div class="count-big" id="joinCount">${connectedN()}</div><div style="font-size:1.3em">${S.settings.anonymous ? `participantes<br>anónimos já entraram` : `de <span id="rosterN">${S.roster.length}</span> alunos<br>já entraram`}</div></div>
       ${S.settings.teams ? `<div class="row noprint" style="margin-top:14px"><button class="btn small" id="btnShuffleTeams">🔀 Baralhar equipas</button><span class="muted" style="color:#ddd">Toca num formando para o mudar de equipa.</span></div>
-        <div class="teams-lobby" id="teamsLobby">${teamsLobbyHtml()}</div>` : `<div class="joined" id="joined" style="margin-top:20px">${joinedHtml()}</div>`}
+        <div class="teams-lobby" id="teamsLobby">${teamsLobbyHtml()}</div>` : `<div class="joined ${S.roster.length > 20 ? 'many' : ''}" id="joined" style="margin-top:20px">${joinedHtml()}</div>`}
     </div></div>`;
 }
 // sala de espera com equipas: uma coluna por equipa; quem ainda não entrou fica por baixo
@@ -547,7 +553,7 @@ function runExamClock() {
 
 function readyHtml() {
   return `<div class="ready-wrap"><div class="ready-label slide-up">Pergunta ${S.qIndex + 1} de ${S.total} · prepara-te!</div>
-    <div class="question-title pop-in ${lenCls(S.question.text)}" style="margin:20px 0">${esc(S.question.text)}</div>
+    <div class="question-title pop-in ${lenCls(S.question.text)}" style="margin:20px 0">${esc(qTitle(S.question))}</div>
     <div class="ready-n" id="readyN">3</div></div>`;
 }
 let readyRaf;
@@ -731,7 +737,7 @@ function resultsHtml(withAnswer, animate = false) {
   const privateMark = !withAnswer && hiddenReveal() && seeAnswers;
   const poll = pollOn(), who = poll && S.settings.showWho;
   return `${withAnswer ? '' : poll ? `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">📊 Sondagem <small style="font-size:.5em;opacity:.8">· respostas fechadas</small></div>` : `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">🔒 Respostas fechadas</div>`}
-    ${!withAnswer && timed() && !closedShown.has(S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
+    ${!withAnswer && timed() && !closedShown.has(S.id + ':' + S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
     <div class="question-title" style="font-size:clamp(1.3em,2.6vw,2.2em);margin-top:6px">${esc(q.text)}</div>
     ${t === 'scale' && (q.scaleMin || q.scaleMax) ? `<div class="scale-labels" style="margin-top:0">${'<span>1 = ' + esc(q.scaleMin || '') + '</span><span>5 = ' + esc(q.scaleMax || '') + '</span>'}</div>` : ''}
     <div class="opts ${q.options.some(o => String(o).length > 60) ? 'long' : ''}" style="margin-top:10px">${q.options.map((o, i) => {
@@ -791,7 +797,7 @@ function resultsOtherHtml(withAnswer, animate) {
     body += `<p class="center" style="opacity:.85">✍️ As respostas livres são validadas por ti, uma a uma, nos resultados.</p>`;
   }
   return `${withAnswer ? '' : `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">${poll ? '📊 Sondagem' : '🔒 Respostas fechadas'} <small style="font-size:.5em;opacity:.8">· respostas fechadas</small></div>`}
-    ${!withAnswer && timed() && !closedShown.has(S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
+    ${!withAnswer && timed() && !closedShown.has(S.id + ':' + S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
     <div class="question-title" style="font-size:clamp(1.3em,2.6vw,2.2em);margin-top:6px">${t === 'fill' ? '✏️ Completa os espaços' : esc(q.text)}</div>
     ${body}
     ${!withAnswer && hiddenReveal() && seeAnswers ? `<p class="center private-note">👁 Só neste ecrã: a solução está visível. Os formandos não a veem.</p>` : ''}
@@ -894,7 +900,7 @@ function bindGame() {
   const sel = $('#urlSel');
   if (sel) {
     sel.onchange = () => { if (sel.value) $('#urlIn').value = sel.value; else $('#urlIn').focus(); };
-    $('#urlSave').onclick = () => { joinUrl = $('#urlIn').value.trim().replace(/\/$/, ''); localStorage.setItem('aq_joinurl', joinUrl); renderGame(true); };
+    $('#urlSave').onclick = () => { let u = $('#urlIn').value.trim().replace(/\/$/, ''); if (!u) return toast('Escreve o endereço'); if (!/^https?:\/\//i.test(u)) u = 'http://' + u; joinUrl = u; localStorage.setItem('aq_joinurl', joinUrl); renderGame(true); };
   }
 }
 
@@ -977,7 +983,7 @@ function updateLive() {
 
 function playersDialog() {
   const d = document.createElement('div');
-  d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:grid;place-items:center;padding:16px';
+  d.className = 'dlg'; d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:grid;place-items:center;padding:16px';
   const joined = new Map(S.players.map(p => [p.studentId, p]));
   d.innerHTML = `<div class="card" style="width:min(560px,100%);max-height:85vh;overflow:auto"><h2>Alunos na sessão</h2>
     <p class="muted">Se um aluno mudou de telemóvel, carrega em <b>Libertar nome</b> e dá-lhe o código de reentrada que aparece: só com esse código ele volta ao seu lugar (com as respostas já dadas).</p>
@@ -1110,7 +1116,7 @@ function renderSetup(el) {
     const ids = $$('.sStu').filter(c => c.checked).map(c => c.value);
     const anonQ = (qz.find(x => x.id === $('#sQuiz').value) || {}).anonymous;
     if (!ids.length && !anonQ) return toast('Escolhe pelo menos um aluno');
-    Sound.init();
+    go.disabled = true; Sound.init();
     socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sRevEach').checked ? 'each' : ($('#sRevEnd').checked ? 'end' : 'never'), revealEnd: $('#sRevEnd').checked,
       rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
       autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, hideOnPhones: $('#sHide').checked, examMinutes: +$('#tTotal').value, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked,
@@ -1204,7 +1210,7 @@ function renderQuizzes() {
         <button class="btn small" data-edit="${q.id}">Editar</button><button class="btn small" data-dup="${q.id}">Duplicar</button>
         <button class="btn small" data-key="${q.id}">📋 Soluções</button><button class="btn small" data-exp="${q.id}">Exportar</button><button class="btn small danger" data-del="${q.id}">✕</button></div>`).join('') || '<p class="muted" style="margin:0">Ainda sem questionários neste curso.</p>'}</div></div>`; }).join('')}`;
   const after = async () => { await reloadCQ(); renderQuizzes(); };
-  $('#newCourse').onsubmit = async e => { e.preventDefault(); await api('POST', '/api/courses', { name: $('#courseName').value }); toast('Curso criado'); after(); };
+  $('#newCourse').onsubmit = async e => { e.preventDefault(); try { await api('POST', '/api/courses', { name: $('#courseName').value }); } catch (err) { return toast(err.message); } toast('Curso criado'); after(); };
   $$('[data-ren]').forEach(b => b.onclick = async () => { const n = prompt('Novo nome do curso:', courseName(b.dataset.ren)); if (n && n.trim()) { await api('PUT', '/api/courses/' + b.dataset.ren, { name: n }); after(); } });
   $$('[data-cdel]').forEach(b => b.onclick = async () => { if (!confirm('Apagar o curso "' + courseName(b.dataset.cdel) + '"?')) return; try { await api('DELETE', '/api/courses/' + b.dataset.cdel); after(); } catch (e) { toast(e.message, 4500); } });
   $$('[data-newq]').forEach(b => b.onclick = () => { editing = { courseId: b.dataset.newq, title: 'Novo questionário', questions: [blankQ()] }; renderQuizzes(); });
@@ -1274,6 +1280,7 @@ function renderEditor(el) {
     <div id="qList">${q.questions.map((x, i) => qEditHtml(x, i)).join('')}</div>
     <button class="btn" id="addQ">+ Adicionar pergunta</button>
   </div>`;
+  el.oninput = () => sync();
   const sync = () => {
     q.title = $('#qTitle').value; q.courseId = $('#qCourse').value; q.anonymous = $('#qAnon').checked;
     $$('.qedit').forEach((box, i) => {
@@ -1348,7 +1355,8 @@ function renderEditor(el) {
     // escolha múltipla: remove opções vazias e reajusta índices das corretas
     q.questions.filter(x => qType(x) === 'rank').forEach(x => { x.options = x.options.filter(o => o.trim()); });
     q.questions.filter(x => qType(x) === 'mc').forEach(x => { const map = []; const opts = []; x.options.forEach((o, k) => { if (o.trim()) { map[k] = opts.length; opts.push(o); } }); x.correct = x.correct.map(k => map[k]); x.options = opts; });
-    const saved = await api('POST', '/api/quizzes', q); await reloadCQ(); editing = null; toast('Guardado: ' + saved.title); renderQuizzes();
+    let saved; try { saved = await api('POST', '/api/quizzes', q); } catch (e) { return toast('Não foi guardado: ' + e.message, 5000); }
+    await reloadCQ(); editing = null; toast('Guardado: ' + saved.title); renderQuizzes();
   };
   $$('.qedit').forEach((box, i) => {
     $('.qDel', box).onclick = () => { sync(); q.questions.splice(i, 1); renderQuizzes(); };
@@ -1538,11 +1546,12 @@ async function openValidator(id, reviewAll) {
   const items = [];
   r.questions.forEach((q, i) => { if (qType(q) !== 'open') return; Object.entries(r.answers[i] || {}).forEach(([sid, a]) => { if (reviewAll || a.correct == null) items.push({ i, sid, q, a }); }); });
   items.sort((x, y) => x.i - y.i || (names.get(x.sid)?.name || '').localeCompare(names.get(y.sid)?.name || '', 'pt'));
-  let k = 0;
+  let k = 0, busy = false;
   const el = $('#tab-results');
   const draw = () => {
     if (!items.length || k >= items.length) {
-      el.innerHTML = `<div class="card center"><div style="font-size:60px">✅</div><h2>${items.length ? 'Todas as respostas livres foram validadas' : 'Não há respostas livres por validar'}</h2>
+      const left = r.questions.reduce((n, q, i) => n + (qType(q) === 'open' ? Object.values(r.answers[i] || {}).filter(a => a.correct == null).length : 0), 0);
+      el.innerHTML = `<div class="card center"><div style="font-size:60px">${left ? '❔' : '✅'}</div><h2>${left ? `Faltam ${left} resposta(s) por validar (saltaste-as)` : items.length ? 'Todas as respostas livres foram validadas' : 'Não há respostas livres por validar'}</h2>
         <button class="btn primary" id="vBack">Voltar aos resultados</button></div>`;
       $('#vBack').onclick = () => openResult(id); return;
     }
@@ -1561,14 +1570,15 @@ async function openValidator(id, reviewAll) {
       <div class="row" style="justify-content:space-between;margin-top:12px"><button class="btn small" id="vPrev" ${k ? '' : 'disabled'}>← Anterior</button><button class="btn small" id="vSkip">Saltar →</button></div>
     </div>`;
     const setMark = async val => {
-      try { await api('POST', `/api/results/${encodeURIComponent(id)}/mark`, { q: it.i, studentId: it.sid, correct: val }); } catch (e) { return toast(e.message); }
+      if (busy) return; busy = true;
+      try { await api('POST', `/api/results/${encodeURIComponent(id)}/mark`, { q: it.i, studentId: it.sid, correct: val }); } catch (e) { return toast(e.message); } finally { busy = false; }
       it.a.correct = val; Sound.play(val ? 'correct' : 'pop'); k++; draw();
     };
     $('#vYes').onclick = () => setMark(true); $('#vNo').onclick = () => setMark(false);
     $('#vPrev').onclick = () => { k = Math.max(0, k - 1); draw(); };
     $('#vSkip').onclick = () => { k++; draw(); };
     $('#vBack').onclick = () => { document.onkeydown = null; openResult(id); };
-    document.onkeydown = e => { if (!$('.validator')) return (document.onkeydown = null); if (/^[cC]$/.test(e.key)) setMark(true); if (/^[eE]$/.test(e.key)) setMark(false); };
+    document.onkeydown = e => { if (!$('.validator')) return (document.onkeydown = null); if (e.repeat) return; if (/^[cC]$/.test(e.key)) setMark(true); if (/^[eE]$/.test(e.key)) setMark(false); };
   };
   draw();
 }

@@ -51,7 +51,8 @@ const uid = (n = 8) => crypto.randomBytes(n).toString('hex').slice(0, n);
 // ---------- Base de dados (ficheiro JSON) ----------
 let db = { students: [], courses: [], quizzes: [] };
 if (fs.existsSync(DB_FILE)) {
-  try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch (e) { console.error('db.json inválido', e); }
+  try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); }
+  catch (e) { console.error(`\n✗ ${DB_FILE} está estragado (${e.message}).\n  Não arranco para não o apagar: corrige o ficheiro ou repõe uma cópia e volta a arrancar.\n`); process.exit(1); }
 }
 db.students ||= []; db.quizzes ||= []; db.courses ||= [];
 // migração: questionários antigos sem curso vão para "Geral"
@@ -91,7 +92,8 @@ function persistSession() {
     settings: session.settings,
     questions: session.questions,
     roster: session.roster,
-    players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, joinedAt: p.joinedAt, team: p.team ?? null })),
+    players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, short: p.short, photo: p.photo, score: p.score, joinedAt: p.joinedAt, team: p.team ?? null, token: p.token, rejoin: p.rejoin })),
+    phase: session.phase, qIndex: session.qIndex, deadline: session.deadline, examStart: session.examStart,
     teams: session.settings.teams ? teamStats() : null,
     code: session.code,
     anonymous: !!session.settings.anonymous,
@@ -129,10 +131,10 @@ function smallestTeam() {
 }
 // pontuação de cada equipa = média dos pontos dos seus membros (justo com equipas de tamanhos diferentes)
 // scoreOf permite ignorar a pergunta em curso (para os telemóveis não perceberem se acertaram)
-function teamStats(scoreOf = p => p.score, lastPts = null) {
-  const n = session.settings.teams || 0, list = [];
+function teamStats(scoreOf = p => p.score, lastPts = null, players = Object.values(session.players), n = session.settings.teams || 0) {
+  const list = [];
   for (let id = 0; id < n; id++) {
-    const members = Object.values(session.players).filter(p => p.team === id);
+    const members = players.filter(p => p.team === id);
     const total = members.reduce((t, p) => t + scoreOf(p), 0);
     const plus = lastPts ? members.reduce((t, p) => t + (lastPts[p.studentId] || 0), 0) : 0;
     list.push({ ...teamInfo(id), size: members.length, score: members.length ? Math.round(total / members.length) : 0,
@@ -229,7 +231,7 @@ function playerView(p) {
       score: showScore ? scoreOf(p) : null,
       correct: showScore ? Object.entries(session.answers).filter(([i, a]) => !(hideCurrent && +i === session.qIndex) && a[p.studentId] && a[p.studentId].correct).length : null,
     },
-    answered: !!mine, myOption: mine ? mine.option : null, myValue: mine ? mine.value : null,
+    answered: !!mine, myOption: mine ? mine.option : null, myValue: mine ? Q.forPhone(q, mine.value) : null,
   };
   if (session.settings.teams && p.team != null) {
     v.me.team = teamInfo(p.team);
@@ -247,7 +249,7 @@ function playerView(p) {
     v.exam = {
       guess: Object.fromEntries(session.questions.map((qq, i) => Q.typeOf(qq) === 'guess' ? [i, myGuess(i)] : null).filter(Boolean)),
       questions: session.questions.map(qq => Q.publicQuestion(qq, false)),
-      mine: Object.fromEntries(session.questions.map((qq, i) => { const a = (session.answers[i] || {})[p.studentId]; return [i, a ? (a.option ?? a.value) : null]; }).filter(([, o]) => o != null)),
+      mine: Object.fromEntries(session.questions.map((qq, i) => { const a = (session.answers[i] || {})[p.studentId]; return [i, a ? (a.option ?? Q.forPhone(qq, a.value)) : null]; }).filter(([, o]) => o != null)),
       remainingMs: Math.max(0, session.deadline - Date.now()),
       submitted: !!(session.submitted || {})[p.studentId],
     };
@@ -281,6 +283,11 @@ function playerView(p) {
 }
 
 let io;
+// depois de uma resposta: só o formador e quem respondeu precisam de um estado novo
+function notifyAnswer(p) {
+  io.to('hosts').emit('state', hostView());
+  if (p.socketId) io.to(p.socketId).emit('state', playerView(p));
+}
 function broadcast() {
   io.to('hosts').emit('state', hostView());
   if (!session) { io.to('players').emit('state', { session: null }); return; }
@@ -486,6 +493,8 @@ function allAnswered() {
 
 // ---------- HTTP ----------
 const app = express();
+app.disable('x-powered-by');
+app.use((req, res, next) => { res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': "frame-ancestors 'none'" }); next(); });
 app.use(express.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 // conversor de fotografias do iPhone (HEIC → JPEG), carregado só quando é preciso
@@ -594,7 +603,8 @@ app.post('/api/quizzes', auth, (req, res) => {
   saveDb(); res.json(q);
 });
 // Lista de soluções em Word (todas as perguntas com a resposta correta destacada)
-app.get('/api/quizzes/:id/docx', auth, async (req, res) => {
+const safe = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+app.get('/api/quizzes/:id/docx', auth, safe(async (req, res) => {
   const quiz = db.quizzes.find(q => q.id === req.params.id);
   if (!quiz) return res.status(404).end();
   const course = (db.courses.find(c => c.id === quiz.courseId) || {}).name || '';
@@ -603,7 +613,7 @@ app.get('/api/quizzes/:id/docx', auth, async (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', `attachment; filename="Solucoes_${clean(quiz.title)}.docx"`);
   res.send(buf);
-});
+}));
 app.delete('/api/quizzes/:id', auth, (req, res) => {
   db.quizzes = db.quizzes.filter(q => q.id !== req.params.id);
   saveDb(); res.json({ ok: true });
@@ -634,7 +644,7 @@ app.delete('/api/results/:id', auth, (req, res) => {
 
 // CSV (Excel PT: separador ";" e BOM UTF-8)
 const L = i => String.fromCharCode(65 + i);
-function csvCell(v) { v = v == null ? '' : String(v); return /[";\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function csvCell(v) { v = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[";\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
 function toCsv(rows) { return '﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n'); }
 function participants(r) {
   // todos os alunos da turma (incluindo quem não entrou) + quem entrou
@@ -701,7 +711,7 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
 });
 
 // Fichas de respostas em Word (A4 vertical): todas (uma por formando) ou só de um formando (?student=ID)
-app.get('/api/results/:id/docx', auth, async (req, res) => {
+app.get('/api/results/:id/docx', auth, safe(async (req, res) => {
   const f = resultFile(path.basename(req.params.id));
   if (!fs.existsSync(f)) return res.status(404).end();
   const r = JSON.parse(fs.readFileSync(f, 'utf8'));
@@ -712,7 +722,7 @@ app.get('/api/results/:id/docx', auth, async (req, res) => {
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   res.setHeader('Content-Disposition', `attachment; filename="${file}"`);
   res.send(buffer);
-});
+}));
 
 // O formador marca uma resposta livre como certa / errada (ou volta a "por avaliar")
 app.post('/api/results/:id/mark', auth, (req, res) => {
@@ -728,7 +738,10 @@ app.post('/api/results/:id/mark', auth, (req, res) => {
   a.points = a.correct ? 1000 : 0; a.frac = a.correct ? 1 : 0; a.markedBy = 'formador';
   const players = r ? r.players : Object.values(session.players);
   const pl = players.find(x => x.studentId === sid); if (pl) pl.score = (pl.score || 0) - before + a.points;
-  if (r) { fs.writeFileSync(f, JSON.stringify(r, null, 2)); } else { persistSession(); broadcast(); }
+  if (r) {
+    if (r.teams) r.teams = teamStats(p => p.score, null, r.players, r.settings.teams);
+    fs.writeFileSync(f + '.tmp', JSON.stringify(r, null, 2)); fs.renameSync(f + '.tmp', f);
+  } else { persistSession(); broadcast(); }
   res.json({ ok: true });
 });
 
@@ -744,12 +757,12 @@ app.get('/api/joininfo', auth, (req, res) => {
   lanIps().forEach(ip => suggestions.push(`http://${ip}:${PORT}`));
   res.json({ suggestions: [...new Set(suggestions)] });
 });
-app.get('/api/qr', async (req, res) => {
+app.get('/api/qr', safe(async (req, res) => {
   const url = String(req.query.url || '');
   if (!/^https?:\/\//.test(url) || url.length > 300) return res.status(400).end();
   const svg = await QRCode.toString(url, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
   res.type('image/svg+xml').send(svg);
-});
+}));
 
 // ---------- Socket.IO ----------
 const server = http.createServer(app);
@@ -757,13 +770,18 @@ io = new Server(server, { maxHttpBufferSize: 1e6 });
 
 io.on('connection', socket => {
   const role = socket.handshake.auth && socket.handshake.auth.role;
+  const guard = fn => (...args) => {
+    try { fn(...args); } catch (e) {
+      console.error(e);
+      const cb = args[args.length - 1]; if (typeof cb === 'function') cb({ error: 'Pedido inválido.' });
+    }
+  };
 
   if (role === 'host') {
     if (!pwOk(socket.handshake.auth.password)) { setTimeout(() => { socket.emit('auth_error'); socket.disconnect(); }, FAIL_DELAY_MS); return; }
     socket.join('hosts');
     socket.emit('state', hostView());
 
-    const guard = fn => (...args) => { try { fn(...args); } catch (e) { console.error(e); socket.emit('toast', 'Erro: ' + e.message); } };
 
     socket.on('host:start', guard(({ quizId, settings, studentIds }) => {
       if (session) persistSession();
@@ -771,7 +789,7 @@ io.on('connection', socket => {
       const quiz = db.quizzes.find(q => q.id === quizId);
       if (!quiz || !quiz.questions.length) return socket.emit('toast', 'Questionário sem perguntas');
       let qs = JSON.parse(JSON.stringify(quiz.questions));
-      if (settings && settings.shuffle) qs.sort(() => Math.random() - 0.5);
+      if (settings && settings.shuffle) for (let i = qs.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [qs[i], qs[j]] = [qs[j], qs[i]]; }
       // tempo igual para todas as perguntas (opcional, escolhido ao abrir a sala)
       settings = settings || {};
       if (!['manual', 'timed', 'auto', 'exam'].includes(settings.mode)) settings.mode = 'manual';
@@ -811,7 +829,7 @@ io.on('connection', socket => {
         quizId: quiz.id, quizTitle: quiz.title, courseId: quiz.courseId, courseName: (db.courses.find(c => c.id === quiz.courseId) || {}).name || '', startedAt: Date.now(),
         settings: { mode: 'manual', showWho: false, rankEach: true, finalPodium: true, speedPoints: true, ...settings },
         questions: qs, roster, phase: 'lobby', qIndex: -1, deadline: null,
-        players: {}, answers: {}, asked: [],
+        players: {}, answers: {}, asked: [], rejoinFails: 0,
       };
       persistSession();
       io.to('players').emit('reload');
@@ -832,7 +850,7 @@ io.on('connection', socket => {
       broadcast();
     }));
 
-    socket.on('host:next', guard(advance));
+    socket.on('host:next', guard(seen => { if (session && (seen == null || seen === session.phase + ':' + session.qIndex)) advance(); }));
 
     // jogos em grupo: volta a distribuir toda a gente pelas equipas, ao acaso e equilibrado (só antes de começar)
     socket.on('host:shuffleTeams', guard(() => {
@@ -857,11 +875,11 @@ io.on('connection', socket => {
       clearTimeout(timer); timer = setTimeout(endExam, session.deadline - Date.now() + 300);
       persistSession(); broadcast();
     }));
-    socket.on('host:goto', guard(i => { if (session && session.questions[i]) startQuestion(i); }));
     socket.on('host:end', guard(() => {
       if (!session) return;
       clearTimeout(timer); clearTimeout(autoTimer); session.autoAt = null;
       if (session.phase === 'question') finalizeGuesses(session.qIndex);
+      if (session.phase === 'ready') session.asked = session.asked.filter(i => i !== session.qIndex);
       if (session.phase === 'exam') { session.questions.forEach((_, i) => finalizeGuesses(i)); Object.values(session.players).forEach(examRecompute); }
       session.phase = 'end'; session.endedAt = Date.now(); session.deadline = null;
       persistSession(); broadcast();
@@ -896,7 +914,7 @@ io.on('connection', socket => {
       if (p.socketId) { const s = io.sockets.sockets.get(p.socketId); if (s) { s.emit('released'); s.leave('players'); s.join('lobby'); } }
       // mantém as respostas; só a pessoa a quem dás o código de reentrada pode voltar a este lugar
       p.token = null; p.socketId = null;
-      p.rejoin = String(crypto.randomInt(1000, 10000));
+      p.rejoin = String(crypto.randomInt(100000, 1000000));
       cb({ rejoin: p.rejoin });
       broadcast();
     }));
@@ -904,6 +922,8 @@ io.on('connection', socket => {
   }
 
   // ----- aluno -----
+  // todas as mensagens dos alunos passam pelo guard: um pedido forjado devolve erro em vez de parar o servidor
+  const on = socket.on.bind(socket); socket.on = (ev, fn) => on(ev, guard(fn));
   socket.data.code = cleanCode(socket.handshake.auth && socket.handshake.auth.code);
   socket.join('lobby');
   socket.emit('roster', rosterForPlayers(socket));
@@ -982,8 +1002,12 @@ io.on('connection', socket => {
     if (typeof cb !== 'function') cb = () => {};
     const rejoin = String((data && data.rejoin) || '').replace(/\D/g, '');
     if (!codeOk(socket.data.code)) return cb({ error: 'Código da sessão inválido ou sessão terminada.' });
-    const p = rejoin.length === 4 && Object.values(session.players).find(x => !x.token && x.rejoin === rejoin);
-    if (!p) return cb({ error: 'Código de reentrada inválido. Pede-o ao formador.' });
+    const p = rejoin.length === 6 && Object.values(session.players).find(x => !x.token && x.rejoin === rejoin);
+    if (!p) {
+      // tentativas a mais na sessão = alguém a adivinhar: anula os códigos pendentes (o formador dá outros)
+      if (++session.rejoinFails >= 30) { Object.values(session.players).forEach(x => { x.rejoin = null; }); session.rejoinFails = 0; io.to('hosts').emit('toast', 'Muitas tentativas erradas de reentrada: os códigos foram anulados. Gera um novo para quem precisar.'); }
+      return setTimeout(() => cb({ error: 'Código de reentrada inválido. Pede-o ao formador.' }), FAIL_DELAY_MS);
+    }
     attach(p, cb);
   });
 
@@ -1041,7 +1065,7 @@ io.on('connection', socket => {
     }
     persistSession();
     cb({ ok: true, colors, solved, done: !!ans[me.studentId] });
-    if (!exam && timedMode() && allAnswered()) closeQuestion(); else broadcast();
+    if (!exam && timedMode() && allAnswered()) closeQuestion(); else notifyAnswer(me);
   });
 
   socket.on('player:examAnswer', (data, cb) => {
@@ -1057,16 +1081,15 @@ io.on('connection', socket => {
     answersFor(i)[me.studentId] = { ...g.entry, timeMs: Date.now() - session.examStart, points: pointsFor(qq, g.entry, 0, false), at: Date.now() };
     if (Q.typeOf(qq) === 'open') { const mm = cleanMeta(data.meta, prevA && prevA.meta) || {}; mm.invisible = Math.max(invisibleCount(data.value), (prevA && prevA.meta && prevA.meta.invisible) || 0); answersFor(i)[me.studentId].meta = mm; }
     examRecompute(me);
-    persistSession(); cb({ ok: true }); broadcast();
+    persistSession(); cb({ ok: true }); notifyAnswer(me);
   });
   socket.on('player:submit', (cb) => {
     if (typeof cb !== 'function') cb = () => {};
     if (!session || !me || me.socketId !== socket.id || session.phase !== 'exam') return cb({ error: 'Pedido inválido.' });
     (session.submitted ||= {})[me.studentId] = Date.now();
     persistSession(); cb({ ok: true });
-    // todos os formandos ligados entregaram: termina
-    const on = Object.values(session.players).filter(p => p.socketId);
-    if (on.length && on.every(p => session.submitted[p.studentId])) return endExam();
+    // todos os formandos entregaram: termina
+    if (Object.values(session.players).every(p => session.submitted[p.studentId])) return endExam();
     broadcast();
   });
 
@@ -1089,13 +1112,28 @@ io.on('connection', socket => {
     persistSession();
     cb && cb({ ok: true });
     // no modo por tempo fecha logo quando todos responderem; no manual é o formador que decide
-    if (timedMode() && allAnswered()) closeQuestion(); else broadcast();
+    if (timedMode() && allAnswered()) closeQuestion(); else notifyAnswer(me);
   });
 
   socket.on('disconnect', () => {
     if (me && me.socketId === socket.id) { me.socketId = null; broadcast(); }
   });
 });
+
+// O servidor reiniciou a meio de uma sessão (fechou-se a janela, o portátil adormeceu)? Retoma a última que não
+// terminou; os telemóveis voltam a entrar sozinhos com o token que guardaram. Uma pergunta aberta fica fechada.
+try {
+  const files = fs.readdirSync(RESULTS).filter(n => n.endsWith('.json')).map(n => path.join(RESULTS, n));
+  const f = files.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
+  const r = f && Date.now() - fs.statSync(f).mtimeMs < 12 * 3600e3 && JSON.parse(fs.readFileSync(f, 'utf8'));
+  if (r && !r.endedAt && r.code && r.phase) {
+    session = { ...r, rejoinFails: 0, autoAt: null, players: Object.fromEntries(r.players.map(p => [p.studentId, { ...p, socketId: null }])) };
+    if (session.phase === 'ready' || session.phase === 'question') { finalizeGuesses(session.qIndex); session.phase = 'closed'; session.deadline = null; }
+    if (session.phase === 'exam') timer = setTimeout(endExam, Math.max(0, session.deadline - Date.now()) + 300);
+    scheduleAuto();
+    console.log(`↺ Sessão ${session.code} retomada (${session.quizTitle}) — os formandos voltam a entrar sozinhos.`);
+  }
+} catch (e) { console.error('Não foi possível retomar a sessão anterior:', e.message); }
 
 server.listen(PORT, () => {
   console.log('\n  🎉 Quiz a correr!');

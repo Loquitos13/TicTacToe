@@ -43,9 +43,9 @@
   .scr-t { width: 50px; height: 54px; border-radius: 12px; background: #ffd93d; color: var(--ink); font-size: 1.6em; font-weight: 800; box-shadow: 0 5px 0 rgba(0,0,0,.25); padding: 0; }
   .scr-t.used { opacity: .2; box-shadow: none; }
   @media (max-width: 360px) { .scr-slot { width: 32px; height: 40px; } .scr-t { width: 44px; height: 48px; } }
-  .cw-wrap { display: flex; justify-content: center; margin: 6px 0 10px; overflow-x: auto; }
+  .cw-wrap { display: flex; justify-content: safe center; margin: 6px 0 10px; overflow-x: auto; }
   .cw-grid { display: grid; grid-template-columns: repeat(var(--cols), var(--cs)); grid-auto-rows: var(--cs); gap: 2px; }
-  .cw-grid.phone { --cs: min(34px, calc((100vw - 40px) / var(--cols))); }
+  .cw-grid.phone { --cs: min(34px, calc((100vw - 32px - (var(--cols) - 1) * 2px) / var(--cols))); }
   .cw-cell { position: relative; background: #fff; color: var(--ink); border-radius: 4px; display: grid; place-items: center; font-weight: 800; font-size: calc(var(--cs) * .58); cursor: pointer; }
   .cw-cell.on { background: #fff3b0; box-shadow: inset 0 0 0 2px #f59e0b; }
   .cw-cell sup { position: absolute; top: 1px; left: 2px; font-size: max(8px, calc(var(--cs) * .28)); color: #6b5b95; line-height: 1; }
@@ -160,6 +160,11 @@ const app = $('#app');
 // código da sessão: vem no QR code (?c=XXXXXX) ou é escrito à mão
 const CODE = (new URLSearchParams(location.search).get('c') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 const socket = io({ auth: { role: 'player', code: CODE } });
+function send(ev, ...args) {
+  const cb = args.pop();
+  if (!socket.connected) return cb({ error: 'Sem ligação. Verifica a rede e tenta outra vez.' });
+  socket.timeout(8000).emit(ev, ...args, (err, res) => cb(err ? { error: 'O servidor não respondeu. Tenta outra vez.' } : (res || {})));
+}
 let roster = null, state = null, lastKey = '', timerRaf = null;
 let joinStep = { kind: 'form' }; // form | notFound | rejoin
 let typed = '';
@@ -173,7 +178,7 @@ socket.on('roster', r => {
   if (r.session && me && me.sessionId === r.session.id && !state) return reclaim(me);
   if (!state) render();
 });
-socket.on('state', s => { if (!s.session) { state = null; roster = null; render(); return; } state = s; render(); });
+socket.on('state', s => { if (!s.session) { state = null; roster = { session: null }; stopCamera(); render(); return; } state = s; render(); });
 socket.on('reload', () => { state = null; joinStep = { kind: 'form' }; store(null); });
 socket.on('released', () => { state = null; store(null); joinStep = { kind: 'form' }; toast('O formador libertou o teu lugar. Para voltar, usa o código de reentrada que ele te der.', 6000); render(); });
 
@@ -193,7 +198,7 @@ function reclaim(me) {
 }
 function join() {
   Sound.init();
-  socket.emit('player:join', { name: typed }, res => {
+  send('player:join', { name: typed }, res => {
     if (res.notFound) { joinStep = { kind: 'notFound' }; return render(); }
     joined(res);
   });
@@ -234,10 +239,10 @@ function render() {
   if (joinStep.kind === 'rejoin') {
     return set('rejoin', logo() + `<form class="middle" id="rjForm" autocomplete="off"><div class="big-emoji">🔢</div>
       <h1 style="font-size:1.4em">Código de reentrada</h1><p>O formador vê-o no ecrã dele quando liberta o teu nome.</p>
-      <input class="search code-in" id="rjc" inputmode="numeric" maxlength="4" placeholder="0000" required>
+      <input class="search code-in" id="rjc" inputmode="numeric" maxlength="6" placeholder="000000" required>
       <button class="btn primary" style="width:100%">Voltar ao meu lugar</button>
       <button type="button" class="btn ghost" id="retry">← Voltar</button></form>`, () => {
-      $('#rjForm').onsubmit = e => { e.preventDefault(); socket.emit('player:rejoin', { rejoin: $('#rjc').value }, joined); };
+      $('#rjForm').onsubmit = e => { e.preventDefault(); send('player:rejoin', { rejoin: $('#rjc').value }, joined); };
       $('#retry').onclick = () => { joinStep = { kind: 'form' }; render(); };
     });
   }
@@ -247,7 +252,7 @@ function render() {
       <h1 style="font-size:1.6em">Questionário anónimo</h1>
       <p>Não precisas de dizer quem és: as tuas respostas não ficam associadas ao teu nome — nem o formador sabe quem respondeu o quê.</p>
       <button class="btn primary" id="anonGo" style="width:100%;font-size:1.15em">Entrar 🚀</button></div>`, () => {
-      $('#anonGo').onclick = () => { Sound.init(); socket.emit('player:join', { name: '' }, joined); };
+      $('#anonGo').onclick = () => { Sound.init(); send('player:join', { name: '' }, joined); };
     });
   }
   set('form' + (joinStep.msg || ''), logo() + `<form class="middle" id="joinForm" autocomplete="off">
@@ -303,7 +308,7 @@ function renderGameInner() {
       <p>Participas de forma <b>anónima</b>.<br>Olha para o ecrã do formador — o questionário vai começar<span class="dots"></span></p></div>`);
     return set('lobby' + state.me.studentId + (state.me.photo || '') + JSON.stringify([state.me.team, state.me.teammates]), header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1>${teamCard(true, true)}<p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
       <button class="btn ghost" id="notMe" style="margin-top:10px">Não sou ${esc(state.me.name)}</button></div>`, () => {
-      $('#notMe').onclick = () => socket.emit('player:leave', res => {
+      $('#notMe').onclick = () => send('player:leave', res => {
         if (res && res.error) return toast(res.error, 4500);
         store(null); state = null; joinStep = { kind: 'form' }; typed = ''; lastKey = ''; render();
       });
@@ -343,7 +348,7 @@ function renderGameInner() {
       ${w.html}`, () => {
       w.bind((value, btn, meta) => {
         $$('#app button').forEach(x => x.disabled = true);
-        socket.emit('player:answer', { value, meta }, res => {
+        send('player:answer', { value, meta }, res => {
           if (res && res.error) { toast(res.error); $$('#app button').forEach(x => x.disabled = false); return; }
           Sound.play('sent'); navigator.vibrate && navigator.vibrate(40);
           state.answered = true; if (t === 'mc' || t === 'tf') state.myOption = value; else state.myValue = value; render();
@@ -407,7 +412,7 @@ function renderGameInner() {
     if (state.gradedTotal === 0) { m.score = null; m.position = null; }
     const isNew = !lastKey.startsWith('end');
     const podium = s.settings.finalPodium && m.position != null && m.position <= 5;
-    set('end', header() + `<div class="middle">${podium ? `<div class="pop-in">${dancer(m, ['jump', 'disco', 'wave', 'sway', 'robot'][m.position - 1], ['#ffd93d', '#e5e7eb', '#f4a261', '#7dd3fc', '#c4b5fd'][m.position - 1], m.position === 1)}</div>` : s.settings.anonymous ? '<div class="big-emoji pop-in">🕶️</div>' : avatar(m, 'xl pop-in')}<h1>Terminou! 🏁</h1>
+    set('end' + JSON.stringify([m.score, m.position, m.correct, m.teamPosition, (state.review || []).map(r => r.ok)]), header() + `<div class="middle">${podium ? `<div class="pop-in">${dancer(m, ['jump', 'disco', 'wave', 'sway', 'robot'][m.position - 1], ['#ffd93d', '#e5e7eb', '#f4a261', '#7dd3fc', '#c4b5fd'][m.position - 1], m.position === 1)}</div>` : s.settings.anonymous ? '<div class="big-emoji pop-in">🕶️</div>' : avatar(m, 'xl pop-in')}<h1>Terminou! 🏁</h1>
       ${m.score != null || m.position != null ? `<div class="card" style="width:100%">
         ${m.score != null ? `<div style="font-size:2.4em;font-weight:700">${m.score} pts</div><div class="muted">${m.correct} de ${state.gradedTotal ?? s.total} respostas certas</div>` : ''}
         ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
@@ -531,7 +536,7 @@ function renderPhotoStep() {
       $('#phNo').onclick = () => { photo.data = null; photoDone(); };
       $('#phUse').onclick = () => {
         $('#phUse').disabled = true;
-        socket.emit('player:photo', photo.data, res => {
+        send('player:photo', photo.data, res => {
           if (res && res.error) { $('#phUse').disabled = false; return toast(res.error, 4000); }
           Sound.play('pop'); photoDone();
         });
@@ -554,6 +559,9 @@ function exClockStart() {
   };
   f(); exClock = setInterval(f, 250);
 }
+// rascunho da pergunta aberta no exame: também se guarda quando o aluno sai da app (iPhone pode recarregar a página)
+let examFlush = null;
+document.addEventListener('visibilitychange', () => { if (document.hidden && examFlush && state && state.session.phase === 'exam') examFlush(); });
 function renderExam() {
   const ex = state.exam, n = ex.questions.length, done = Object.keys(ex.mine).length;
   const top = `<div class="ex-top"><span id="exClock" class="ex-clock">⏳</span><span>${done}/${n} respondidas</span></div>`;
@@ -572,7 +580,7 @@ function renderExam() {
       <button class="btn ghost" id="exBack">← Voltar às perguntas</button></div>`, () => {
       $$('[data-go]').forEach(b => b.onclick = () => { exIdx = +b.dataset.go; exConfirm = false; render(); });
       $('#exBack').onclick = () => { exConfirm = false; render(); };
-      $('#exSubmit').onclick = () => socket.emit('player:submit', res => { if (res && res.error) return toast(res.error); Sound.play('fanfare'); });
+      $('#exSubmit').onclick = () => send('player:submit', res => { if (res && res.error) return toast(res.error); Sound.play('fanfare'); });
     });
     return exClockStart();
   }
@@ -586,13 +594,18 @@ function renderExam() {
     <div class="ex-nav"><button class="btn ghost" id="exPrev" ${exIdx === 0 ? 'disabled' : ''}>← Anterior</button>
       ${exIdx < n - 1 ? `<button class="btn ghost" id="exNext">Seguinte →</button>` : `<button class="btn primary" id="exEnd">Rever e entregar ✅</button>`}</div>
     ${exIdx < n - 1 ? `<button class="btn ghost ex-submit-link" id="exEnd">Entregar</button>` : ''}`, () => {
-    $$('[data-go]').forEach(b => b.onclick = () => { exIdx = +b.dataset.go; render(); });
-    $('#exPrev').onclick = () => { exIdx--; render(); };
-    const nx = $('#exNext'); if (nx) nx.onclick = () => { exIdx++; render(); };
-    $$('#exEnd').forEach(b => b.onclick = () => { exConfirm = true; render(); });
+    const flush = examFlush = () => {
+      const d = exW.draft && exW.draft(), at = exIdx;
+      if (d == null || JSON.stringify(d) === JSON.stringify(state.exam.mine[at])) return;
+      send('player:examAnswer', { q: at, value: d }, res => { if (!res.error) state.exam.mine[at] = d; });
+    };
+    $$('[data-go]').forEach(b => b.onclick = () => { flush(); exIdx = +b.dataset.go; render(); });
+    $('#exPrev').onclick = () => { flush(); exIdx--; render(); };
+    const nx = $('#exNext'); if (nx) nx.onclick = () => { flush(); exIdx++; render(); };
+    $$('#exEnd').forEach(b => b.onclick = () => { flush(); exConfirm = true; render(); });
     exW.bind((opt, btn, meta) => {
       const at = exIdx;
-      socket.emit('player:examAnswer', { q: at, value: opt, meta }, res => {
+      send('player:examAnswer', { q: at, value: opt, meta }, res => {
         if (res && res.error) return toast(res.error, 3500);
         Sound.play('sent'); navigator.vibrate && navigator.vibrate(30);
         state.exam.mine[at] = opt;
@@ -638,6 +651,7 @@ function answerWidget(q, cur, exam) {
   if (t === 'cloud') {
     const n = q.words || 3, vals = Array.isArray(cur) ? cur : [];
     return {
+      draft: () => { const w = $$('.cloud-w').map(x => x.value.trim()).filter(Boolean); return w.length ? w : null; },
       html: `<div class="cloud-in">${Array.from({ length: n }, (_, i) => `<input class="search cloud-w" maxlength="30" autocomplete="off" autocapitalize="none" enterkeyhint="${i < n - 1 ? 'next' : 'send'}" placeholder="${n > 1 ? `Palavra ${i + 1}${i ? ' (opcional)' : ''}` : 'A tua palavra'}" value="${esc(vals[i] || '')}">`).join('')}</div>
         <button class="btn primary" id="cloudSend" style="width:100%;margin-top:4px">${exam ? '💾 Guardar resposta' : '☁️ Enviar'}</button>`,
       bind: on => {
@@ -662,10 +676,10 @@ function answerWidget(q, cur, exam) {
       html: `<div id="gw">${guessBoardHtml(q, tries, typed, !done)}</div><p class="gw-msg" id="gwMsg">${msg()}</p><div class="kb" id="kb">${kb()}</div>`,
       bind: () => {
         const paint = () => { const b = $('#gw'); if (!b) return; b.innerHTML = guessBoardHtml(q, tries, typed, !done); $('#kb').innerHTML = kb(); $('#gwMsg').textContent = msg(); bindKeys(); };
-        const send = () => {
+        const tryWord = () => {
           if (typed.length < L) { const row = $('#gw .gw-row.cur'); if (row) { row.classList.remove('shake'); void row.offsetWidth; row.classList.add('shake'); } return toast(`A palavra tem ${L} letras`); }
           busy = true;
-          socket.emit('player:guess', { q: at, word: typed }, res => {
+          send('player:guess', { q: at, word: typed }, res => {
             busy = false;
             if (!res || res.error) return toast((res && res.error) || 'Erro', 3500);
             tries.push({ word: typed, colors: res.colors }); typed = ''; done = res.done; solved = res.solved;
@@ -679,7 +693,7 @@ function answerWidget(q, cur, exam) {
             } else { state.guess = { tries, done, solved }; setTimeout(() => { state.answered = true; render(); }, 1600); }
           });
         };
-        const press = k => { if (done || busy) return; if (k === '⌫') typed = typed.slice(0, -1); else if (k === '⏎') return send(); else if (typed.length < L) typed += k; paint(); };
+        const press = k => { if (done || busy) return; if (k === '⌫') typed = typed.slice(0, -1); else if (k === '⏎') return tryWord(); else if (typed.length < L) typed += k; paint(); };
         const bindKeys = () => $$('#kb .kb-k').forEach(b => b.onclick = () => press(b.dataset.k));
         bindKeys();
         // teclado físico (computador / teclado bluetooth)
@@ -721,6 +735,7 @@ function answerWidget(q, cur, exam) {
       <div class="cw-q-t"><b>${w.n}${w.dir === 'a' ? ' ➡' : ' ⬇'}</b> ${w.clue ? esc(w.clue) : 'Pista no ecrã do formador'} <small>(${w.len} letras)</small></div>
       <input class="cw-in" data-k="${k}" maxlength="${w.len}" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="next" value="${esc(vals[k])}" placeholder="${'·'.repeat(w.len)}"></div>`).join('');
     return {
+      draft: () => vals.some(Boolean) ? vals.slice() : null,
       html: `<div class="cw-wrap" id="cwGrid" style="--cols:${cw.cols}">${gridHtml()}</div><div class="cw-list">${cluesHtml()}</div>
         <button class="btn primary" id="cwSend" style="width:100%;margin-top:12px">${exam ? '💾 Guardar' : '📨 Enviar palavras'}</button>`,
       bind: on => {
@@ -767,9 +782,12 @@ function answerWidget(q, cur, exam) {
         const refresh = () => { $('#rankList').innerHTML = html(); bindItems(); $('#rankSend').disabled = order.length !== items.length; };
         const bindItems = () => $$('.rank-item').forEach(b => b.onclick = () => {
           const i = +b.dataset.i, pos = order.indexOf(i);
-          if (pos >= 0) order.splice(pos, 1); else { order.push(i); Sound.play('pop'); }
-          // falta só uma: entra sozinha em último
-          if (order.length === items.length - 1) order.push(items.find(it => !order.includes(it.i)).i);
+          if (pos >= 0) order.splice(pos, 1);
+          else {
+            order.push(i); Sound.play('pop');
+            // falta só uma: entra sozinha em último
+            if (order.length === items.length - 1) order.push(items.find(it => !order.includes(it.i)).i);
+          }
           refresh();
         });
         bindItems();
@@ -779,6 +797,7 @@ function answerWidget(q, cur, exam) {
     };
   }
   if (t === 'open') return {
+    draft: () => ($('#openIn') || {}).value?.trim() || null,
     html: `<textarea id="openIn" class="open-in" maxlength="300" rows="4" placeholder="Escreve a tua resposta…">${esc(typeof cur === 'string' ? cur : '')}</textarea>
       <button class="btn primary" id="openSend" style="width:100%;margin-top:10px">${exam ? '💾 Guardar resposta' : '📨 Enviar resposta'}</button>`,
     bind: on => {
@@ -840,7 +859,7 @@ function answerSummary(q, v) {
   const t = q.type || 'mc';
   if (v == null) return '';
   if (t === 'scale') return `⭐ ${v} de 5`;
-  if (t === 'fill') return (v || []).join(' · ');
+  if (t === 'fill') return (v || []).map(esc).join(' · ');
   if (t === 'open') return `“${esc(v)}”`;
   if (t === 'cloud') return '☁️ ' + (v || []).map(esc).join(' · ');
   if (t === 'scramble') return `<b style="font-size:1.4em;letter-spacing:.08em">${esc(String(v).toUpperCase())}</b>`;

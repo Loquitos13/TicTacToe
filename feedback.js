@@ -14,11 +14,13 @@ module.exports = function feedback(app, { auth, DATA_DIR }) {
   fs.mkdirSync(RESP, { recursive: true });
   const uid = (n = 8) => crypto.randomBytes(n).toString('hex').slice(0, n);
   let store = { forms: [] };
-  try { if (fs.existsSync(FILE)) store = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch (e) { console.error('feedback.json inválido', e); }
+  try { if (fs.existsSync(FILE)) store = JSON.parse(fs.readFileSync(FILE, 'utf8')); }
+  catch (e) { console.error(`\n✗ ${FILE} está estragado (${e.message}).\n  Não arranco para não o apagar: corrige o ficheiro ou repõe uma cópia.\n`); process.exit(1); }
   store.forms ||= [];
   const save = () => { fs.writeFileSync(FILE + '.tmp', JSON.stringify(store, null, 2)); fs.renameSync(FILE + '.tmp', FILE); };
   const respFile = id => path.join(RESP, id.replace(/[^\w]/g, '') + '.json');
-  const answersOf = id => { try { return JSON.parse(fs.readFileSync(respFile(id), 'utf8')); } catch { return []; } };
+  // só "ainda não há respostas" dá lista vazia; um ficheiro estragado dá erro (senão a próxima resposta apagava as outras)
+  const answersOf = id => { try { return JSON.parse(fs.readFileSync(respFile(id), 'utf8')); } catch (e) { if (e.code === 'ENOENT') return []; throw e; } };
   const saveAnswers = (id, list) => { const f = respFile(id); fs.writeFileSync(f + '.tmp', JSON.stringify(list)); fs.renameSync(f + '.tmp', f); };
   const newCode = () => { let c; do { c = Array.from(crypto.randomBytes(5), b => CODE_CHARS[b % CODE_CHARS.length]).join(''); } while (store.forms.some(f => f.code === c)); return c; };
   const str = (v, max) => String(v ?? '').trim().slice(0, max);
@@ -95,7 +97,8 @@ module.exports = function feedback(app, { auth, DATA_DIR }) {
   const hits = new Map();
   setInterval(() => hits.clear(), 10 * 60 * 1000).unref();
   app.post('/api/f/:code', (req, res) => {
-    const ip = req.get('cf-connecting-ip') || req.ip;
+    // o cabeçalho da Cloudflare só vale quando o pedido vem do túnel (do próprio computador); senão qualquer um o inventava
+    const ip = (/^(::1|127\.0\.0\.1|::ffff:127\.0\.0\.1)$/.test(req.ip) && req.get('cf-connecting-ip')) || req.ip;
     const n = (hits.get(ip) || 0) + 1; hits.set(ip, n);
     if (n > 300) return res.status(429).json({ error: 'Demasiados envios. Tenta daqui a alguns minutos.' });
     const f = byCode(req.params.code);

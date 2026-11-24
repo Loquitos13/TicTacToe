@@ -20,10 +20,16 @@ Para usares a tua (mínimo 8 caracteres):
 HOST_PASSWORD=aMinhaPassSegura npm start
 ```
 No Windows (PowerShell): `$env:HOST_PASSWORD="aMinhaPassSegura"; npm start`
+No Windows (Linha de Comandos / cmd): `set HOST_PASSWORD=aMinhaPassSegura` e depois `npm start`
+
+**Se o servidor fechar a meio** (janela fechada, portátil a dormir), volta a correr `npm start`: a sessão que estava a decorrer é retomada e os telemóveis voltam a entrar sozinhos. Uma pergunta que estava aberta fica fechada (avanças para a sondagem como sempre).
+Se `data/db.json` ficar estragado (ex.: editado à mão com um erro), a app **não arranca** e diz porquê, em vez de o substituir — corrige-o ou repõe uma cópia.
 
 Segurança:
 - A palavra-passe nunca vai no endereço das páginas (só em cabeçalhos), por isso não fica no histórico do browser.
 - Cada tentativa errada demora 1,5 s a responder, para travar quem tente adivinhar.
+- Um pedido forjado (de quem quer que seja) nunca deita o servidor abaixo: recebe "Pedido inválido".
+- No Excel, respostas que começam por `=`, `+`, `-` ou `@` ficam como texto (não viram fórmulas).
 - Os alunos nunca recebem a resposta correta, a pontuação, o nº de certas nem a posição da pergunta em curso antes de mostrares a resposta correta.
 
 - **Formador:** http://localhost:3000/host.html
@@ -182,7 +188,7 @@ Opções que podes ligar/desligar a qualquer momento:
 - **Ranking por pergunta**: mostra (ou não) o pódio Top 5 depois de cada pergunta (não aparece se escolheste "Sem ranking").
 
 Se um aluno se enganou no nome, pode carregar em **Não sou …** no ecrã de espera (só antes de responder à primeira pergunta).
-Se um aluno mudou de telemóvel: **👥 Alunos** (na barra de baixo) → **Libertar nome**. Aparece um **código de reentrada** de 4 dígitos; o aluno escolhe "Mudei de telemóvel" e escreve-o. Só com esse código volta ao seu lugar (com as respostas já dadas), e cada código só serve uma vez.
+Se um aluno mudou de telemóvel: **👥 Alunos** (na barra de baixo) → **Libertar nome**. Aparece um **código de reentrada** de 6 dígitos; o aluno escolhe "Mudei de telemóvel" e escreve-o. Só com esse código volta ao seu lugar (com as respostas já dadas), e cada código só serve uma vez. Se alguém tentar adivinhar códigos (muitas tentativas erradas), os códigos pendentes são anulados e recebes um aviso — gera outro.
 Se um aluno fechar o browser sem querer, volta a abrir o link e entra automaticamente com o mesmo nome.
 
 ## 5. Resultados
@@ -243,3 +249,6 @@ O que se ouve em cada momento (no projetor):
 - **Resposta correta**: brilho + acorde; no telemóvel cada aluno ouve o som de certo ou errado.
 - **Ranking Top 5**: aplausos e cornetas de festa, confettis e música de festa enquanto os bonecos dançam.
 - **Pódio final**: rufar de tambores, fanfarra, aplausos e música de festa.
+
+## Testes
+`npm test` verifica as regras de correção de todos os tipos de pergunta (respostas forjadas, ranking, adivinha a palavra, cruzadas).
