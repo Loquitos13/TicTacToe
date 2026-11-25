@@ -584,7 +584,16 @@ app.use('/api', (req, res, next) => allow('http:' + originOf(req.ip, req.get('cf
 // Corpo dos pedidos: pequeno para todos; grande (fotografias) só depois de confirmar que é o formador
 const bigJson = express.json({ limit: '15mb' }), smallJson = express.json({ limit: '100kb' });
 app.use((req, res, next) => /^\/api\/(students|quizzes)(\/|$)/.test(req.path) ? next() : smallJson(req, res, next));
-app.use(express.static(path.join(__dirname, 'public')));
+// Versão dos ficheiros: os .js/.css são pedidos com "?v=…" (muda quando o código muda). Assim nem a cache da
+// Cloudflare (que os guarda horas) nem a do PowerPoint ou dos telemóveis ficam com uma versão antiga.
+const PUB = path.join(__dirname, 'public');
+const BUILD = crypto.createHash('sha1').update(fs.readdirSync(PUB).filter(f => /\.(js|css|html)$/.test(f))
+  .map(f => f + fs.statSync(path.join(PUB, f)).mtimeMs + ':' + fs.statSync(path.join(PUB, f)).size).join('|')).digest('hex').slice(0, 10);
+const versioned = html => html.replace(/(src|href)="([\w.-]+\.(?:js|css))"/g, `$1="$2?v=${BUILD}"`);
+app.get(['/host.html', '/play.html', '/feedback.html'], (req, res) => {
+  res.set('Cache-Control', 'no-cache').type('html').send(versioned(fs.readFileSync(path.join(PUB, path.basename(req.path)), 'utf8')));
+});
+app.use(express.static(PUB));
 // conversor de fotografias do iPhone (HEIC → JPEG), carregado só quando é preciso
 app.get('/vendor/heic2any.min.js', (req, res) => res.sendFile(path.join(__dirname, 'node_modules/heic2any/dist/heic2any.min.js'), { maxAge: '7d' }));
 app.use('/uploads', express.static(UPLOADS, { maxAge: '1h' }));
@@ -593,10 +602,10 @@ app.use('/uploads', express.static(UPLOADS, { maxAge: '1h' }));
 const OFFICE_JS = 'https://appsforoffice.microsoft.com/lib/1/hosted/office.js';
 const OFFICE_FRAMES = 'https://*.officeapps.live.com https://*.office.com https://*.office365.com https://*.microsoft365.com https://*.sharepoint.com https://*.live.com https://*.cloud.microsoft';
 app.get('/slide.html', (req, res) => {
-  const html = fs.readFileSync(path.join(__dirname, 'public', 'host.html'), 'utf8')
+  const html = versioned(fs.readFileSync(path.join(__dirname, 'public', 'host.html'), 'utf8'))
     .replace('<body>', '<body class="slide">')
     .replace('<script src="/socket.io/socket.io.js"></script>', `<script src="${OFFICE_JS}"></script>\n<script src="/socket.io/socket.io.js"></script>`)
-    .replace('<script src="host.js"></script>', '<script src="host.js"></script>\n<script src="slide.js"></script>');
+    .replace(`<script src="host.js?v=${BUILD}"></script>`, `<script src="host.js?v=${BUILD}"></script>\n<script src="slide.js?v=${BUILD}"></script>`);
   res.removeHeader('X-Frame-Options');
   res.set('Content-Security-Policy', CSP.replace("script-src 'self'", "script-src 'self' https://appsforoffice.microsoft.com")
     .replace("connect-src 'self'", "connect-src 'self' https://appsforoffice.microsoft.com")
