@@ -281,6 +281,15 @@ Se tens um domínio na Cloudflare, o quiz pode ficar sempre no mesmo endereço, 
    - cria o túnel `quiz-formacao` e o registo DNS do subdomínio.
 2. A partir daí, o **`iniciar-online.bat`** usa sempre esse endereço. O QR code fica sempre igual, por isso podes imprimi-lo ou pô-lo num diapositivo.
 
+**Alternativa, no painel da Cloudflare:**
+1. Em **Zero Trust → Networks → Tunnels → Create a tunnel → Cloudflared**, dá-lhe o nome `quiz-formacao`.
+2. Em **Public hostname**, define:
+   - Subdomain `quiz`;
+   - Domain: o teu domínio;
+   - Service: **HTTP** e `localhost:3000`.
+3. Copia o token (ou o comando "cloudflared.exe service install …").
+4. Corre o `configurar-dominio.bat` e escolhe a opção **2**.
+
 Se o subdomínio já existir no DNS, o script avisa: apaga esse registo na Cloudflare ou escolhe outro nome. A configuração fica em `data/online.json`; apaga esse ficheiro para voltar ao endereço temporário.
 
 ## 7. Dentro do PowerPoint (suplemento)

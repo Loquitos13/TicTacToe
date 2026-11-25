@@ -28,6 +28,27 @@ else {
 }
 
 Write-Host ''
+Write-Host 'Como queres criar o túnel?' -ForegroundColor Cyan
+Write-Host '  1 = automático (recomendado): este script cria tudo na tua conta da Cloudflare'
+Write-Host '  2 = já criei o túnel no painel da Cloudflare e tenho o token'
+$op = (Read-Host 'Escolhe 1 ou 2').Trim()
+if ($op -eq '2') {
+  $sub = (Read-Host 'Endereço que puseste em "Public hostname" (ex.: quiz.oseudominio.pt)').Trim().ToLower() -replace '^https?://', '' -replace '/.*$', ''
+  if ($sub -notmatch '^[a-z0-9-]+(\.[a-z0-9-]+)+$') { Falha "Endereço inválido: '$sub'" }
+  Write-Host 'Cola o token (ou o comando inteiro que o painel mostra, "cloudflared.exe service install ..."):' -ForegroundColor Cyan
+  $sec = Read-Host -AsSecureString
+  $tok = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)).Trim()
+  $tok = ($tok -split '\s+')[-1]          # se colou o comando inteiro, fica só o token (a última parte)
+  if ($tok -notmatch '^[A-Za-z0-9+/=._-]{50,4000}$') { Falha 'Isso não parece um token de túnel. Copia-o outra vez no painel da Cloudflare.' }
+  New-Item -ItemType Directory -Force -Path (Join-Path $PSScriptRoot 'data') | Out-Null
+  [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'data\online.json'), '{ "token": "' + $tok + '", "url": "https://' + $sub + '" }')
+  Write-Host ''
+  Write-Host "Pronto! O quiz vai ficar em https://$sub" -ForegroundColor Green
+  Write-Host 'Agora abre o iniciar-online.bat.' -ForegroundColor Green
+  Pausa; exit 0
+}
+
+Write-Host ''
 Write-Host 'Que endereço queres para o quiz? Tem de ser um subdomínio de um domínio que está na tua conta da Cloudflare.' -ForegroundColor Cyan
 $sub = (Read-Host 'Endereço (ex.: quiz.oseudominio.pt)').Trim().ToLower() -replace '^https?://', '' -replace '/.*$', ''
 if ($sub -notmatch '^[a-z0-9-]+(\.[a-z0-9-]+)+$') { Falha "Endereço inválido: '$sub'" }

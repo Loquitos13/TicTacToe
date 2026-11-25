@@ -1355,12 +1355,17 @@ try {
 let tunnelUrl = '';
 // endereço fixo no domínio do formador (configurar-dominio.ps1): { "tunnel": "nome", "url": "https://quiz.dominio.pt" }
 const ONLINE_FILE = path.join(DATA_DIR, 'online.json');
-const fixedTunnel = (() => { try { const c = JSON.parse(fs.readFileSync(ONLINE_FILE, 'utf8').replace(/^\uFEFF/, '')); return /^[\w-]{1,64}$/.test(c.tunnel) && /^https:\/\/[a-z0-9.-]+$/i.test(c.url) ? c : null; } catch { return null; } })();
+const fixedTunnel = (() => { try { const c = JSON.parse(fs.readFileSync(ONLINE_FILE, 'utf8').replace(/^\uFEFF/, '')); // o túnel pode ter sido criado pelo script (nome) ou no painel da Cloudflare (token)
+  const okTunnel = /^[\w-]{1,64}$/.test(c.tunnel || '') || /^[\w+/=.-]{50,4000}$/.test(c.token || '');
+  return okTunnel && /^https:\/\/[a-z0-9.-]+$/i.test(c.url) ? c : null; } catch { return null; } })();
 if (process.argv.includes('--online')) {
   // o iniciar-online.ps1 pode ter descarregado o cloudflared para a pasta ferramentas/
   const localCf = path.join(__dirname, 'ferramentas', process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared');
-  const args = fixedTunnel ? ['tunnel', '--no-autoupdate', 'run', '--url', `http://localhost:${PORT}`, fixedTunnel.tunnel] : ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`];
-  const cf = require('child_process').spawn(fs.existsSync(localCf) ? localCf : 'cloudflared', args, { windowsHide: true });
+  // com token (túnel criado no painel) o endereço e a porta vêm do painel; o token vai por variável de ambiente
+  const args = !fixedTunnel ? ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`]
+    : fixedTunnel.token ? ['tunnel', '--no-autoupdate', 'run'] : ['tunnel', '--no-autoupdate', 'run', '--url', `http://localhost:${PORT}`, fixedTunnel.tunnel];
+  const env = fixedTunnel && fixedTunnel.token ? { ...process.env, TUNNEL_TOKEN: fixedTunnel.token } : process.env;
+  const cf = require('child_process').spawn(fs.existsSync(localCf) ? localCf : 'cloudflared', args, { windowsHide: true, env });
   if (fixedTunnel) writeAddinManifest(fixedTunnel.url);
   const look = d => {
     // túnel fixo: fica pronto quando a primeira ligação à Cloudflare é registada
@@ -1372,7 +1377,7 @@ if (process.argv.includes('--online')) {
   };
   cf.stdout.on('data', look); cf.stderr.on('data', look);
   cf.on('error', () => console.error('\n✗ Não encontrei o cloudflared. Abre o iniciar-online.bat (descarrega-o sozinho)\n  ou instala-o com:  winget install --id Cloudflare.cloudflared A app continua a funcionar na rede local.\n'));
-  cf.on('exit', () => { if (tunnelUrl) console.error('✗ O túnel da Cloudflare fechou. Volta a arrancar para ter um endereço novo.'); else if (fixedTunnel) console.error(`✗ O túnel "${fixedTunnel.tunnel}" não arrancou. Corre de novo o configurar-dominio.bat.`); tunnelUrl = ''; });
+  cf.on('exit', () => { if (tunnelUrl) console.error('✗ O túnel da Cloudflare fechou. Volta a arrancar para ter um endereço novo.'); else if (fixedTunnel) console.error(`✗ O túnel ${fixedTunnel.token ? 'do painel da Cloudflare' : '"' + fixedTunnel.tunnel + '"'} não arrancou. Confirma-o no painel ou corre de novo o configurar-dominio.bat.`); tunnelUrl = ''; });
   const stop = () => { cf.kill(); process.exit(0); };
   process.on('SIGINT', stop); process.on('SIGTERM', stop); process.on('exit', () => cf.kill());
 }
