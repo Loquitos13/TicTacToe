@@ -1,6 +1,6 @@
 // Ajudas partilhadas (formador e formandos) para os tipos de pergunta.
-const QTYPE_LABEL = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5', cloud: '☁️ Nuvem de palavras', rank: '🔢 Ranking de opções', scramble: '🔤 Letras baralhadas', cross: '✏️ Palavras cruzadas', guess: '🟩 Adivinha a palavra', number: '🔢 Adivinhar um número', match: '🔗 Correspondência', spot: '🎯 Encontrar na imagem' };
-const qType = q => (q && ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot'].includes(q.type)) ? q.type : 'mc';
+const QTYPE_LABEL = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5', cloud: '☁️ Nuvem de palavras', rank: '🔢 Ranking de opções', scramble: '🔤 Letras baralhadas', cross: '✏️ Palavras cruzadas', guess: '🟩 Adivinha a palavra', potato: '🥔 Batata quente (jogo em grupo)', number: '🔢 Adivinhar um número', match: '🔗 Correspondência', spot: '🎯 Encontrar na imagem' };
+const qType = q => (q && ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot', 'potato'].includes(q.type)) ? q.type : 'mc';
 // tem resposta certa? (ranking só quando tem ordem certa)
 const qGraded = q => { const t = qType(q); return t === 'rank' ? !!q.ordered : t === 'mc' && q && q.poll ? false : !['scale', 'open', 'cloud'].includes(t); };
 // encontrar na imagem: uma ou várias zonas certas (as perguntas antigas tinham só "zone")
@@ -28,6 +28,7 @@ const qTitle = q => qType(q) === 'fill' ? String(q.text).replace(BLANK_RX, '____
 // resposta certa em texto curto, para listas
 function solutionText(q) {
   const t = qType(q);
+  if (t === 'potato') return (q.rounds || []).map(r => `${r.theme}: ${(Array.isArray(r.words) ? r.words : []).join(', ')}`).join(' | ');
   if (t === 'mc' && q.poll) return 'Votação (sem resposta certa)';
   if (t === 'mc' || t === 'tf') return (q.correct || []).map(k => `${LETTERS[k]}) ${q.options[k]}`).join(' | ');
   if (t === 'fill') return fillBlanksOf(q.text).join(' · ');
@@ -46,6 +47,7 @@ function solutionText(q) {
 const fillSentenceOf = (q, words) => { let k = 0; return String(q.text).replace(BLANK_RX, () => words[k++] || '_____'); };
 function plainCorrectOf(q) {
   const t = qType(q);
+  if (t === 'potato') return (q.rounds || []).map(r => `${r.theme}: ${(Array.isArray(r.words) ? r.words : []).join(', ')}`).join(' | ');
   if (t === 'mc' && q.poll) return 'Votação (sem resposta certa)';
   if (t === 'mc' || t === 'tf') return q.correct.map(i => q.options[i]).join(' / ');
   if (t === 'fill') return fillSentenceOf(q, fillBlanksOf(q.text));
@@ -61,6 +63,7 @@ function plainCorrectOf(q) {
 function plainAnswerOf(q, a) {
   if (!a) return '';
   const t = qType(q);
+  if (t === 'potato') return `Palavras: ${(a.value || []).join(', ') || '—'} · ${a.points || 0} pontos${a.booms ? ` · rebentou ${a.booms}×` : ''}`;
   if (t === 'mc' || t === 'tf') return q.options[a.option];
   if (t === 'fill') return fillSentenceOf(q, a.value || []);
   if (t === 'scale') { const lab = a.value === 1 ? q.scaleMin : a.value === 5 ? q.scaleMax : ''; return `${a.value} de 5${lab ? ' (' + lab + ')' : ''}`; }

@@ -175,6 +175,7 @@ function renderGameInner() {
   }
   if (ph === 'question') {
     const q = state.question;
+    if (q.type === 'potato') return renderPotato(s);
     if (state.answered && (q.type === 'guess')) {
       const g = state.guess || { tries: [] };
       return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">${g.solved ? '🎉' : '😵'}</div>
@@ -208,6 +209,13 @@ function renderGameInner() {
     const tick = () => { const tb = $('#tb'); if (!tb) return; const r = Math.max(0, end - performance.now()); tb.style.transform = `scaleX(${r / total})`; if (r > 0) timerRaf = requestAnimationFrame(tick); };
     tick();
     return;
+  }
+  // batata quente: no fim do jogo mostra como ficaram os grupos (o ranking vem a seguir, como nas outras perguntas)
+  if ((ph === 'closed' || ph === 'reveal') && state.question && state.question.type === 'potato' && state.potato) {
+    const P = state.potato, me = P.myGroup || {};
+    return set('potend' + s.qIndex + ph, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">🥔</div><h1>Fim da batata quente!</h1>
+      <div class="pot-scores">${P.groups.map((g, i) => `<div class="${g.id === me.id ? 'me' : ''}"><span>${i + 1}.º ${g.emoji} ${esc(g.name)}</span><b>${g.score} pts</b></div>`).join('')}</div>
+      <p>Aguarda<span class="dots"></span></p></div>`);
   }
   if (ph === 'closed') {
     if (!lastKey.startsWith('closed' + s.qIndex)) Sound.play('softEnd');
@@ -813,6 +821,54 @@ function spotHtml(q, pts, zones, live) {
   return `<div class="spot ${live ? 'live' : ''}"><img src="${esc(q.image || '')}" alt="imagem da pergunta" draggable="false">
     ${(zones || []).map(z => `<div class="spot-zone" style="left:${pc(z.x)};top:${pc(z.y)};width:${pc(z.w)};height:${pc(z.h)}"></div>`).join('')}
     ${P.map(([x, y], k) => `<div class="spot-pin pop-in" style="left:${pc(x)};top:${pc(y)}">${P.length > 1 || (q.spots || 1) > 1 ? k + 1 : ''}</div>`).join('')}</div>`;
+}
+// ---------- Batata quente ----------
+let potLast = null, potEnd = 0, potTot = 1, potRaf = 0;
+function renderPotato(s) {
+  const P = state.potato;
+  if (!P) return set('potwait' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji wiggle">🥔</div><h1>A preparar a batata…</h1></div>`);
+  const sig = JSON.stringify([P.status, P.round, P.holder && P.holder.id, P.rep, P.isRep, P.mine, P.log.length, P.groups.map(g => g.score)]);
+  // sons e vibração quando a batata chega ao grupo, quando é a minha vez e quando rebenta
+  if (potLast && potLast !== sig) {
+    if (P.status === 'boom') { Sound.play('wrong'); navigator.vibrate && navigator.vibrate(400); }
+    else if (P.isRep) { Sound.play('pop'); navigator.vibrate && navigator.vibrate([60, 40, 60]); }
+    else if (P.mine) { navigator.vibrate && navigator.vibrate(40); }
+  }
+  potLast = sig;
+  let body;
+  if (P.status === 'boom') body = `<div class="big-emoji wiggle">💥</div><h1>Rebentou com ${esc(P.boom.name)}!</h1>
+    <p>${P.myGroup && P.boom.id === P.myGroup.id ? `O teu grupo perde ${P.boom.penalty} pontos 😬` : 'Vem aí a próxima ronda…'}</p>`;
+  else if (P.isRep) body = `<div class="pot-me pop-in">🥔 É a TUA vez!</div><p style="margin:4px 0 10px">Escreve uma palavra sobre o tema e passa a batata — depressa!</p>
+    <form id="potForm" class="pot-form"><input id="potIn" class="search" maxlength="60" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="A tua palavra">
+    <button class="btn primary">🔥 Passar</button></form><p id="potMsg" class="pot-msg"></p>`;
+  else if (P.mine) body = `<div class="pot-me pop-in">🥔 A batata está com o teu grupo!</div><p>É a vez de <b>${esc(P.rep || '')}</b> — ajuda a pensar numa palavra!</p>`;
+  else body = `<div class="big-emoji">🥔</div><p style="font-size:1.15em">A batata está com <b style="color:${P.holder ? P.holder.color : '#fff'}">${P.holder ? esc(P.holder.name) : '—'}</b>${P.rep ? `<br><small>(vez de ${esc(P.rep)})</small>` : ''}</p>`;
+  set('pot' + s.qIndex + sig, header() + qmeta() + `<div class="pot-wrap">
+    <div class="pot-round">Ronda ${P.round} de ${P.rounds}${P.myGroup ? ` · ${P.myGroup.emoji} ${esc(P.myGroup.name)}` : ''}</div>
+    <div class="pot-theme">${esc(P.theme)}</div>
+    ${P.status === 'running' ? '<div class="pot-fuse"><i id="potFuse"></i></div>' : ''}
+    <div class="pot-body">${body}</div>
+    ${P.log.some(l => l.word) ? `<div class="pot-log">${P.log.filter(l => l.word).map(l => `<span>${esc(l.word)}</span>`).join('')}</div>` : ''}</div>`, () => {
+    const f = $('#potForm'); if (!f) return;
+    const inp = $('#potIn'); inp.focus();
+    f.onsubmit = e => {
+      e.preventDefault(); const w = inp.value.trim(); if (!w) return;
+      const b = $('#potForm button'); b.disabled = true;
+      send('player:potato', w, res => {
+        if (b.isConnected) b.disabled = false;
+        if (!res || res.error) return toast((res && res.error) || 'Erro', 3000);
+        if (res.ok) { Sound.play('correct'); toast(`+${res.pts} pontos! 🔥 A batata passou`, 2500); return; }
+        Sound.play('softEnd'); inp.select();
+        const m = $('#potMsg'); if (m) m.textContent = res.reason === 'used' ? 'Essa já foi dita! Tenta outra.' : 'Não foi aceite. Tenta outra palavra!';
+      });
+    };
+  });
+  // rastilho (a arder até a batata rebentar; nunca volta ao início quando a batata passa)
+  potEnd = performance.now() + P.remainingMs; potTot = P.totalMs || 1;
+  if (P.status === 'running' && !potRaf) {
+    const tick = () => { const el = $('#potFuse'); if (!el) { potRaf = 0; return; } const r = Math.max(0, potEnd - performance.now()); el.style.transform = `scaleX(${r / potTot})`; potRaf = r > 0 ? requestAnimationFrame(tick) : 0; };
+    potRaf = requestAnimationFrame(tick);
+  }
 }
 // resumo da resposta dada, para mostrar depois de enviar
 function answerSummary(q, v) {

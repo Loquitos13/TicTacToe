@@ -167,6 +167,7 @@ function renderGame(full) {
   bindGame();
   if (vph === 'question' && timed()) runRing();
   if (vph === 'ready') runReady();
+  if ($('#potBox')) potatoRun();
   if (vph === 'exam') runExamClock();
   const tu = $('.timeup'); if (tu) tu.addEventListener('animationend', () => tu.classList.add('hidden'));
   // sondagem: as barras e as percentagens sobem de 0% até ao valor (com som); na resposta correta já aparecem cheias
@@ -284,6 +285,7 @@ function runReady() {
 
 function questionHtml() {
   const q = S.question, n = S.answeredIds.length, of = connectedN();
+  if (qType(q) === 'potato') return `<div class="question-title slide-up" style="font-size:clamp(1.2em,2.2vw,1.8em);padding:10px 20px">${esc(q.text)}</div>${questionBodyHtml(q)}`;
   const left = timed()
     ? `<div class="ring" id="ring"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="44" stroke="rgba(255,255,255,.2)" stroke-width="10" fill="none"/>
        <circle id="ringC" cx="50" cy="50" r="44" stroke="#ffd93d" stroke-width="10" fill="none" stroke-linecap="round" stroke-dasharray="276.5" stroke-dashoffset="0"/></svg>
@@ -312,6 +314,7 @@ function questionBodyHtml(q) {
       <div class="scr-slots">${scrambleShapeOf(q).map(n => `<span class="scr-word">${'<i></i>'.repeat(n)}</span>`).join('')}</div>
       <p class="cloud-hint">🔤 Forma a palavra no telemóvel, tocando nas letras pela ordem</p>`; }
   if (t === 'cross') return crossStageHtml(q, false);
+  if (t === 'potato') return `<div id="potBox">${potatoBoxHtml()}</div>`;
   if (t === 'number') { const st = q.step || 1, n = Math.round((q.max - q.min) / st), few = n <= 20;
     const ticks = few ? Array.from({ length: n + 1 }, (_, k) => Math.round((q.min + k * st) * 1e6) / 1e6) : [q.min, q.max];
     return `<div class="num-stage pop-in"><div class="num-track"><i>?</i></div>
@@ -328,6 +331,38 @@ function questionBodyHtml(q) {
   return `<div class="opts ${q.options.some(o => String(o).length > 60) ? 'long' : ''}">${q.options.map((o, i) => `<div class="opt opt-${i} pop-in" style="animation-delay:${i * 90}ms"><span class="letter">${LETTERS[i]}</span><span class="txt">${esc(o)}</span></div>`).join('')}</div>`;
 }
 const fmtN = n => Number(n).toLocaleString('pt-PT');
+// ---------- Batata quente no projetor ----------
+function potatoBoxHtml() {
+  const P = S.potato; if (!P) return '<div class="big-msg">🥔 A preparar…</div>';
+  if (P.status === 'boom') return `<div class="pot-boom pop-in"><div>💥</div><h1>Rebentou com <span style="color:${P.boom.color}">${P.boom.emoji} ${esc(P.boom.name)}</span>!</h1>
+    <p>−${P.boom.penalty} pontos · ${P.round < P.rounds ? 'próxima ronda daqui a pouco…' : 'fim do jogo'}</p></div>${potatoGroupsHtml(P)}`;
+  return `<div class="pot-head"><span>Ronda ${P.round} de ${P.rounds}</span><div class="pot-theme">${esc(P.theme)}</div></div>
+    <div class="pot-mid"><div class="pot-potato" id="potPotato">🥔</div>
+      <div class="pot-holder" style="background:${P.holder ? P.holder.color : '#555'}">${P.holder ? `${P.holder.emoji} ${esc(P.holder.name)}` : '—'}${P.rep ? `<small>vez de ${esc(P.rep)}</small>` : ''}</div></div>
+    <div class="pot-fuse"><i id="potFuse"></i></div>
+    ${P.reject ? `<div class="pot-rej">${P.reject.reason === 'used' ? '🔁 Já dita' : '✗ Não aceite'}: «${esc(P.reject.word)}» ${P.reject.reason === 'used' ? '' : '<button class="btn small go" id="potAcc">✔ Aceitar</button>'}</div>` : ''}
+    <div class="pot-log">${P.log.filter(l => l.word).map(l => `<span class="pop-in">${esc(l.word)} <b>+${l.pts}</b></span>`).join('')}</div>
+    ${potatoGroupsHtml(P)}`;
+}
+const potatoGroupsHtml = P => `<div class="pot-groups">${P.groups.map(g => `<div class="${P.holder && g.id === P.holder.id ? 'on' : ''}" style="border-color:${g.color}">${g.emoji} ${esc(g.name)} <b>${g.score}</b></div>`).join('')}</div>`;
+let potRaf = 0, potEndT = 0, potTotT = 1, potSig = '';
+function potatoRun() {
+  const P = S && S.potato; if (!P) return;
+  const sig = JSON.stringify([P.status, P.round, P.holder && P.holder.id, P.log.length]);
+  if (potSig && sig !== potSig) Sound.play(P.status === 'boom' ? 'wrong' : 'pop');
+  potSig = sig;
+  potEndT = performance.now() + (P.remainingMs || 0); potTotT = P.totalMs || 1;
+  if (P.status !== 'running' || potRaf) return;
+  const tick = () => {
+    const el = $('#potFuse'), pt = $('#potPotato'); if (!el) { potRaf = 0; return; }
+    const r = Math.max(0, potEndT - performance.now()), f = r / potTotT;
+    el.style.transform = `scaleX(${f})`;
+    if (pt) pt.className = 'pot-potato' + (f < .2 ? ' hot3' : f < .45 ? ' hot2' : ' hot1');   // treme mais quando está quase a rebentar
+    potRaf = r > 0 ? requestAnimationFrame(tick) : 0;
+  };
+  potRaf = requestAnimationFrame(tick);
+}
+document.addEventListener('click', e => { if (e.target && e.target.id === 'potAcc') socket.emit('host:potatoAccept'); });
 // correspondência no projetor: itens numerados à esquerda, opções baralhadas (com letra) à direita
 function matchStageHtml(q, showSol) {
   const order = S.matchOrder || q.pairs.map((_, i) => i), st = S.matchStats || [], total = S.answeredIds.length;
@@ -468,7 +503,7 @@ function growPoll(delay) {
 }
 function resultsHtml(withAnswer, animate = false) {
   const t = qType(S.question);
-  if (t === 'fill' || t === 'open' || t === 'cloud' || t === 'rank' || t === 'scramble' || t === 'cross' || t === 'guess' || t === 'number' || t === 'match' || t === 'spot') return resultsOtherHtml(withAnswer, animate);
+  if (t === 'fill' || t === 'open' || t === 'cloud' || t === 'rank' || t === 'scramble' || t === 'cross' || t === 'guess' || t === 'number' || t === 'match' || t === 'spot' || t === 'potato') return resultsOtherHtml(withAnswer, animate);
   // escala: as 5 "opções" são os valores 1..5 e não há resposta certa
   const q = t === 'scale' ? { ...S.question, options: ['1', '2', '3', '4', '5'], correct: [] } : S.question;
   const total = S.answeredIds.length, max = Math.max(1, ...S.counts);
@@ -523,6 +558,10 @@ function resultsOtherHtml(withAnswer, animate) {
     body = `<div class="scr-board">${[...word].map((ch, i) => `<span class="scr-tile ${showSol ? 'ok pop-in' : 'gq'}" style="animation-delay:${i * 80}ms">${showSol ? esc(ch) : '?'}</span>`).join('')}</div>`;
     if (poll) body += `<div class="gd">${dist.map((n, k) => `<div class="gd-row"><span>${k + 1}ª</span><div class="gd-bar"><div class="fill" data-w="${Math.round(n / mx * 100)}%" style="width:${Math.round(n / mx * 100)}%"></div><b>${n}</b></div></div>`).join('')}</div>
       <p class="center" style="opacity:.85;margin:4px 0 8px">Em que tentativa acertaram</p><div class="gb-wrap">${guessBoardsHtml()}</div>`;
+  } else if (t === 'potato') {
+    const P = S.potato || { groups: [], all: [] };
+    body = `<div class="big-msg" style="font-size:1.8em;margin:6px 0">🥔 Fim da batata quente!</div>${potatoGroupsHtml({ ...P, holder: null })}
+      <div class="pot-log" style="margin-top:12px">${(P.all || []).map(l => `<span>${esc(l.word)} <small>(${esc(l.group)})</small></span>`).join('') || '<p class="center">Nenhuma palavra aceite.</p>'}</div>`;
   } else if (t === 'number') {
     const ns = S.numberStats || { counts: [], avg: null, exact: 0 }, mx = Math.max(1, ...ns.counts.map(c => c[1])), st = q.step || 1;
     // intervalo curto: mostra o eixo todo (também os números que ninguém escolheu)
@@ -615,7 +654,7 @@ function endHtml() {
 function controlsHtml() {
   const ph = S.phase, last = S.qIndex + 1 >= S.total;
   const label = {
-    lobby: '▶ Começar quiz', ready: '⏩ Abrir já', exam: '🏁 Terminar agora', question: timed() ? '⏹ Terminar tempo' : '⏹ Fechar respostas',
+    lobby: '▶ Começar quiz', ready: '⏩ Abrir já', exam: '🏁 Terminar agora', question: qType(S.question) === 'potato' ? '⏹ Terminar o jogo' : timed() ? '⏹ Terminar tempo' : '⏹ Fechar respostas',
     closed: hiddenReveal() ? (last ? '🏁 Resultados finais' : '➡ Próxima pergunta') : '✅ Mostrar resposta correta',
     reveal: S.settings.rankEach && (qGraded(S.question) || qType(S.question) === 'open') ? '🏆 Ranking' : (last ? '🏁 Resultados finais' : '➡ Próxima pergunta'),
     leaderboard: last ? '🏁 Resultados finais' : '➡ Próxima pergunta',
@@ -697,6 +736,7 @@ function runRing() {
 // atualizações sem redesenhar tudo (ex.: alguém respondeu / entrou)
 const slideJoinView = () => SLIDE && !!window.slideCfg && window.slideCfg.role === 'join' && !!S && S.phase !== 'end';
 function updateLive() {
+  const pb = $('#potBox'); if (pb) { const h = potatoBoxHtml(); if (pb.dataset.sig !== h) { pb.dataset.sig = h; pb.innerHTML = h; } potatoRun(); }
   $$('.mini-qr').forEach(e => { const want = S.settings.miniQr === false ? 'none' : ''; if (e.style.display !== want) e.style.display = want; });
   if (S.phase === 'exam') {
     const g = $('#examGrid'); if (g) g.innerHTML = examGridHtml();
@@ -1043,6 +1083,8 @@ function answerKeyItemHtml(q, i) {
   if (t === 'number') body = `<p>Resposta: <span class="key-ok">${esc(fmtN(q.answer))}</span> · intervalo de ${esc(fmtN(q.min))} a ${esc(fmtN(q.max))}</p><p class="muted">Em cheio dá todos os pontos; perto dá parte dos pontos.</p>`;
   if (t === 'match') body = `<ol class="key-opts">${q.pairs.map(p => `<li>${esc(p.left)} → <span class="key-ok">${esc(p.right)}</span></li>`).join('')}</ol><p class="muted">Os formandos veem as opções da direita baralhadas.</p>`;
   if (t === 'spot') body = `<div class="key-spot">${spotStageHtml(q, true)}</div><p class="muted">${spotCountQ(q) > 1 ? `As ${spotCountQ(q)} zonas certas estão a verde (pontos por cada uma encontrada).` : 'A zona certa está a verde.'}</p>`;
+  if (t === 'potato') body = `${q.rounds.map((r, k) => `<p><b>Ronda ${k + 1} — ${esc(r.theme)}:</b> <span class="key-ok">${r.words.map(esc).join(', ')}</span></p>`).join('')}
+    <p class="muted">Rastilho de ${q.fuseMin} a ${q.fuseMax} s · até ${q.pts} pontos por palavra (mais quanto mais cedo) · −${q.penalty} quando rebenta (nunca abaixo de 0).</p>`;
   if (t === 'cloud') body = `<p class="muted">Cada formando escreve até ${q.words || 3} palavra(s). Nuvem de palavras: não tem resposta certa.</p>`;
   if (t === 'rank') body = q.ordered ? `<ol class="key-opts">${q.options.map(o => `<li class="key-ok">${esc(o)}</li>`).join('')}</ol><p class="muted">Ordem certa (os formandos veem as opções baralhadas).</p>`
     : `<ul class="key-opts">${q.options.map(o => `<li>${esc(o)}</li>`).join('')}</ul><p class="muted">Ranking de opinião: não tem ordem certa.</p>`;
@@ -1108,6 +1150,8 @@ function renderEditor(el) {
       if (t === 'number') { ['min', 'max', 'answer', 'step'].forEach(k => { const v = $('.qN-' + k, box).value; x[k] = v === '' ? null : Number(v.replace(',', '.')); }); x.options = []; x.correct = []; }
       if (t === 'match') { x.pairs = $$('.m-row', box).map(r => ({ left: $('.mL', r).value, right: $('.mR', r).value })); x.options = []; x.correct = []; }
       if (t === 'spot') { x.options = []; x.correct = []; x.zones = zonesOfQ(x); delete x.zone; }
+      if (t === 'potato') { x.options = []; x.correct = []; x.rounds = $$('.pot-row', box).map(r => ({ theme: $('.potTheme', r).value, words: $('.potWords', r).value }));
+        ['fuseMin', 'fuseMax', 'pts', 'penalty'].forEach(k => x[k] = +$('.pot-' + k, box).value || undefined); }
     });
   };
   $('#cancelEd').onclick = () => { editing = null; renderQuizzes(); };
@@ -1169,6 +1213,10 @@ function renderEditor(el) {
         if (x.pairs.some(p => !p.left.trim() || !p.right.trim())) return toast(`Pergunta ${i + 1}: cada par precisa dos dois lados preenchidos`);
         if (x.pairs.length < 2) return toast(`Pergunta ${i + 1}: a correspondência precisa de pelo menos 2 pares`);
       }
+      if (t === 'potato') {
+        x.rounds = (x.rounds || []).filter(r => r.theme.trim() || String(r.words).trim());
+        if (!x.rounds.length || x.rounds.some(r => !r.theme.trim() || !String(r.words).trim())) return toast(`Pergunta ${i + 1}: cada ronda da batata quente precisa de um tema e das palavras aceites`, 6000);
+      }
       if (t === 'spot' && !x.image) return toast(`Pergunta ${i + 1}: carrega a imagem (botão 🖼 Imagem)`);
       if (t === 'spot' && !zonesOfQ(x).length) return toast(`Pergunta ${i + 1}: marca a zona certa na imagem (arrasta por cima dela)`, 6000);
       if (t === 'rank' && x.options.filter(o => o.trim()).length < 2) return toast(`Pergunta ${i + 1}: o ranking precisa de pelo menos 2 opções`);
@@ -1191,6 +1239,8 @@ function renderEditor(el) {
       const cw = buildCrossword(es);
       pv.innerHTML = cw.words.length ? crossGridHtml(cw, Object.fromEntries(cw.words.flatMap(w => crossCellsOf(w).map((k, j) => [k, w.word[j]]))), {}, 'mini') + (cw.unplaced.length ? `<p class="key-warn">⚠ Não cruza: ${cw.unplaced.map(esc).join(', ')} — troca ou apaga (precisa de letras em comum com as outras).</p>` : `<p class="muted">✅ ${cw.words.length} palavras cruzadas (${cw.rows}×${cw.cols})</p>`) : '<p class="muted">Escreve pelo menos 2 palavras para ver a grelha.</p>'; };
     $$('.cwWord', box).forEach(inp => inp.oninput = cwPrev); cwPrev();
+    $$('.potAdd', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; if (x.rounds.length >= 12) return toast('No máximo 12 rondas'); x.rounds.push({ theme: '', words: '' }); renderQuizzes(); });
+    $$('.potDel', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; if (x.rounds.length <= 1) return; x.rounds.splice(+b.dataset.k, 1); renderQuizzes(); });
     $$('.mAdd', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; if (x.pairs.length >= 6) return toast('No máximo 6 pares'); x.pairs.push({ left: '', right: '' }); renderQuizzes(); });
     $$('.mDel', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; if (x.pairs.length <= 2) return; x.pairs.splice(+b.dataset.k, 1); renderQuizzes(); });
     const sp = $('.spotEd', box);
@@ -1227,6 +1277,7 @@ function renderEditor(el) {
       if (t === 'number') Object.assign(x, { options: [], correct: [], min: x.min ?? 0, max: x.max ?? 10, answer: x.answer != null && !isNaN(x.answer) ? x.answer : 5, step: x.step || 1 });
       if (t === 'match') Object.assign(x, { options: [], correct: [], pairs: (x.pairs || []).length ? x.pairs : [{ left: '', right: '' }, { left: '', right: '' }, { left: '', right: '' }] });
       if (t === 'spot') Object.assign(x, { options: [], correct: [], zones: zonesOfQ(x) });
+      if (t === 'potato') Object.assign(x, { options: [], correct: [], rounds: (x.rounds || []).length ? x.rounds : [{ theme: '', words: '' }, { theme: '', words: '' }], fuseMin: x.fuseMin || 25, fuseMax: x.fuseMax || 50, pts: x.pts || 100, penalty: x.penalty || 50 });
       if (t === 'rank') Object.assign(x, { options: (x.options || []).filter(o => o && o !== 'Verdadeiro' && o !== 'Falso').length >= 2 ? x.options.filter(o => o && o !== 'Verdadeiro' && o !== 'Falso') : ['', '', '', ''], correct: [], ordered: !!x.ordered });
       renderQuizzes();
     };
@@ -1271,6 +1322,13 @@ function qEditHtml(x, i) {
   if (t === 'cloud') body = `<div class="row" style="margin-top:8px"><label class="muted">Cada formando escreve até
       <select class="qWords">${[1, 2, 3].map(n => `<option value="${n}" ${(x.words || 3) === n ? 'selected' : ''}>${n} palavra${n > 1 ? 's' : ''}</option>`).join('')}</select></label></div>
       <p class="muted" style="margin:6px 0 0">☁️ As palavras aparecem numa nuvem no teu ecrã, em direto; as mais repetidas ficam maiores. Não tem resposta certa nem dá pontos.</p>`;
+  if (t === 'potato') body = `<p class="muted" style="margin:8px 0 4px">🥔 <b>Batata quente</b> (jogo em grupo; sem equipas cada formando joga por si). Em cada ronda aparece o tema; o representante do grupo que tem a batata escreve uma palavra — se estiver na lista, ganha pontos (mais quanto mais cedo) e a batata passa ao grupo seguinte. O rastilho nunca volta ao início; quando rebenta, o grupo que a tem perde pontos (nunca abaixo de 0). Palavras não previstas podem ser aceites no projetor (✔).</p>
+    ${(x.rounds || []).map((r, k) => `<div class="pot-row" style="border:1px solid #e5e7eb;border-radius:10px;padding:8px;margin:6px 0"><div class="row"><b>Ronda ${k + 1}</b><input type="text" class="potTheme grow" maxlength="120" value="${esc(r.theme)}" placeholder="Tema (ex.: Atalhos de teclado)"><button class="btn small potDel" data-k="${k}" title="Remover ronda">−</button></div>
+      <textarea class="potWords" rows="2" style="width:100%;margin-top:6px" placeholder="Palavras aceites, separadas por vírgulas (ex.: copiar, colar, Ctrl+Z/desfazer). Acentos, maiúsculas e plural não contam; use / para alternativas.">${esc(Array.isArray(r.words) ? r.words.join(', ') : r.words || '')}</textarea></div>`).join('')}
+    <div class="row" style="margin-top:6px"><button class="btn small potAdd">+ Ronda</button>
+      <label class="muted">Rastilho de <input type="number" class="pot-fuseMin" value="${x.fuseMin || 25}" min="5" max="300" style="width:64px"> a <input type="number" class="pot-fuseMax" value="${x.fuseMax || 50}" min="5" max="600" style="width:64px"> s</label>
+      <label class="muted">Até <input type="number" class="pot-pts" value="${x.pts || 100}" min="1" max="1000" style="width:70px"> pts por palavra</label>
+      <label class="muted">Rebentou: − <input type="number" class="pot-penalty" value="${x.penalty || 50}" min="0" max="1000" style="width:64px"> pts</label></div>`;
   if (t === 'number') body = `<div class="row" style="margin-top:8px">${[['min', 'Mínimo'], ['max', 'Máximo'], ['answer', '<b>Resposta certa</b>'], ['step', 'Passo']].map(([k, l]) =>
       `<label class="muted">${l} <input type="number" class="qN-${k}" value="${esc(x[k] ?? '')}" step="any" style="width:90px"></label>`).join('')}</div>
       <p class="muted" style="margin:6px 0 0">🔢 Os formandos escolhem um número numa barra. Em cheio ganham tudo; perto ainda ganham parte dos pontos (menos quanto mais longe).</p>`;
@@ -1479,9 +1537,9 @@ async function openResult(id) {
   const graded = i => { const q = r.questions[i], t = qType(q); return t === 'open' ? Object.values(r.answers[i] || {}).some(a => a.correct != null) : qGraded(q); };
   const nAsked = r.asked.filter(graded).length;
   const stats = list.map(p => { let ok = 0; r.questions.forEach((q, i) => { const a = (r.answers[i] || {})[p.id]; if (a && a.correct === true) ok++; }); return ok; });
-  const ansText = (q, a) => { const t = qType(q); return t === 'mc' || t === 'tf' ? `${LETTERS[a.option]}) ${q.options[a.option]}` : t === 'fill' ? (a.value || []).join(' · ') : t === 'cloud' || t === 'rank' || t === 'cross' || t === 'guess' || t === 'match' || t === 'spot' ? plainAnswerOf(q, a) : t === 'scramble' ? String(a.value || '').toUpperCase() : String(a.value ?? ''); };
-  const ansShort = (q, a) => { const t = qType(q); return t === 'number' ? String(a.value) : t === 'match' ? `${a.right ?? 0}/${q.pairs.length}` : t === 'spot' ? (spotCountQ(q) > 1 ? `${a.right ?? 0}/${spotCountQ(q)}` : a.correct ? '🎯 zona' : '✗ fora') : t === 'mc' ? LETTERS[a.option] : t === 'tf' ? (a.option === 0 ? 'V' : 'F') : t === 'fill' ? `${a.right ?? 0}/${fillBlanksOf(q.text).length}` : t === 'scale' ? '★' + a.value : t === 'cross' ? `${a.right ?? 0}/${q.cross.words.length}` : t === 'guess' ? (a.correct ? `${a.tries}ª tent.` : `✗ ${(a.value || []).length}`) : t === 'scramble' ? String(a.value || '').toUpperCase().slice(0, 14) : t === 'rank' ? (q.ordered ? `${a.right ?? 0}/${q.options.length}` : '1º ' + String(q.options[(a.value || [])[0]] || '').slice(0, 12)) : t === 'cloud' ? '☁ ' + (a.value || []).join(', ').slice(0, 14) : (String(a.value).length > 14 ? String(a.value).slice(0, 14) + '…' : String(a.value)); };
-  const corShort = q => { const t = qType(q); return t === 'number' ? String(q.answer) : t === 'match' ? q.pairs.length + ' pares' : t === 'spot' ? (spotCountQ(q) > 1 ? spotCountQ(q) + ' zonas' : 'zona') : t === 'mc' ? (q.poll ? 'votação' : q.correct.map(k => LETTERS[k]).join('/')) : t === 'tf' ? (q.correct[0] === 0 ? 'V' : 'F') : t === 'fill' ? fillBlanksOf(q.text).join(', ') : t === 'open' ? 'livre' : t === 'cloud' ? 'nuvem' : t === 'scramble' || t === 'guess' ? String(q.answer).toUpperCase().slice(0, 14) : t === 'cross' ? q.cross.words.length + ' palavras' : t === 'rank' ? (q.ordered ? 'ordem' : 'opinião') : '1–5'; };
+  const ansText = (q, a) => { const t = qType(q); return t === 'mc' || t === 'tf' ? `${LETTERS[a.option]}) ${q.options[a.option]}` : t === 'fill' ? (a.value || []).join(' · ') : t === 'cloud' || t === 'rank' || t === 'cross' || t === 'guess' || t === 'match' || t === 'spot' || t === 'potato' ? plainAnswerOf(q, a) : t === 'scramble' ? String(a.value || '').toUpperCase() : String(a.value ?? ''); };
+  const ansShort = (q, a) => { const t = qType(q); return t === 'potato' ? '🥔 ' + (a.points || 0) : t === 'number' ? String(a.value) : t === 'match' ? `${a.right ?? 0}/${q.pairs.length}` : t === 'spot' ? (spotCountQ(q) > 1 ? `${a.right ?? 0}/${spotCountQ(q)}` : a.correct ? '🎯 zona' : '✗ fora') : t === 'mc' ? LETTERS[a.option] : t === 'tf' ? (a.option === 0 ? 'V' : 'F') : t === 'fill' ? `${a.right ?? 0}/${fillBlanksOf(q.text).length}` : t === 'scale' ? '★' + a.value : t === 'cross' ? `${a.right ?? 0}/${q.cross.words.length}` : t === 'guess' ? (a.correct ? `${a.tries}ª tent.` : `✗ ${(a.value || []).length}`) : t === 'scramble' ? String(a.value || '').toUpperCase().slice(0, 14) : t === 'rank' ? (q.ordered ? `${a.right ?? 0}/${q.options.length}` : '1º ' + String(q.options[(a.value || [])[0]] || '').slice(0, 12)) : t === 'cloud' ? '☁ ' + (a.value || []).join(', ').slice(0, 14) : (String(a.value).length > 14 ? String(a.value).slice(0, 14) + '…' : String(a.value)); };
+  const corShort = q => { const t = qType(q); return t === 'potato' ? 'batata' : t === 'number' ? String(q.answer) : t === 'match' ? q.pairs.length + ' pares' : t === 'spot' ? (spotCountQ(q) > 1 ? spotCountQ(q) + ' zonas' : 'zona') : t === 'mc' ? (q.poll ? 'votação' : q.correct.map(k => LETTERS[k]).join('/')) : t === 'tf' ? (q.correct[0] === 0 ? 'V' : 'F') : t === 'fill' ? fillBlanksOf(q.text).join(', ') : t === 'open' ? 'livre' : t === 'cloud' ? 'nuvem' : t === 'scramble' || t === 'guess' ? String(q.answer).toUpperCase().slice(0, 14) : t === 'cross' ? q.cross.words.length + ' palavras' : t === 'rank' ? (q.ordered ? 'ordem' : 'opinião') : '1–5'; };
   const cls = a => a.correct === true ? 'ok' : a.correct === false ? 'bad' : 'pend';
   const mark = a => a.correct === true ? ' ✓' : a.correct === false ? ' ✗' : '';
   const cell = (p, q, i) => {

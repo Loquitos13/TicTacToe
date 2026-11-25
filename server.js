@@ -187,6 +187,86 @@ function teamStats(scoreOf = p => p.score, lastPts = null, players = Object.valu
   return list.filter(t => t.size).sort((a, b) => b.score - a.score || a.id - b.id);
 }
 
+// ---------- Batata quente ----------
+// Grupos: as equipas (jogos em grupo) ou, sem equipas, cada formando sozinho. A batata está sempre com um grupo; só o
+// representante da vez escreve (roda pelos membros: primeiro quem está ligado, depois quem respondeu menos vezes).
+// O rastilho de cada ronda tem duração ao acaso e nunca volta atrás quando a batata passa.
+let potatoTimer = null;
+function potatoGroups() {
+  const ps = Object.values(session.players).sort((a, b) => a.joinedAt - b.joinedAt);
+  if (session.settings.teams) return TEAMS.slice(0, session.settings.teams).map(t => ({ id: 't' + t.id, name: 'Equipa ' + t.name, color: t.color, emoji: t.emoji, members: ps.filter(p => p.team === t.id) })).filter(g => g.members.length);
+  return ps.map((p, i) => ({ id: 'p' + p.studentId, name: p.short || p.name, color: TEAMS[i % TEAMS.length].color, emoji: '🙋', members: [p] }));
+}
+function potatoGive(P, gid) {
+  const gs = potatoGroups(); if (!gs.length) { P.holder = null; P.rep = null; return; }
+  const g = gs.find(x => x.id === gid) || gs[0], cnt = id => P.repCount[id] || 0;
+  const r = g.members.slice().sort((a, b) => (!!b.socketId - !!a.socketId) || cnt(a.studentId) - cnt(b.studentId))[0];
+  P.repCount[r.studentId] = cnt(r.studentId) + 1;
+  P.holder = g.id; P.rep = r.studentId; P.reject = null;
+}
+function potatoNext(P) { const gs = potatoGroups(); if (!gs.length) return null; const i = gs.findIndex(g => g.id === P.holder); return gs[(i + 1) % gs.length].id; }
+function potatoScore(p, delta, word) {
+  const ans = answersFor(session.qIndex);
+  const a = ans[p.studentId] || (ans[p.studentId] = { value: [], points: 0, correct: false, frac: 0, booms: 0, timeMs: 0, at: Date.now() });
+  const before = p.score; p.score = Math.max(0, p.score + delta);   // nunca abaixo de 0
+  a.points += p.score - before; if (word) a.value.push(word); if (delta < 0) a.booms++;
+  a.correct = a.points > 0; a.frac = a.correct ? 1 : 0; a.at = Date.now();
+}
+function potatoRound(k) {
+  const q = currentQ(), P = session.potato;
+  clearTimeout(potatoTimer);
+  if (!P || k >= q.rounds.length) return closeQuestion();
+  P.round = k; P.used = []; P.status = 'running';
+  const dur = (q.fuseMin + crypto.randomInt(q.fuseMax - q.fuseMin + 1)) * 1000;
+  P.fuseStart = Date.now(); P.fuseEnd = P.fuseStart + dur;
+  const gs = potatoGroups();
+  potatoGive(P, P.startNext || (gs.length ? gs[crypto.randomInt(gs.length)].id : null));
+  potatoTimer = setTimeout(potatoBoom, dur);
+  persistSession(); broadcast();
+}
+function potatoBoom() {
+  const P = session && session.potato; if (!P || P.status !== 'running' || session.phase !== 'question') return;
+  const q = currentQ(), g = potatoGroups().find(x => x.id === P.holder);
+  P.status = 'boom'; P.boomGroup = P.holder;
+  if (g) { g.members.forEach(p => potatoScore(p, -q.penalty)); P.gscore[g.id] = Math.max(0, (P.gscore[g.id] || 0) - q.penalty); }
+  P.log.push({ round: P.round, group: P.holder, boom: true, pts: -q.penalty });
+  P.startNext = potatoNext(P);
+  persistSession(); broadcast();
+  potatoTimer = setTimeout(() => { if (session && session.potato === P && session.phase === 'question') potatoRound(P.round + 1); }, 5000);
+}
+function potatoAccept(word, key) {
+  const P = session.potato, q = currentQ(), g = potatoGroups().find(x => x.id === P.holder);
+  if (!g) return 0;
+  // mais pontos quanto mais tempo faltar para a batata rebentar
+  const frac = Math.max(0, (P.fuseEnd - Date.now()) / (P.fuseEnd - P.fuseStart));
+  const pts = Math.max(10, Math.round(q.pts * frac));
+  P.used.push(key); P.gscore[g.id] = (P.gscore[g.id] || 0) + pts;
+  const rep = P.rep;
+  g.members.forEach(m => potatoScore(m, pts, m.studentId === rep ? word : null));
+  P.log.push({ round: P.round, group: g.id, word, pts, rep });
+  potatoGive(P, potatoNext(P));
+  persistSession(); broadcast();
+  return pts;
+}
+// o que o projetor e os telemóveis veem do jogo (nunca as palavras aceites)
+function potatoView(forHost, p) {
+  const P = session.potato, q = currentQ();
+  if (!P || P.qIndex !== session.qIndex || !q || Q.typeOf(q) !== 'potato') return null;
+  const gs = potatoGroups(), info = g => g && { id: g.id, name: g.name, color: g.color, emoji: g.emoji };
+  const holder = gs.find(g => g.id === P.holder), rep = session.players[P.rep], boomG = gs.find(g => g.id === P.boomGroup);
+  const name = id => { const g = gs.find(x => x.id === id); return g ? g.name : '?'; };
+  const v = {
+    status: P.status, round: P.round + 1, rounds: q.rounds.length, theme: (q.rounds[P.round] || {}).theme || '',
+    remainingMs: P.status === 'running' ? Math.max(0, P.fuseEnd - Date.now()) : 0, totalMs: P.fuseEnd - P.fuseStart,
+    holder: info(holder), rep: rep ? (rep.short || rep.name) : null, boom: P.status === 'boom' ? { ...info(boomG), penalty: q.penalty } : null,
+    groups: gs.map(g => ({ ...info(g), size: g.members.length, score: P.gscore[g.id] || 0 })).sort((a, b) => b.score - a.score),
+    log: P.log.filter(l => l.round === P.round).slice(-16).map(l => ({ group: name(l.group), word: l.word || null, pts: l.pts, boom: !!l.boom })),
+  };
+  if (forHost) { v.reject = P.reject && P.reject.group === P.holder ? P.reject : null; v.all = P.log.filter(l => l.word).map(l => ({ round: l.round, group: name(l.group), word: l.word, pts: l.pts })); }
+  if (p) { const mine = gs.find(g => g.members.includes(p)); v.mine = !!(holder && mine === holder); v.isRep = P.rep === p.studentId; v.myGroup = info(mine); }
+  return v;
+}
+
 function hostView() {
   if (!session) return { session: null };
   const q = currentQ();
@@ -198,6 +278,7 @@ function hostView() {
   const counts = slots.map(v => Object.values(ans).filter(a => pick(a) === v).length);
   const whoByOption = slots.map(v => Object.entries(ans).filter(([, a]) => pick(a) === v).map(([sid]) => sid));
   const extra = { askedIds: session.asked.map(i => (session.questions[i] || {}).id) };   // diapositivos do PowerPoint
+  if (qt === 'potato') extra.potato = potatoView(true);
   if (qt === 'fill') extra.fillStats = q.blanks.map((w, b) => ({ word: w, right: Object.values(ans).filter(a => Q.norm((a.value || [])[b]) === Q.norm(w)).length }));
   if (qt === 'open') { const m = new Map(); Object.values(ans).forEach(a => { const k = Q.norm(a.value); const e = m.get(k) || { text: a.value, count: 0, correct: a.correct }; e.count++; m.set(k, e); }); extra.openAnswers = [...m.values()].sort((a, b) => b.count - a.count).slice(0, 40); }
   if (qt === 'scale') { const vals = Object.values(ans).map(a => a.value); extra.scaleAvg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null; }
@@ -306,6 +387,7 @@ function playerView(p) {
   const myGuess = i => { const tries = ((session.guesses || {})[i] || {})[p.studentId] || [], a = (session.answers[i] || {})[p.studentId];
     return { tries: tries.map(t => ({ word: t.word, colors: t.colors })), done: !!a, solved: !!(a && a.correct) }; };
   if (q && Q.typeOf(q) === 'guess') v.guess = myGuess(session.qIndex);
+  if (q && Q.typeOf(q) === 'potato') v.potato = potatoView(false, p);
   if (session.phase === 'exam') {
     v.exam = {
       guess: Object.fromEntries(session.questions.map((qq, i) => Q.typeOf(qq) === 'guess' ? [i, myGuess(i)] : null).filter(Boolean)),
@@ -442,6 +524,12 @@ function finalizeGuesses(i) {
 function closeQuestion() {
   if (!session || session.phase !== 'question') return;
   clearTimeout(timer); timer = null;
+  if (session.potato && session.potato.qIndex === session.qIndex) {
+    clearTimeout(potatoTimer); session.potato.status = 'done';
+    // toda a gente fica com registo nesta pergunta (mesmo quem não chegou a ter a batata)
+    const ans = answersFor(session.qIndex);
+    Object.values(session.players).forEach(p => { if (!ans[p.studentId]) ans[p.studentId] = { value: [], points: 0, correct: false, frac: 0, booms: 0, timeMs: 0, at: Date.now() }; });
+  }
   finalizeGuesses(session.qIndex);
   // tempo esgotado / fechado pelo formador → já não aceita respostas e mostra a sondagem
   session.phase = 'closed';
@@ -534,6 +622,13 @@ function openQuestion() {
   clearTimeout(timer); timer = null;
   session.phase = 'question';
   session.questionStartedAt = Date.now();
+  if (Q.typeOf(q) === 'potato') {
+    // batata quente: o jogo acaba quando acabam as rondas (ou quando o formador o termina)
+    session.deadline = null;
+    session.potato = { qIndex: session.qIndex, round: 0, log: [], repCount: {}, used: [], gscore: {}, status: 'running' };
+    potatoRound(0);
+    return;
+  }
   if (timedMode()) {
     // por tempo: quando chega a 0 deixa de aceitar respostas e passa sozinho para a sondagem
     session.deadline = Date.now() + q.time * 1000;
@@ -963,6 +1058,8 @@ io.on('connection', socket => {
       const quiz = db.quizzes.find(q => q.id === quizId);
       if (!quiz || !quiz.questions.length) return socket.emit('toast', 'Questionário sem perguntas');
       let qs = JSON.parse(JSON.stringify(quiz.questions));
+      if (settings && settings.mode === 'exam') qs = qs.filter(q => Q.typeOf(q) !== 'potato');
+      if (!qs.length) return socket.emit('toast', 'Este questionário só tem jogos ao vivo (batata quente): não dá para "tempo total".');
       if (settings && settings.shuffle) for (let i = qs.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [qs[i], qs[j]] = [qs[j], qs[i]]; }
       // tempo igual para todas as perguntas (opcional, escolhido ao abrir a sala)
       settings = settings || {};
@@ -1051,6 +1148,13 @@ io.on('connection', socket => {
         session.endedAt = Date.now(); setPhase('end');
       }
       cb({ ok: true });
+    }));
+
+    // batata quente: o formador aceita uma palavra que não estava na lista (boa, mas não prevista)
+    socket.on('host:potatoAccept', guard(() => {
+      const P = session && session.potato;
+      if (!P || P.status !== 'running' || session.phase !== 'question' || !P.reject || P.reject.group !== P.holder || P.reject.reason === 'used') return;
+      potatoAccept(P.reject.word, Q.norm(P.reject.word));
     }));
 
     socket.on('host:settings', guard(s => {
@@ -1347,6 +1451,19 @@ io.on('connection', socket => {
     // todos os formandos entregaram: termina
     if (Object.values(session.players).every(p => session.submitted[p.studentId])) return endExam();
     broadcast();
+  });
+
+  socket.on('player:potato', (word, cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    const P = session && session.potato, q = session && currentQ();
+    if (!P || session.phase !== 'question' || !q || Q.typeOf(q) !== 'potato' || P.qIndex !== session.qIndex) return cb({ error: 'Agora não dá.' });
+    if (P.status !== 'running') return cb({ error: 'Espera pela próxima ronda.' });
+    if (!me || me.socketId !== socket.id || P.rep !== me.studentId) return cb({ error: 'Não é a tua vez.' });
+    const w = String(typeof word === 'string' ? word : '').trim().replace(/\s+/g, ' ').slice(0, 60);
+    if (!w) return cb({ error: 'Escreve uma palavra.' });
+    const r = Q.potatoCheck(q, P.round, w, P.used);
+    if (!r.ok) { P.reject = { word: w, group: P.holder, reason: r.reason }; broadcast(); return cb({ ok: false, reason: r.reason }); }
+    cb({ ok: true, pts: potatoAccept(w, r.key) });
   });
 
   socket.on('player:answer', (option, cb) => {

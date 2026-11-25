@@ -17,7 +17,9 @@
 //  number — adivinhar um número num intervalo: certo se acertar em cheio; perto ainda dá metade dos pontos (ou menos)
 //  match — correspondência: cada item da esquerda liga-se a uma opção da direita (baralhadas); pontos por ligação certa
 //  spot — encontrar na imagem: toca no sítio certo da imagem; o formador marca a zona no editor (nunca vai para o telemóvel)
-const TYPES = ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot'];
+//  potato — batata quente (jogo em grupo): em cada ronda há um tema; o representante do grupo que tem a batata
+//           escreve uma palavra do tema; se for aceite a batata passa ao grupo seguinte; quando rebenta, o grupo perde pontos
+const TYPES = ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot', 'potato'];
 const { buildCrossword, cwNorm } = require('./public/crossword.js');
 const LETTERS = 'ABCDEF';
 const norm = t => String(t ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -140,6 +142,15 @@ function cleanQuestion(x, uid, savePhoto) {
     base.zones = (Array.isArray(x.zones) ? x.zones : x.zone ? [x.zone] : []).map(z => Object.assign({ x: f(z.x), y: f(z.y), w: f(z.w), h: f(z.h) }, Number.isInteger(z.g) && z.g >= 1 && z.g <= 12 ? { g: z.g } : {}))
       .filter(z => z.w >= 0.01 && z.h >= 0.01).slice(0, 12);
     if (!base.image || !base.zones.length) return null;
+  } else if (type === 'potato') {
+    const cl = (v, a, b, d) => { v = Math.round(Number(v)); return isFinite(v) && v ? Math.max(a, Math.min(b, v)) : d; };
+    base.rounds = (x.rounds || []).map(r => ({
+      theme: String((r && r.theme) || '').trim().slice(0, 120),
+      words: (Array.isArray(r && r.words) ? r.words : String((r && r.words) || '').split(/[,;\n]/)).map(w => String(w).trim().slice(0, 60)).filter(Boolean).slice(0, 300),
+    })).filter(r => r.theme && r.words.length).slice(0, 12);
+    base.fuseMin = cl(x.fuseMin, 5, 300, 25); base.fuseMax = Math.max(base.fuseMin, cl(x.fuseMax, 5, 600, 50));
+    base.pts = cl(x.pts, 1, 1000, 100); base.penalty = cl(x.penalty, 0, 1000, 50);
+    if (!base.rounds.length) return null;
   } else if (type === 'guess') {
     base.answer = String(x.answer || '').trim().slice(0, 20);
     base.maxTries = Math.max(3, Math.min(8, parseInt(x.maxTries, 10) || 6));
@@ -205,6 +216,7 @@ function grade(q, raw) {
     return { entry: { value, correct: ok, frac: ok ? 1 : 0 } };
   }
   if (t === 'guess') return { error: 'Usa o teclado do jogo para adivinhar a palavra.' };
+  if (t === 'potato') return { error: 'Na batata quente, escreve na caixa do jogo quando for a tua vez.' };
   if (t === 'number') {
     const v = Number(raw);
     if (raw === '' || raw == null || !isFinite(v) || v < q.min || v > q.max) return { error: `Escolhe um número entre ${q.min} e ${q.max}.` };
@@ -255,6 +267,7 @@ function grade(q, raw) {
 function answerText(q, a) {
   if (!a) return '';
   const t = typeOf(q);
+  if (t === 'potato') return `${(a.value || []).length ? (a.value || []).join(', ') + ' · ' : ''}${a.points || 0} pts${a.booms ? ` · ${a.booms} explos${a.booms > 1 ? 'ões' : 'ão'}` : ''}`;
   if (t === 'number') return String(a.value);
   if (t === 'match') return q.pairs.map((p, i) => `${p.left} → ${(q.pairs[(a.value || [])[i]] || {}).right || '—'}`).join(' | ');
   if (t === 'spot') return spotCount(q) > 1 ? `${a.right || 0} de ${spotCount(q)} encontrados` : a.correct ? 'Na zona certa' : 'Fora da zona';
@@ -268,6 +281,7 @@ function answerText(q, a) {
 }
 function answerShort(q, a) {
   const t = typeOf(q);
+  if (t === 'potato') return `🥔 ${a.points || 0}`;
   if (t === 'number') return String(a.value);
   if (t === 'match') return `${a.right ?? 0}/${q.pairs.length}`;
   if (t === 'spot') return spotCount(q) > 1 ? `${a.right || 0}/${spotCount(q)}` : a.correct ? 'zona' : 'fora';
@@ -284,6 +298,7 @@ function answerShort(q, a) {
 }
 function correctText(q) {
   const t = typeOf(q);
+  if (t === 'potato') return '(batata quente: palavras aceites por tema)';
   if (t === 'number') return String(q.answer);
   if (t === 'match') return q.pairs.map(p => `${p.left} → ${p.right}`).join(' | ');
   if (t === 'spot') return spotCount(q) > 1 ? `(${spotCount(q)} zonas marcadas na imagem)` : '(zona marcada na imagem)';
@@ -299,6 +314,7 @@ function correctText(q) {
 }
 function correctShort(q) {
   const t = typeOf(q);
+  if (t === 'potato') return 'batata';
   if (t === 'number') return String(q.answer);
   if (t === 'match') return q.pairs.length + ' pares';
   if (t === 'spot') return spotCount(q) > 1 ? spotCount(q) + ' zonas' : 'zona';
@@ -319,6 +335,7 @@ function publicQuestion(q, hide) {
   // na imagem do "encontrar na imagem" é a própria pergunta: vai sempre (a zona certa nunca vai)
   const p = { type: t, time: q.time, text: hide ? '' : displayText(q), image: hide && t !== 'spot' ? null : (q.image || null), hidden: !!hide };
   if (t === 'number') Object.assign(p, { min: q.min, max: q.max, step: q.step });
+  if (t === 'potato') p.rounds = q.rounds.length;   // os temas e as palavras aceites nunca vão para o telemóvel
   if (t === 'spot') p.spots = spotCount(q);      // quantos sítios há para encontrar (não onde)
   if (t === 'mc' && q.poll) p.poll = true;
   if (t === 'match') { p.lefts = q.pairs.map((x, i) => hide ? '' : x.left); p.rights = matchOrder(q).map((i, k) => ({ k, text: hide ? '' : q.pairs[i].right, letter: LETTERS[k] })); }
@@ -343,6 +360,7 @@ function solutionOf(q) {
 }
 function solutionBase(q) {
   const t = typeOf(q);
+  if (t === 'potato') return { rounds: q.rounds.map(r => ({ theme: r.theme })) };
   if (t === 'number') return { answer: q.answer };
   if (t === 'match') return { pairs: q.pairs };
   if (t === 'spot') return { zones: zonesOf(q) };
@@ -359,6 +377,7 @@ function solutionBase(q) {
 const fillSentence = (q, words) => { let k = 0; return String(q.text).replace(BLANK_RE, () => { const w = words[k++]; return w ? w : '_____'; }); };
 function plainCorrect(q) {
   const t = typeOf(q);
+  if (t === 'potato') return q.rounds.map(r => `${r.theme}: ${r.words.join(', ')}`).join(' | ');
   if (t === 'number') return String(q.answer);
   if (t === 'match') return q.pairs.map(p => `${p.left} → ${p.right}`).join('; ');
   if (t === 'spot') return spotCount(q) > 1 ? `As ${spotCount(q)} zonas marcadas na imagem` : 'A zona marcada na imagem';
@@ -374,6 +393,7 @@ function plainCorrect(q) {
 function plainAnswer(q, a) {
   if (!a) return '';
   const t = typeOf(q);
+  if (t === 'potato') return `Palavras: ${(a.value || []).join(', ') || '—'} · ${a.points || 0} pontos${a.booms ? ` · rebentou ${a.booms}×` : ''}`;
   if (t === 'number') return String(a.value) + (a.correct ? '' : ` (a resposta era ${q.answer})`);
   if (t === 'match') return q.pairs.map((p, i) => `${p.left} → ${(q.pairs[(a.value || [])[i]] || {}).right || '—'}${(a.value || [])[i] === i ? ' ✓' : ' ✗'}`).join('; ');
   if (t === 'spot') return spotCount(q) > 1 ? `Encontrou ${a.right || 0} de ${spotCount(q)}` : a.correct ? 'Tocou na zona certa' : 'Tocou fora da zona certa';
@@ -397,4 +417,19 @@ function forPhone(q, v) {
 // correspondência: ordem (sempre igual) em que as opções da direita aparecem no telemóvel e no projetor
 const matchOrder = q => rankOrder({ id: q.id + ':m', options: q.pairs });
 
-module.exports = { zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
+// batata quente: a palavra conta se for uma das aceites do tema da ronda (acentos, maiúsculas, pontuação e plural
+// não contam; "a/b" na lista são alternativas) e se ainda não foi dita nesta ronda
+function potatoCheck(q, round, word, used) {
+  const r = (q.rounds || [])[round]; if (!r) return { ok: false, reason: 'no' };
+  const forms = w => { const n = norm(w); return n ? [n, n.replace(/es$/, ''), n.replace(/s$/, '')].filter(Boolean) : []; };
+  const typed = forms(word); if (!typed.length) return { ok: false, reason: 'no' };
+  for (const entry of r.words) {
+    const alts = String(entry).split('/');
+    if (alts.some(a => forms(a).some(f => typed.includes(f)))) {
+      const key = norm(alts[0]);
+      return used.includes(key) ? { ok: false, reason: 'used', key } : { ok: true, key };
+    }
+  }
+  return { ok: false, reason: 'no', key: norm(word) };
+}
+module.exports = { potatoCheck, zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
