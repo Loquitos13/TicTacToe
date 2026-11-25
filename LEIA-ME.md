@@ -272,6 +272,31 @@ winget install --id Cloudflare.cloudflared
 O endereço `https://….trycloudflare.com` muda de cada vez que arrancas; a app trata disso (até um endereço antigo guardado é ignorado). Se o `cloudflared` não estiver instalado ou não houver internet, a app avisa e continua a funcionar na rede local.
 A palavra-passe do formador fica em `data/palavra-passe-formador.txt` (gerada no 1.º arranque; podes trocá-la por uma tua, comprida).
 
+### Endereço fixo no teu domínio (recomendado)
+Se tens um domínio na Cloudflare, o quiz pode ficar sempre no mesmo endereço, por exemplo `https://quiz.oseudominio.pt`. É gratuito e não mexe no resto do domínio (o site ou as páginas que lá tens continuam iguais).
+
+1. Duplo clique em **`configurar-dominio.bat`** (só uma vez):
+   - pede o subdomínio;
+   - abre o browser para autorizares a tua conta da Cloudflare;
+   - cria o túnel `quiz-formacao` e o registo DNS do subdomínio.
+2. A partir daí, o **`iniciar-online.bat`** usa sempre esse endereço. O QR code fica sempre igual, por isso podes imprimi-lo ou pô-lo num diapositivo.
+
+Se o subdomínio já existir no DNS, o script avisa: apaga esse registo na Cloudflare ou escolhe outro nome. A configuração fica em `data/online.json`; apaga esse ficheiro para voltar ao endereço temporário.
+
+## 7. Dentro do PowerPoint (suplemento)
+Com o endereço fixo, o quiz pode ficar **dentro de um diapositivo**, como o Slido.
+
+**Instalar:**
+- **PowerPoint no Windows (Microsoft 365, 2016 ou mais recente):** o `iniciar-online.bat` instala o suplemento sozinho. Fecha e volta a abrir o PowerPoint da primeira vez.
+- **PowerPoint na web:** no painel, em 🎮 Jogo → "📽 Usar dentro do PowerPoint", descarrega o ficheiro do suplemento. Carrega-o em **Inserir → Suplementos → Os meus suplementos → Carregar o meu suplemento**.
+
+**Usar:**
+1. **Inserir → Suplementos → Os meus suplementos → Quiz ao vivo**. O quiz fica no diapositivo; podes redimensioná-lo como uma imagem.
+2. Da primeira vez pede a palavra-passe do formador. Os outros diapositivos com o quiz já não pedem.
+3. Sem sala aberta, o diapositivo mostra "Quiz ao vivo" e o botão **Abrir a sala aqui**. Podes também abrir a sala no painel normal.
+4. Durante a apresentação, o diapositivo mostra em direto o QR code, as perguntas, os resultados e o ranking. Avanças com o botão amarelo dentro do diapositivo.
+5. O palco ajusta-se sozinho ao tamanho do diapositivo.
+
 ## Som
 A música e os efeitos são gerados pelo próprio browser (sem ficheiros nem direitos de autor). Liga o som do projetor; o botão 🔊 no canto liga/desliga.
 

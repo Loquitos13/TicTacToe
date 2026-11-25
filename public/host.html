@@ -31,6 +31,18 @@
   #offline { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 200; background: #dc2626; color: #fff; text-align: center; font-weight: 700; padding: 8px; }
   body.offline #offline { display: block; } body.offline .controls { opacity: .45; pointer-events: none; }
   .stage-top { display: flex; justify-content: space-between; align-items: center; font-size: 1.1em; opacity: .9; padding-right: 50px; }
+  /* modo diapositivo (PowerPoint): sem menu; controlos mínimos, discretos, por baixo */
+  body.slide nav { display: none; }
+  /* o palco desenha-se sempre a 1280×720 e é encolhido para caber no diapositivo (ver fitSlide) */
+  body.slide { overflow: hidden; }
+  body.slide #main { width: 1280px; transform-origin: 0 0; position: absolute; top: 0; left: 0; }
+  body.slide #main.hidden { display: none; }
+  body.slide #stage { min-height: 720px; padding: 14px 22px 74px; box-sizing: border-box; }
+  body.slide .controls { padding: 6px 10px; gap: 6px; background: rgba(20,10,40,.55); }
+  body.slide .controls > :not(#btnNext):not(#btnClose):not(#btnEnd):not(.info) { display: none; }
+  body.slide .controls .info { font-size: .8em; }
+  .slide-idle { align-items: center; justify-content: center; text-align: center; gap: 6px; }
+  .slide-idle .big-emoji { font-size: 4em; } .slide-idle p { max-width: 640px; opacity: .9; }
   .controls { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(20,10,40,.85); backdrop-filter: blur(8px); padding: 12px 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; z-index: 30; }
   .controls .info { flex: 1; opacity: .85; min-width: 160px; }
   .lobby { display: grid; grid-template-columns: minmax(280px, 420px) 1fr; gap: 30px; flex: 1; align-items: start; margin-top: 10px; }

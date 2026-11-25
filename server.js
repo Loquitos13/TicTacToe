@@ -568,6 +568,58 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/vendor/heic2any.min.js', (req, res) => res.sendFile(path.join(__dirname, 'node_modules/heic2any/dist/heic2any.min.js'), { maxAge: '7d' }));
 app.use('/uploads', express.static(UPLOADS, { maxAge: '1h' }));
 // mantém o código da sessão (?c=...) ao redirecionar
+// /slide.html = host.html em modo diapositivo: carrega o office.js e pode ficar dentro do PowerPoint
+const OFFICE_JS = 'https://appsforoffice.microsoft.com/lib/1/hosted/office.js';
+const OFFICE_FRAMES = 'https://*.officeapps.live.com https://*.office.com https://*.office365.com https://*.microsoft365.com https://*.sharepoint.com https://*.live.com https://*.cloud.microsoft';
+app.get('/slide.html', (req, res) => {
+  const html = fs.readFileSync(path.join(__dirname, 'public', 'host.html'), 'utf8')
+    .replace('<body>', '<body class="slide">')
+    .replace('<script src="/socket.io/socket.io.js"></script>', `<script src="${OFFICE_JS}"></script>\n<script src="/socket.io/socket.io.js"></script>`);
+  res.removeHeader('X-Frame-Options');
+  res.set('Content-Security-Policy', CSP.replace("script-src 'self'", "script-src 'self' https://appsforoffice.microsoft.com")
+    .replace("connect-src 'self'", "connect-src 'self' https://appsforoffice.microsoft.com")
+    .replace("frame-ancestors 'none'", `frame-ancestors 'self' ${OFFICE_FRAMES}`));
+  res.set('Cache-Control', 'no-cache').type('html').send(html);
+});
+// ficheiro do suplemento do PowerPoint (só faz sentido com endereço https fixo)
+function addinManifest(base) {
+  const id = crypto.createHash('sha256').update('quiz-addin:' + base).digest('hex');
+  const guid = `${id.slice(0, 8)}-${id.slice(8, 12)}-4${id.slice(13, 16)}-a${id.slice(17, 20)}-${id.slice(20, 32)}`;
+  const x = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ContentApp">
+  <Id>${guid}</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Quiz</ProviderName>
+  <DefaultLocale>pt-PT</DefaultLocale>
+  <DisplayName DefaultValue="Quiz ao vivo"/>
+  <Description DefaultValue="Mostra o quiz em direto dentro do diapositivo: QR code, perguntas, resultados e ranking."/>
+  <IconUrl DefaultValue="${x(base)}/addin-icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="${x(base)}/addin-icon-64.png"/>
+  <SupportUrl DefaultValue="${x(base)}/"/>
+  <AppDomains>
+    <AppDomain>${x(base)}</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Presentation"/>
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="${x(base)}/slide.html"/>
+    <RequestedWidth>960</RequestedWidth>
+    <RequestedHeight>540</RequestedHeight>
+  </DefaultSettings>
+  <Permissions>ReadDocument</Permissions>
+  <AllowSnapshot>true</AllowSnapshot>
+</OfficeApp>
+`;
+}
+// guarda-o também em data/ para o iniciar-online.ps1 o registar no PowerPoint do computador
+function writeAddinManifest(base) { try { fs.writeFileSync(path.join(DATA_DIR, 'suplemento-powerpoint.xml'), addinManifest(base)); } catch (e) { console.error('Não consegui gravar o suplemento do PowerPoint:', e.message); } }
+app.get('/api/addin-manifest', auth, (req, res) => {
+  const base = (fixedTunnel && fixedTunnel.url) || '';
+  if (!base) return res.status(409).json({ error: 'O suplemento precisa de um endereço fixo (https). Corre primeiro o configurar-dominio.bat.' });
+  res.set('Content-Disposition', 'attachment; filename="suplemento-powerpoint.xml"').type('application/xml').send(addinManifest(base));
+});
 app.get('/', (req, res) => { const q = req.originalUrl.indexOf('?'); res.redirect('/play.html' + (q >= 0 ? req.originalUrl.slice(q) : '')); });
 app.get('/formador', (req, res) => res.redirect('/host.html'));
 
@@ -828,7 +880,7 @@ app.get('/api/joininfo', auth, (req, res) => {
   if (!local) suggestions.push(here);
   lanIps().forEach(ip => suggestions.push(`http://${ip}:${PORT}`));
   if (local) suggestions.push(here);
-  res.json({ suggestions: [...new Set(suggestions)], tunnel: tunnelUrl || null });
+  res.json({ suggestions: [...new Set(suggestions)], tunnel: tunnelUrl || null, fixed: fixedTunnel ? fixedTunnel.url : null });
 });
 app.get('/api/qr', safe(async (req, res) => {
   const url = String(req.query.url || '');
@@ -1255,12 +1307,18 @@ try {
 
 // npm run online: liga também o túnel da Cloudflare e põe o endereço dele no QR code (sem copiar nada à mão)
 let tunnelUrl = '';
+// endereço fixo no domínio do formador (configurar-dominio.ps1): { "tunnel": "nome", "url": "https://quiz.dominio.pt" }
+const ONLINE_FILE = path.join(DATA_DIR, 'online.json');
+const fixedTunnel = (() => { try { const c = JSON.parse(fs.readFileSync(ONLINE_FILE, 'utf8').replace(/^\uFEFF/, '')); return /^[\w-]{1,64}$/.test(c.tunnel) && /^https:\/\/[a-z0-9.-]+$/i.test(c.url) ? c : null; } catch { return null; } })();
 if (process.argv.includes('--online')) {
   // o iniciar-online.ps1 pode ter descarregado o cloudflared para a pasta ferramentas/
   const localCf = path.join(__dirname, 'ferramentas', process.platform === 'win32' ? 'cloudflared.exe' : 'cloudflared');
-  const cf = require('child_process').spawn(fs.existsSync(localCf) ? localCf : 'cloudflared', ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`], { windowsHide: true });
+  const args = fixedTunnel ? ['tunnel', '--no-autoupdate', 'run', '--url', `http://localhost:${PORT}`, fixedTunnel.tunnel] : ['tunnel', '--no-autoupdate', '--url', `http://localhost:${PORT}`];
+  const cf = require('child_process').spawn(fs.existsSync(localCf) ? localCf : 'cloudflared', args, { windowsHide: true });
+  if (fixedTunnel) writeAddinManifest(fixedTunnel.url);
   const look = d => {
-    const m = /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(String(d));
+    // túnel fixo: fica pronto quando a primeira ligação à Cloudflare é registada
+    const m = fixedTunnel ? (/Registered tunnel connection/i.test(String(d)) ? [fixedTunnel.url] : null) : /https:\/\/[a-z0-9-]+\.trycloudflare\.com/.exec(String(d));
     if (!m || tunnelUrl) return;
     tunnelUrl = m[0];
     console.log(`\n  🌍 Online: ${tunnelUrl}   (já está no QR code)\n`);
@@ -1268,7 +1326,7 @@ if (process.argv.includes('--online')) {
   };
   cf.stdout.on('data', look); cf.stderr.on('data', look);
   cf.on('error', () => console.error('\n✗ Não encontrei o cloudflared. Abre o iniciar-online.bat (descarrega-o sozinho)\n  ou instala-o com:  winget install --id Cloudflare.cloudflared A app continua a funcionar na rede local.\n'));
-  cf.on('exit', () => { if (tunnelUrl) console.error('✗ O túnel da Cloudflare fechou. Volta a arrancar para ter um endereço novo.'); tunnelUrl = ''; });
+  cf.on('exit', () => { if (tunnelUrl) console.error('✗ O túnel da Cloudflare fechou. Volta a arrancar para ter um endereço novo.'); else if (fixedTunnel) console.error(`✗ O túnel "${fixedTunnel.tunnel}" não arrancou. Corre de novo o configurar-dominio.bat.`); tunnelUrl = ''; });
   const stop = () => { cf.kill(); process.exit(0); };
   process.on('SIGINT', stop); process.on('SIGTERM', stop); process.on('exit', () => cf.kill());
 }

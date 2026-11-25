@@ -66,6 +66,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'npm install falhou.' }
   }
 
+  # 4b. endereço fixo (configurar-dominio.bat): instala o suplemento no PowerPoint deste computador
+  if (Test-Path 'data\online.json') {
+    try {
+      $k = 'HKCU:\Software\Microsoft\Office\16.0\WEF\Developer'
+      if (-not (Test-Path $k)) { New-Item -Path $k -Force | Out-Null }
+      Set-ItemProperty -Path $k -Name 'QuizAoVivo' -Value (Join-Path $PSScriptRoot 'data\suplemento-powerpoint.xml')
+      Write-Host 'Suplemento do PowerPoint instalado: Inserir > Suplementos > Os meus suplementos > Quiz ao vivo' -ForegroundColor Cyan
+    } catch { Write-Host "Não consegui instalar o suplemento do PowerPoint: $($_.Exception.Message)" -ForegroundColor Yellow }
+  }
+
   # 5. abre o painel do formador daqui a 4 segundos (o servidor já está pronto)
   Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile', '-Command', "Start-Sleep -Seconds 4; Start-Process 'http://localhost:$porta/host.html'"
 

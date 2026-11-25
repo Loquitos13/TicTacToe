@@ -1,4 +1,22 @@
-let PW = sessionStorage.getItem('aq_tok') || '';
+// modo diapositivo (/slide.html, dentro do PowerPoint): sem menu, só o palco e o botão de avançar
+const SLIDE = document.body.classList.contains('slide');
+// no PowerPoint cada diapositivo com o suplemento é uma página à parte: o token fica partilhado entre eles
+const TOK = SLIDE ? localStorage : sessionStorage;
+if (SLIDE && window.Office) Office.onReady(() => {});
+let slideSetup = false;
+// encolhe o palco (1280 de largura) para caber inteiro no diapositivo, centrado
+function fitSlide() {
+  const m = $('#main'); if (!SLIDE || !m || m.classList.contains('hidden')) return;
+  m.style.transform = 'none'; m.style.height = '';
+  const h = Math.max(720, m.scrollHeight), k = Math.min(innerWidth / 1280, innerHeight / h);
+  m.style.transform = `translate(${(innerWidth - 1280 * k) / 2}px, ${(innerHeight - h * k) / 2}px) scale(${k})`;
+  m.style.height = h + 'px';
+}
+if (SLIDE) {
+  addEventListener('resize', fitSlide);
+  new MutationObserver(() => requestAnimationFrame(fitSlide)).observe(document.body, { childList: true, subtree: true });
+}   // no diapositivo, o formulário de abrir a sala só aparece se o formador pedir
+let PW = TOK.getItem('aq_tok') || '';
 let socket = null, S = null; // estado do servidor
 let students = [], quizzes = [], courses = [], joinUrl = '';
 const courseName = id => (courses.find(c => c.id === id) || {}).name || '—';
@@ -7,7 +25,7 @@ let tab = 'game';
 
 const api = async (method, url, body) => {
   const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'x-host-token': PW }, body: body ? JSON.stringify(body) : undefined });
-  if (r.status === 401) { sessionStorage.removeItem('aq_tok'); location.reload(); }
+  if (r.status === 401) { TOK.removeItem('aq_tok'); location.reload(); }
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
   return r.json();
 };
@@ -17,7 +35,7 @@ $('#loginForm').onsubmit = async e => {
   const pw = $('#pw').value;
   const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) }).then(r => r.json());
   if (!r.ok) { $('#login .card').classList.remove('shake'); void $('#login .card').offsetWidth; $('#login .card').classList.add('shake'); return toast(r.error || 'Palavra-passe errada'); }
-  PW = r.token; sessionStorage.setItem('aq_tok', PW); start();  // a palavra-passe não fica guardada: só o token da sessão
+  PW = r.token; TOK.setItem('aq_tok', PW); start();  // a palavra-passe não fica guardada: só o token da sessão
 };
 if (PW) start();
 
@@ -31,7 +49,7 @@ async function start() {
   joinUrl = info.tunnel || (/trycloudflare\.com/.test(saved) ? '' : saved) || info.suggestions[0];
   window._joinSuggestions = info.suggestions;
   socket = io({ auth: { role: 'host', token: PW } });
-  socket.on('auth_error', () => { sessionStorage.removeItem('aq_tok'); location.reload(); });
+  socket.on('auth_error', () => { TOK.removeItem('aq_tok'); location.reload(); });
   socket.on('disconnect', () => document.body.classList.add('offline'));
   socket.on('connect', () => document.body.classList.remove('offline'));
   socket.on('state', st => { const prev = S; S = st.session; onState(prev); });
@@ -122,7 +140,7 @@ function runAutoInfo() {
 
 function renderGame(full) {
   const el = $('#tab-game');
-  if (!S) return full ? renderSetup(el) : undefined;
+  if (!S) return full ? (SLIDE && !slideSetup ? renderSlideIdle(el) : renderSetup(el)) : undefined;
   if (!full) return updateLive();
   const ph = S.phase;
   let html = `<div id="stage"><div class="stage-top"><span>${S.courseName ? '🎓 ' + esc(S.courseName) + ' · ' : ''}📝 ${esc(S.quizTitle)}</span>
@@ -151,6 +169,13 @@ function renderGame(full) {
   else if (ph === 'closed' || ph === 'reveal') $$('.opt .fill').forEach(f => { f.style.transition = 'none'; f.style.width = f.dataset.w; });
 }
 
+// diapositivo sem sessão aberta: um ecrã de espera em vez do formulário inteiro
+function renderSlideIdle(el) {
+  el.innerHTML = `<div id="stage" class="slide-idle"><div class="big-emoji">🎯</div><h1>Quiz ao vivo</h1>
+    <p>Quando abrires a sala (aqui ou no painel do formador), este diapositivo mostra o QR code, as perguntas e os resultados em direto.</p>
+    <button class="btn primary" id="slideOpen">▶ Abrir a sala aqui</button></div>`;
+  $('#slideOpen').onclick = () => { slideSetup = true; renderGame(true); };
+}
 // o QR code leva o código único desta sessão
 const sessionUrl = () => joinUrl.replace(/\/$/, '') + '/?c=' + encodeURIComponent(S.code);
 const phonesNote = () => S.settings.hideOnPhones ? `<div class="phones-note">📱 As perguntas só aparecem <b>neste ecrã</b> — mantém-no projetado. Os formandos respondem no telemóvel com A, B, C, D.</div>` : '';
@@ -787,6 +812,10 @@ function renderSetup(el) {
         <label class="switch"><input type="checkbox" id="sSpeed" checked> Pontos extra por responder depressa</label>
         <label class="switch"><input type="checkbox" id="sShuffle"> Baralhar a ordem das perguntas</label>
         <p class="muted" style="margin:4px 0">Independentemente destas opções, a grelha final regista sempre quem respondeu o quê.</p>
+        ${SLIDE ? '' : `<details class="muted" style="margin:4px 0"><summary style="cursor:pointer"><b>📽 Usar dentro do PowerPoint</b></summary>
+          <p>Insere o quiz num diapositivo (<b>Inserir → Suplementos → Os meus suplementos → Quiz ao vivo</b>): mostra o QR code, as perguntas e os resultados em direto, e avanças com o botão dentro do diapositivo.</p>
+          <p>Precisa do endereço fixo no teu domínio (corre uma vez o <b>configurar-dominio.bat</b>). No computador, o <b>iniciar-online.bat</b> instala o suplemento sozinho; para o PowerPoint na web, descarrega o ficheiro e carrega-o em <b>Os meus suplementos → Carregar o meu suplemento</b>.</p>
+          <button class="btn small" id="addinDl" type="button">⬇ Ficheiro do suplemento</button></details>`}
         <button class="btn primary" id="sGo" ${!qz.length ? 'disabled' : ''}>Abrir sala 🎉</button>
         <p class="key-warn" id="goHint" hidden></p>
       </div>
@@ -843,6 +872,11 @@ function renderSetup(el) {
   };
   $('#sRevEach').onchange = syncSetup; $('#sHide').onchange = syncSetup; $('#sTeams').onchange = syncSetup;
   $$('[name=sMode]').forEach(r => r.onchange = syncSetup); $('#sRanking').onchange = syncSetup; syncSetup();
+  const ad = $('#addinDl'); if (ad) ad.onclick = async () => {
+    const r = await fetch('/api/addin-manifest', { headers: { 'x-host-token': PW } });
+    if (!r.ok) return toast((await r.json().catch(() => ({}))).error || 'Erro', 6000);
+    download('suplemento-powerpoint.xml', await r.text(), 'application/xml');
+  };
   if ($('#allOn')) { $('#allOn').onclick = () => { $$('.sStu').forEach(c => c.checked = true); syncAnon(); }; $('#allOff').onclick = () => { $$('.sStu').forEach(c => c.checked = false); syncAnon(); }; }
   $('#sOpen').onchange = syncAnon; $$('.sStu').forEach(c => c.onchange = syncAnon);
   go.onclick = () => {
