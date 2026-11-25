@@ -120,6 +120,10 @@ Com ela ligada, pode abrir a sala sem alunos registados ou sem marcar ninguém. 
 
 Nos resultados, quem não estava marcado aparece como "(extra)". Se a desligar, só entram os alunos marcados.
 
+**🔁 Voltar ao lugar sem código.** Se um formando fechar o browser, mudar de app ou abrir o QR code noutra aplicação, basta escrever outra vez o nome: volta ao seu lugar, com os pontos e as respostas. Isto só não acontece se o outro telemóvel ainda estiver com a app à vista; nesse caso aparece "já está ligado noutro dispositivo" e ninguém tira o lugar a quem está a jogar. O código de reentrada (👥 Alunos) continua disponível, também no diapositivo do PowerPoint.
+
+**📱 QR code em todas as perguntas.** Durante as perguntas e os resultados aparece um QR code pequeno no canto, com o código da sessão, para quem saiu ou chegou atrasado. Liga-se e desliga-se no interruptor **QR** da barra de baixo, também no diapositivo.
+
 > **Nomes parecidos.** Se na turma houver um "Rui" e um "Rui Santos", quem escreve "Rui Santos" entra sempre como Rui Santos (ganha o nome mais completo). Se alguém escrever só "Rui" (maiúsculas e acentos não contam) e já tiver entrado um Rui, o telemóvel explica, por baixo do campo, que já entrou um "Rui" e pede para escrever mais alguma coisa do nome (o apelido) — ou, se for o próprio e mudou de telemóvel, para pedir o código de reentrada.
 
 

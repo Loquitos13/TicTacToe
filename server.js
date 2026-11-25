@@ -1061,6 +1061,7 @@ io.on('connection', socket => {
       if (session.settings.revealMode !== 'each') delete s.rankEach;
       if ('showPoll' in s) s.showPoll = !!s.showPoll;
       if ('openJoin' in s) s.openJoin = !!s.openJoin;
+      if ('miniQr' in s) s.miniQr = !!s.miniQr;
       if ('phoneSound' in s) s.phoneSound = !!s.phoneSound;
       Object.assign(session.settings, s);
       persistSession();
@@ -1147,18 +1148,27 @@ io.on('connection', socket => {
   let me = null;
 
   // liga este dispositivo a um participante (novo token: só este telemóvel o pode usar)
-  function attach(p, cb) {
+  function attach(p, cb, back) {
     p.token = uid(16);
     p.rejoin = null;
-    if (p.socketId && p.socketId !== socket.id) { const old = io.sockets.sockets.get(p.socketId); if (old) old.emit('released'); }
+    if (p.socketId && p.socketId !== socket.id) { const old = io.sockets.sockets.get(p.socketId); if (old) old.emit('released', back ? 'moved' : ''); }
     p.socketId = socket.id;
     session.players[p.studentId] = p;
     me = p;
     socket.leave('lobby'); socket.join('players');
     persistSession();
-    cb({ ok: true, token: p.token, sessionId: session.id, studentId: p.studentId, name: p.name });
+    cb({ ok: true, token: p.token, sessionId: session.id, studentId: p.studentId, name: p.name, back: !!back });
     broadcast();
   }
+  // Voltar ao próprio lugar (fechou o browser, mudou de app, abriu o QR noutra aplicação): se o telemóvel antigo
+  // estiver desligado ou não responder em 2,5 s, quem escreve o nome volta ao lugar, com os pontos e as respostas.
+  // Se o antigo ainda responder, é outra pessoa (ou o mesmo nome noutro telemóvel ativo): fica a mensagem.
+  function reclaim(p, msg) {
+    const old = p.socketId && io.sockets.sockets.get(p.socketId);
+    if (!old) return attach(p, cb0(), true);
+    old.timeout(2500).emit('alive', err => { if (err) attach(p, cb0(), true); else cb0()({ taken: true, error: msg }); });
+  }
+  let pendingCb = null; const cb0 = () => pendingCb || (() => {});
   const newPlayer = st => ({ studentId: st.id, name: st.name, short: st.short || st.name, photo: st.photo || null, score: 0, joinedAt: Date.now(),
     team: session.settings.teams ? smallestTeam() : null });
 
@@ -1179,6 +1189,7 @@ io.on('connection', socket => {
   // Entrar escrevendo o nome completo. Quem é quem decide-o sempre o sistema, pela lista do formador.
   socket.on('player:join', (data, cb) => {
     if (typeof cb !== 'function') cb = () => {};
+    pendingCb = cb;
     const { name } = (data && typeof data === 'object') ? data : {};
     if (!codeOk(socket.data.code)) return cb({ error: 'Código da sessão inválido ou sessão terminada. Lê de novo o QR code.' });
     if (me && session.players[me.studentId] === me) return cb({ error: 'Já entraste neste dispositivo.' });
@@ -1211,7 +1222,7 @@ io.on('connection', socket => {
       }
       // não está registado: entra como convidado com o nome que escreveu
       const typed = T.join(' '), dup = session.roster.find(r => r.guest && norm(r.name) === typed);
-      if (dup) return cb({ taken: true, error: `Já entrou alguém com o nome "${dup.name}". Se não és tu, escreve também o apelido. Se és tu e mudaste de telemóvel, pede ao formador o código de reentrada.` });
+      if (dup && session.players[dup.id]) return reclaim(session.players[dup.id], `Já entrou alguém com o nome "${dup.name}". Se não és tu, escreve também o apelido. Se és tu, fecha a app no outro telemóvel (ou pede ao formador o código de reentrada).`);
       let clean = name.trim().replace(/\s+/g, ' ').slice(0, 60);
       if (clean === clean.toLowerCase()) clean = clean.replace(/(^|\s)(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
       const w = clean.split(' ');
@@ -1233,9 +1244,11 @@ io.on('connection', socket => {
     if (session.players[st.id]) {
       // já entrou alguém com este nome: pode ser outra pessoa com o mesmo primeiro nome
       const homonyms = session.roster.some(o => o !== st && norm(o.name).split(' ')[0] === T[0]);
-      return cb({ taken: true, error: T.length === 1 || (homonyms && T.join(' ') !== norm(st.name))
-        ? `Já entrou um "${st.short}". Se não és tu, escreve mais alguma coisa do teu nome (por exemplo, o apelido). Se és tu e mudaste de telemóvel, pede ao formador o código de reentrada.`
-        : `${st.short} já entrou noutro dispositivo. Se mudaste de telemóvel, pede ao formador o código de reentrada.` });
+      const ambiguous = homonyms && T.join(' ') !== norm(st.name);
+      const msg = T.length === 1 || ambiguous
+        ? `Já entrou um "${st.short}". Se não és tu, escreve mais alguma coisa do teu nome (por exemplo, o apelido). Se és tu, fecha a app no outro telemóvel ou pede ao formador o código de reentrada.`
+        : `${st.short} já está ligado noutro dispositivo. Se és tu, fecha a app no outro telemóvel (ou pede ao formador o código de reentrada).`;
+      return ambiguous ? cb({ taken: true, error: msg }) : reclaim(session.players[st.id], msg);
     }
     attach(newPlayer(st), cb);
   });

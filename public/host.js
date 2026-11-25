@@ -158,6 +158,8 @@ function renderGame(full) {
   if (vph === 'leaderboard') html += S.settings.teams ? `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Equipas</div>` + teamPodiumHtml(false)
     : `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Top 5</div>` + podiumHtml(S.ranking.slice(0, 5), false);
   if (vph === 'end') html += (showAnswersList ? answersListHtml() : endHtml());
+  if (!['lobby', 'end', 'exam'].includes(vph))
+    html += `<div class="mini-qr noprint" style="${S.settings.miniQr === false ? 'display:none' : ''}" title="Para quem saiu ou chegou atrasado"><img src="/api/qr?url=${encodeURIComponent(sessionUrl())}" alt="QR code"><b>${esc(S.code)}</b></div>`;
   lastControls = controlsHtml();
   html += `</div>` + lastControls;
   el.innerHTML = html;
@@ -630,6 +632,7 @@ function controlsHtml() {
     ${S.settings.noRanking || hiddenReveal() ? '' : `<label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>`}
     <label class="switch" id="sndMe" title="Música e efeitos neste computador / projetor"><input type="checkbox" id="setMySnd" ${Sound.isMuted() ? '' : 'checked'}> 🔊 Aqui</label>
     <label class="switch" id="sndAll" title="Sons nos telemóveis de todos os formandos"><input type="checkbox" id="setPhSnd" ${S.settings.phoneSound !== false ? 'checked' : ''}> 📱 Som</label>
+    ${isExamMode() ? '' : `<label class="switch" id="qrSw" title="QR code pequeno no canto, durante as perguntas (para quem saiu ou chegou atrasado)"><input type="checkbox" id="setMiniQr" ${S.settings.miniQr !== false ? 'checked' : ''}> QR</label>`}
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
     ${ph !== 'end' && ph !== 'exam' ? `<button class="btn small danger" id="btnEnd">Terminar</button>` : ''}
@@ -663,6 +666,7 @@ function bindGame() {
   const ss = $('#setSee'); if (ss) ss.onchange = e => { seeAnswers = e.target.checked; try { localStorage.setItem('aq_see_answers', seeAnswers ? '1' : '0'); } catch {} renderGame(true); };
   const ms = $('#setMySnd'); if (ms) ms.onchange = e => { Sound.init(); Sound.setMuted(!e.target.checked); };
   const ps = $('#setPhSnd'); if (ps) ps.onchange = e => socket.emit('host:settings', { phoneSound: e.target.checked });
+  const mq = $('#setMiniQr'); if (mq) mq.onchange = e => socket.emit('host:settings', { miniQr: e.target.checked });
   const so = $('#setOpen'); if (so) so.onchange = e => socket.emit('host:settings', { openJoin: e.target.checked });
   const sw = $('#setWho'); if (sw) sw.onchange = e => socket.emit('host:settings', { showWho: e.target.checked });
   const sp = $('#setPoll'); if (sp) sp.onchange = e => socket.emit('host:settings', { showPoll: e.target.checked });
@@ -693,6 +697,7 @@ function runRing() {
 // atualizações sem redesenhar tudo (ex.: alguém respondeu / entrou)
 const slideJoinView = () => SLIDE && !!window.slideCfg && window.slideCfg.role === 'join' && !!S && S.phase !== 'end';
 function updateLive() {
+  $$('.mini-qr').forEach(e => { const want = S.settings.miniQr === false ? 'none' : ''; if (e.style.display !== want) e.style.display = want; });
   if (S.phase === 'exam') {
     const g = $('#examGrid'); if (g) g.innerHTML = examGridHtml();
     const st = $('#examStats'); if (st) st.innerHTML = examStatsHtml();

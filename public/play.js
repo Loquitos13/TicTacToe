@@ -25,7 +25,10 @@ socket.on('roster', r => {
 });
 socket.on('state', s => { Sound.setForcedOff(!!(s.session && s.session.settings && s.session.settings.phoneSound === false)); if (!s.session) { state = null; roster = { session: null }; stopCamera(); render(); return; } state = s; render(); });
 socket.on('reload', () => { state = null; joinStep = { kind: 'form' }; store(null); });
-socket.on('released', () => { state = null; store(null); joinStep = { kind: 'form' }; toast('O formador libertou o teu lugar. Para voltar, usa o código de reentrada que ele te der.', 6000); render(); });
+socket.on('released', why => { state = null; store(null); joinStep = { kind: 'form' }; toast(why === 'moved' ? 'Entraste com o teu nome noutro separador ou telemóvel: continua lá.' : 'O formador libertou o teu lugar. Para voltar, usa o código de reentrada que ele te der.', 6000); render(); });
+// o servidor pergunta se este telemóvel ainda está cá (alguém está a tentar entrar com o mesmo nome)
+// (só responde se a app estiver à vista: um separador esquecido em segundo plano não prende o nome)
+socket.on('alive', ack => { if (typeof ack === 'function' && document.visibilityState === 'visible') ack(true); });
 
 function joined(res) {
   if (res.error) {
