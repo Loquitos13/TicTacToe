@@ -273,7 +273,7 @@ function hostView() {
   const ans = q ? answersFor(session.qIndex) : {};
   const qt = q ? Q.typeOf(q) : null;
   // escolha múltipla / V-F: por opção; escala: por valor 1..5
-  const slots = !q ? [] : qt === 'scale' ? [1, 2, 3, 4, 5] : (qt === 'mc' || qt === 'tf') ? q.options.map((_, i) => i) : [];
+  const slots = !q ? [] : qt === 'scale' ? Array.from({ length: q.scaleTo === 10 ? 10 : 5 }, (_, i) => i + 1) : (qt === 'mc' || qt === 'tf') ? q.options.map((_, i) => i) : [];
   const pick = a => qt === 'scale' ? a.value : a.option;
   const counts = slots.map(v => Object.values(ans).filter(a => pick(a) === v).length);
   const whoByOption = slots.map(v => Object.entries(ans).filter(([, a]) => pick(a) === v).map(([sid]) => sid));
@@ -405,6 +405,7 @@ function playerView(p) {
   // no fim (modo "só no fim"): todas as perguntas, a resposta correta e a resposta do formando
   if (isEnd) v.answeredCount = session.asked.filter(i => (session.answers[i] || {})[p.studentId]).length;
   // perguntas que contam para "certas" (a escala e a resposta livre por avaliar não contam)
+  if (isEnd && session.settings.showGrade) v.grade = Q.finalGrade(session.questions, session.answers, session.asked, p.studentId);
   if (isEnd) v.gradedTotal = session.asked.filter(i => Q.isGraded(session.questions[i]) || Object.values(session.answers[i] || {}).some(a => a.correct != null)).length;
   if (isEnd && revealEnd) {
     v.review = session.asked.map(i => {
@@ -918,8 +919,8 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
     const teamName = Object.fromEntries((r.teams || []).map(t => [t.id, t.name]));
     const teamOf = Object.fromEntries(r.players.map(p => [p.studentId, p.team]));
     const tcol = r.teams ? [''] : [];
-    rows.push(['Aluno', ...(r.teams ? ['Equipa'] : []), ...r.questions.map((q, i) => 'P' + (i + 1)), 'Certas', 'Perguntas avaliadas', '% acerto', 'Pontos']);
-    rows.push(['RESPOSTA CORRETA', ...tcol, ...r.questions.map(q => Q.correctShort(q)), '', '', '', '']);
+    rows.push(['Aluno', ...(r.teams ? ['Equipa'] : []), ...r.questions.map((q, i) => 'P' + (i + 1)), 'Certas', 'Perguntas avaliadas', '% acerto', 'Nota (0-20)', 'Pontos']);
+    rows.push(['RESPOSTA CORRETA', ...tcol, ...r.questions.map(q => Q.correctShort(q)), '', '', '', '', '']);
     // conta só as perguntas com resposta certa (a escala e a resposta livre por avaliar não contam)
     const gradedIdx = r.asked.filter(i => Q.isGraded(r.questions[i]) || Object.values(r.answers[i] || {}).some(a => a.correct != null));
     for (const p of people) {
@@ -932,14 +933,14 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
         return Q.answerShort(q, a) + (a.correct === true ? ' ✓' : a.correct === false ? ' ✗' : Q.typeOf(q) === 'open' ? ' ?' : '');
       });
       const n = gradedIdx.length;
-      rows.push([p.name, ...(r.teams ? [teamName[teamOf[p.id]] || ''] : []), ...cells, ok, n, n ? Math.round(ok / n * 100) + '%' : '', score[p.id] ?? 0]);
+      rows.push([p.name, ...(r.teams ? [teamName[teamOf[p.id]] || ''] : []), ...cells, ok, n, n ? Math.round(ok / n * 100) + '%' : '', (g => g == null ? '' : String(g).replace('.', ','))(Q.finalGrade(r.questions, r.answers, r.asked, p.id)), score[p.id] ?? 0]);
     }
     if (r.teams) { rows.push([]); rows.push(['EQUIPAS', 'Lugar', 'Membros', 'Pontos (média)']); r.teams.forEach((t, k) => rows.push(['Equipa ' + t.name, k + 1 + 'º', t.members.map(m => m.name).join(', '), t.score])); }
   } else {
     rows = [['Curso', 'Questionário', 'Nº', 'Pergunta', 'Opções', 'Resposta correta', 'Aluno', 'Resposta dada', 'Correta?', 'Tempo (s)', 'Pontos']];
     r.questions.forEach((q, i) => {
       const t = Q.typeOf(q);
-      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'cloud' ? 'Nuvem de palavras' : t === 'number' ? `Número de ${q.min} a ${q.max}` : t === 'match' ? 'Ligar: ' + q.pairs.map(p => p.left).join(' | ') : t === 'spot' ? 'Encontrar na imagem' : t === 'scramble' ? 'Letras baralhadas' : t === 'guess' ? `Adivinha a palavra (${q.maxTries || 6} tentativas)` : t === 'cross' ? 'Palavras cruzadas: ' + q.cross.words.map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${w.clue}`).join(' | ') : t === 'rank' ? 'Ordenar: ' + q.options.join(' | ') : t === 'scale' ? 'Escala 1–5' : 'Resposta livre';
+      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'cloud' ? 'Nuvem de palavras' : t === 'number' ? `Número de ${q.min} a ${q.max}` : t === 'match' ? 'Ligar: ' + q.pairs.map(p => p.left).join(' | ') : t === 'spot' ? 'Encontrar na imagem' : t === 'scramble' ? 'Letras baralhadas' : t === 'guess' ? `Adivinha a palavra (${q.maxTries || 6} tentativas)` : t === 'cross' ? 'Palavras cruzadas: ' + q.cross.words.map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${w.clue}`).join(' | ') : t === 'rank' ? 'Ordenar: ' + q.options.join(' | ') : t === 'scale' ? `Escala 1–${q.scaleTo === 10 ? 10 : 5}` : 'Resposta livre';
       for (const p of people) {
         const a = (r.answers[i] || {})[p.id];
         let given, ok = '';
@@ -1089,7 +1090,8 @@ io.on('connection', socket => {
       // anónimo: nenhuma ligação à turma (sem nomes, fotos nem ranking)
       settings.anonymous = !!quiz.anonymous;
       settings.openJoin = settings.openJoin !== false;
-      settings.phoneSound = settings.phoneSound !== false;   // sons nos telemóveis dos formandos   // quem não está na lista pode entrar com o nome que escreve
+      settings.phoneSound = settings.phoneSound !== false;
+      settings.showGrade = !!settings.showGrade;   // avaliação final: nota de 0 a 20 no telemóvel, no fim   // sons nos telemóveis dos formandos   // quem não está na lista pode entrar com o nome que escreve
       if (settings.anonymous) { settings.noRanking = true; settings.rankEach = false; settings.finalPodium = false; settings.showWho = false; }
       // jogos em grupo: 2 a 6 equipas (não há equipas no anónimo nem sem ranking)
       const nt = parseInt(settings.teams, 10);

@@ -1,5 +1,5 @@
 // Ajudas partilhadas (formador e formandos) para os tipos de pergunta.
-const QTYPE_LABEL = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5', cloud: '☁️ Nuvem de palavras', rank: '🔢 Ranking de opções', scramble: '🔤 Letras baralhadas', cross: '✏️ Palavras cruzadas', guess: '🟩 Adivinha a palavra', potato: '🥔 Batata quente (jogo em grupo)', number: '🔢 Adivinhar um número', match: '🔗 Correspondência', spot: '🎯 Encontrar na imagem' };
+const QTYPE_LABEL = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala (1–5 ou 1–10)', cloud: '☁️ Nuvem de palavras', rank: '🔢 Ranking de opções', scramble: '🔤 Letras baralhadas', cross: '✏️ Palavras cruzadas', guess: '🟩 Adivinha a palavra', potato: '🥔 Batata quente (jogo em grupo)', number: '🔢 Adivinhar um número', match: '🔗 Correspondência', spot: '🎯 Encontrar na imagem' };
 const qType = q => (q && ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot', 'potato'].includes(q.type)) ? q.type : 'mc';
 // tem resposta certa? (ranking só quando tem ordem certa)
 const qGraded = q => { const t = qType(q); return t === 'rank' ? !!q.ordered : t === 'mc' && q && q.poll ? false : !['scale', 'open', 'cloud'].includes(t); };
@@ -8,6 +8,15 @@ const zonesOfQ = q => Array.isArray(q.zones) && q.zones.length ? q.zones : q.zon
 // nº de problemas a encontrar (várias zonas com o mesmo "g" valem por um) e o nº de cada zona
 const spotNumOf = q => { const seen = new Map(); return zonesOfQ(q).map((z, k) => { const g = z.g != null ? 'g' + z.g : 'z' + k; if (!seen.has(g)) seen.set(g, seen.size + 1); return seen.get(g); }); };
 const spotCountQ = q => new Set(spotNumOf(q)).size;
+// Nota de 0 a 20: média das perguntas com resposta certa (as meio certas contam a parte certa; certa = inteira).
+// Não contam: opiniões, votações, respostas livres por validar e jogos ao vivo (batata quente).
+function finalGradeOf(questions, answers, asked, sid) {
+  const idx = asked.filter(i => { const q = questions[i]; if (!q || qType(q) === 'potato') return false; return qGraded(q) || Object.values(answers[i] || {}).some(a => a.correct != null); });
+  if (!idx.length) return null;
+  const sum = idx.reduce((s, i) => { const a = (answers[i] || {})[sid]; if (!a) return s; return s + (a.correct === true ? 1 : typeof a.frac === 'number' ? Math.max(0, Math.min(1, a.frac)) : 0); }, 0);
+  return Math.round(sum / idx.length * 200) / 10;
+}
+const fmtGrade = g => g == null ? '—' : String(g).replace('.', ',');
 const BLANK_RX = /\[\[([^\]]+?)\]\]/g;
 // partes de texto entre os espaços: "A capital é [[Lisboa]]." → ["A capital é ", "."]
 const fillPartsOf = text => String(text || '').split(BLANK_RX).filter((_, i) => i % 2 === 0);
@@ -40,7 +49,7 @@ function solutionText(q) {
   if (t === 'spot') return spotCountQ(q) > 1 ? `As ${spotCountQ(q)} zonas marcadas na imagem` : 'A zona marcada na imagem';
   if (t === 'cross') return ((q.cross || {}).words || []).map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${w.display}`).join(' · ');
   if (t === 'rank') return q.ordered ? 'Ordem: ' + q.options.map((o, k) => `${k + 1}. ${o}`).join(' · ') : 'Ranking de opinião (sem ordem certa)';
-  return 'Escala 1–5 (sem resposta certa)';
+  return `Escala 1–${q.scaleTo === 10 ? 10 : 5} (sem resposta certa)`;
 }
 
 // texto completo para as fichas (sem letras nem abreviaturas)
@@ -66,7 +75,7 @@ function plainAnswerOf(q, a) {
   if (t === 'potato') return `Palavras: ${(a.value || []).join(', ') || '—'} · ${a.points || 0} pontos${a.booms ? ` · rebentou ${a.booms}×` : ''}`;
   if (t === 'mc' || t === 'tf') return q.options[a.option];
   if (t === 'fill') return fillSentenceOf(q, a.value || []);
-  if (t === 'scale') { const lab = a.value === 1 ? q.scaleMin : a.value === 5 ? q.scaleMax : ''; return `${a.value} de 5${lab ? ' (' + lab + ')' : ''}`; }
+  if (t === 'scale') { const N = q.scaleTo === 10 ? 10 : 5, lab = a.value === 1 ? q.scaleMin : a.value === N ? q.scaleMax : ''; return `${a.value} de ${N}${lab ? ' (' + lab + ')' : ''}`; }
   if (t === 'cloud') return (a.value || []).join(', ');
   if (t === 'rank') return (a.value || []).map((k, pos) => `${pos + 1}. ${q.options[k]}`).join('; ');
   if (t === 'scramble') return String(a.value || '').toUpperCase();

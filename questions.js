@@ -5,7 +5,7 @@
 //          palavras de um banco (as certas + palavras extra que baralham)
 //  open  — resposta livre (escrita). É SEMPRE validada pelo formador, uma a uma, nos resultados.
 //          As "respostas modelo" (accepted) só servem de referência / sugestão
-//  scale — escala de 1 a 5 (opinião): não tem resposta certa nem pontos
+//  scale — escala de 1 a 5 ou de 1 a 10 (opinião): não tem resposta certa nem pontos
 //  cloud — nuvem de palavras: cada formando escreve até 3 palavras; sem resposta certa nem pontos
 //  rank  — ranking de opções: o formando ordena as opções. Com "ordered", a ordem do editor é a certa
 //          (pontos por posição certa); sem ela é uma opinião (resultado = posição média de cada opção)
@@ -118,6 +118,7 @@ function cleanQuestion(x, uid, savePhoto) {
   } else if (type === 'open') {
     base.accepted = (x.accepted || []).map(a => String(a).trim()).filter(Boolean).slice(0, 20);
   } else if (type === 'scale') {
+    base.scaleTo = Number(x.scaleTo) === 10 ? 10 : 5;
     base.scaleMin = String(x.scaleMin || '').trim().slice(0, 40);
     base.scaleMax = String(x.scaleMax || '').trim().slice(0, 40);
   } else if (type === 'cloud') {
@@ -182,7 +183,7 @@ function grade(q, raw) {
   }
   if (t === 'scale') {
     const v = parseInt(raw, 10);
-    if (!(v >= 1 && v <= 5)) return { error: 'Resposta inválida.' };
+    if (!(v >= 1 && v <= (q.scaleTo === 10 ? 10 : 5))) return { error: 'Resposta inválida.' };
     return { entry: { value: v, correct: null, frac: 0 } };
   }
   if (t === 'fill') {
@@ -326,7 +327,7 @@ function correctShort(q) {
   if (t === 'scramble' || t === 'guess') return String(q.answer).toUpperCase().slice(0, 14);
   if (t === 'cross') return q.cross.words.length + ' palavras';
   if (t === 'rank') return q.ordered ? 'ordem' : 'opinião';
-  return '1–5';
+  return `1–${q.scaleTo === 10 ? 10 : 5}`;
 }
 
 // O que o telemóvel recebe da pergunta (nunca a resposta certa). hide = só no ecrã do formador.
@@ -341,7 +342,7 @@ function publicQuestion(q, hide) {
   if (t === 'match') { p.lefts = q.pairs.map((x, i) => hide ? '' : x.left); p.rights = matchOrder(q).map((i, k) => ({ k, text: hide ? '' : q.pairs[i].right, letter: LETTERS[k] })); }
   if (t === 'mc' || t === 'tf') p.options = hide ? q.options.map(() => '') : q.options;
   if (t === 'fill') { p.blanks = q.blanks.length; p.bank = wordBank(q); if (!hide) p.parts = String(q.text).split(BLANK_RE).filter((_, i) => i % 2 === 0); }
-  if (t === 'scale') { p.scaleMin = q.scaleMin || ''; p.scaleMax = q.scaleMax || ''; }
+  if (t === 'scale') { p.scaleMin = q.scaleMin || ''; p.scaleMax = q.scaleMax || ''; p.scaleTo = q.scaleTo === 10 ? 10 : 5; }
   if (t === 'cloud') p.words = q.words || 3;
   if (t === 'scramble') { p.tiles = scrambleTiles(q); p.shape = scrambleShape(q); }
   if (t === 'guess') { p.len = cwNorm(q.answer).length; p.maxTries = q.maxTries || 6; }
@@ -399,7 +400,7 @@ function plainAnswer(q, a) {
   if (t === 'spot') return spotCount(q) > 1 ? `Encontrou ${a.right || 0} de ${spotCount(q)}` : a.correct ? 'Tocou na zona certa' : 'Tocou fora da zona certa';
   if (t === 'mc' || t === 'tf') return q.options[a.option];
   if (t === 'fill') return fillSentence(q, a.value || []);
-  if (t === 'scale') { const lab = a.value === 1 ? q.scaleMin : a.value === 5 ? q.scaleMax : ''; return `${a.value} de 5${lab ? ' (' + lab + ')' : ''}`; }
+  if (t === 'scale') { const N = q.scaleTo === 10 ? 10 : 5, lab = a.value === 1 ? q.scaleMin : a.value === N ? q.scaleMax : ''; return `${a.value} de ${N}${lab ? ' (' + lab + ')' : ''}`; }
   if (t === 'cloud') return (a.value || []).join(', ');
   if (t === 'rank') return (a.value || []).map((k, pos) => `${pos + 1}. ${q.options[k]}`).join('; ');
   if (t === 'scramble') return String(a.value || '').toUpperCase();
@@ -432,4 +433,12 @@ function potatoCheck(q, round, word, used) {
   }
   return { ok: false, reason: 'no', key: norm(word) };
 }
-module.exports = { potatoCheck, zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
+// Nota de 0 a 20: média das perguntas com resposta certa (as meio certas contam a parte certa; certa = inteira).
+// Não contam: opiniões, votações, respostas livres por validar e jogos ao vivo (batata quente).
+function finalGrade(questions, answers, asked, sid) {
+  const idx = asked.filter(i => { const q = questions[i]; if (!q || typeOf(q) === 'potato') return false; return isGraded(q) || Object.values(answers[i] || {}).some(a => a.correct != null); });
+  if (!idx.length) return null;
+  const sum = idx.reduce((s, i) => { const a = (answers[i] || {})[sid]; if (!a) return s; return s + (a.correct === true ? 1 : typeof a.frac === 'number' ? Math.max(0, Math.min(1, a.frac)) : 0); }, 0);
+  return Math.round(sum / idx.length * 200) / 10;
+}
+module.exports = { finalGrade, potatoCheck, zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };

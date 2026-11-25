@@ -88,3 +88,18 @@ test('votação, explicação e vários sítios na imagem', () => {
   assert.equal(Q.grade(s, [.15, .55, .65, .65]).entry.correct, true);
   assert.ok(Q.grade(s, [.1, .1, .2, .2, .3, .3]).error, 'não pode tocar mais vezes do que há problemas');
 });
+
+test('batata quente, escala 1-10 e nota final', () => {
+  const q = make({ type: 'potato', text: 'Batata', rounds: [{ theme: 'Atalhos', words: 'copiar/copia, colar, desfazer' }] });
+  assert.ok(q && q.rounds[0].words.length === 3);
+  assert.ok(!JSON.stringify(Q.publicQuestion(q, false)).includes('copiar'), 'as palavras aceites não vão para o telemóvel');
+  assert.equal(Q.potatoCheck(q, 0, 'Cópia', []).ok, true, 'alternativa, sem acentos nem maiúsculas');
+  assert.equal(Q.potatoCheck(q, 0, 'colares', []).ok, true, 'plural');
+  assert.equal(Q.potatoCheck(q, 0, 'copiar', ['copiar']).reason, 'used', 'já dita');
+  assert.equal(Q.potatoCheck(q, 0, 'imprimir', []).ok, false);
+  const s = make({ type: 'scale', text: 'x', scaleTo: 10 });
+  assert.equal(Q.grade(s, 10).entry.value, 10); assert.ok(Q.grade(s, 11).error);
+  const qs = [make({ type: 'mc', text: 'a', options: ['x', 'y'], correct: [0] }), make({ type: 'fill', text: '[[a]] [[b]]' }), s, q];
+  const ans = { 0: { u: { correct: true, frac: 1 } }, 1: { u: { correct: false, frac: 0.5 } }, 2: { u: { value: 3, correct: null } }, 3: { u: { points: 90, correct: true } } };
+  assert.equal(Q.finalGrade(qs, ans, [0, 1, 2, 3], 'u'), 15, 'nota: (1 + 0,5) / 2 × 20; escala e batata não contam');
+});

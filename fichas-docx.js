@@ -33,7 +33,7 @@ function studentBlock(r, p, ctx) {
     else if (a.correct === false && t === 'number' && a.frac > 0) { res = 'Perto'; color = '92400E'; }
     else if (a.correct === false) { if ((t === 'fill' || t === 'rank' || t === 'cross' || t === 'match' || t === 'spot') && a.right) { res = `${a.right}/${t === 'fill' ? q.blanks.length : t === 'cross' ? q.cross.words.length : t === 'match' ? q.pairs.length : t === 'spot' ? Q.spotCount(q) : q.options.length} certas`; color = '92400E'; } else { res = '✗ Errada'; color = '991B1B'; } }
     else { res = 'Por validar'; color = '854D0E'; }
-    const qsub = t === 'mc' || t === 'tf' ? 'Opções: ' + q.options.join(' · ') : { fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5', cloud: 'Nuvem de palavras', rank: 'Ranking de opções' + (q.ordered ? ' (ordem certa)' : ' (opinião)'), scramble: 'Letras baralhadas', cross: 'Palavras cruzadas', guess: 'Adivinha a palavra', number: 'Adivinhar um número', match: 'Correspondência', spot: 'Encontrar na imagem', potato: 'Batata quente' }[t];
+    const qsub = t === 'mc' || t === 'tf' ? 'Opções: ' + q.options.join(' · ') : { fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala (1–5 ou 1–10)', cloud: 'Nuvem de palavras', rank: 'Ranking de opções' + (q.ordered ? ' (ordem certa)' : ' (opinião)'), scramble: 'Letras baralhadas', cross: 'Palavras cruzadas', guess: 'Adivinha a palavra', number: 'Adivinhar um número', match: 'Correspondência', spot: 'Encontrar na imagem', potato: 'Batata quente' }[t];
     return new TableRow({ cantSplit: true, children: [
       cell(String(i + 1), { width: COLS[0], align: AlignmentType.CENTER }),
       cell([{ text: Q.displayText(q), bold: true }, { text: qsub, size: 15, color: '666666', break: 1 }], { width: COLS[1] }),
@@ -92,7 +92,7 @@ function para(runs, o = {}) { return new Paragraph({ children: runs, spacing: { 
 
 function keyBlock(q, i) {
   const t = Q.typeOf(q), out = [];
-  const label = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5', cloud: 'Nuvem de palavras', rank: 'Ranking de opções', scramble: 'Letras baralhadas', cross: 'Palavras cruzadas', guess: 'Adivinha a palavra', number: 'Adivinhar um número', match: 'Correspondência', spot: 'Encontrar na imagem', potato: 'Batata quente' }[t];
+  const label = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala (1–5 ou 1–10)', cloud: 'Nuvem de palavras', rank: 'Ranking de opções', scramble: 'Letras baralhadas', cross: 'Palavras cruzadas', guess: 'Adivinha a palavra', number: 'Adivinhar um número', match: 'Correspondência', spot: 'Encontrar na imagem', potato: 'Batata quente' }[t];
   out.push(para([run(`${i + 1}. `, { bold: true, size: 23 }), run(Q.displayText(q), { bold: true, size: 23 })], { before: 200, after: 40, keepNext: true }));
   out.push(para([run(`${label} · ${q.time} s`, { size: 17, color: '777777' })], { after: 80, keepNext: true }));
   if (t === 'mc' || t === 'tf') {
@@ -143,8 +143,8 @@ function keyBlock(q, i) {
       out.push(para([run('Ranking de opinião: não tem ordem certa (resultado = posição média de cada opção).', { size: 17, color: '777777', italics: true })], { indent: 360 }));
     }
   } else {
-    out.push(para([1, 2, 3, 4, 5].map(n => run(`  ${n}  `, { bold: true, bg: 'EDE9FE' })).flatMap((r, k) => k ? [run('  '), r] : [r]), { indent: 360 }));
-    if (q.scaleMin || q.scaleMax) out.push(para([run(`1 = ${q.scaleMin || '—'}     ·     5 = ${q.scaleMax || '—'}`, { size: 18, color: '555555' })], { indent: 360 }));
+    out.push(para(Array.from({ length: q.scaleTo === 10 ? 10 : 5 }, (_, i) => i + 1).map(n => run(`  ${n}  `, { bold: true, bg: 'EDE9FE' })).flatMap((r, k) => k ? [run('  '), r] : [r]), { indent: 360 }));
+    if (q.scaleMin || q.scaleMax) out.push(para([run(`1 = ${q.scaleMin || '—'}     ·     ${q.scaleTo === 10 ? 10 : 5} = ${q.scaleMax || '—'}`, { size: 18, color: '555555' })], { indent: 360 }));
     out.push(para([run('Escala de opinião: não tem resposta certa.', { size: 17, color: '777777', italics: true })], { indent: 360 }));
   }
   return out;

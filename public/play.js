@@ -283,8 +283,9 @@ function renderGameInner() {
     const isNew = !lastKey.startsWith('end');
     const podium = s.settings.finalPodium && m.position != null && m.position <= 5;
     set('end' + JSON.stringify([m.score, m.position, m.correct, m.teamPosition, (state.review || []).map(r => r.ok)]), header() + `<div class="middle">${podium ? `<div class="pop-in">${dancer(m, ['jump', 'disco', 'wave', 'sway', 'robot'][m.position - 1], ['#ffd93d', '#e5e7eb', '#f4a261', '#7dd3fc', '#c4b5fd'][m.position - 1], m.position === 1)}</div>` : s.settings.anonymous ? '<div class="big-emoji pop-in">🕶️</div>' : avatar(m, 'xl pop-in')}<h1>Terminou! 🏁</h1>
-      ${m.score != null || m.position != null ? `<div class="card" style="width:100%">
+      ${m.score != null || m.position != null || state.grade != null ? `<div class="card" style="width:100%">
         ${m.score != null ? `<div style="font-size:2.4em;font-weight:700">${m.score} pts</div><div class="muted">${m.correct} de ${state.gradedTotal ?? s.total} respostas certas</div>` : ''}
+        ${state.grade != null ? `<div class="grade-box pop-in">Nota<br><b>${String(state.grade).replace('.', ',')}</b><small> / 20</small></div>` : ''}
         ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
       ${m.team && m.teamPosition ? teamCard(true) : ''}
       ${(state.board || []).length && m.position != null ? `<h2 style="margin:10px 0 0">🏆 Classificação final</h2>${boardHtml(false)}` : ''}
@@ -524,8 +525,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) hidde
 function answerWidget(q, cur, exam) {
   const t = q.type || 'mc';
   if (t === 'scale') return {
-    html: `<div class="scale-btns">${[1, 2, 3, 4, 5].map((n, i) => `<button class="ans opt-${i} pop-in ${cur === n ? 'sel' : cur != null ? 'unsel' : ''}" style="animation-delay:${i * 60}ms" data-v="${n}">${n}</button>`).join('')}</div>
-      ${q.scaleMin || q.scaleMax ? `<div class="scale-labels"><span>1 = ${esc(q.scaleMin)}</span><span>5 = ${esc(q.scaleMax)}</span></div>` : ''}`,
+    html: `<div class="scale-btns ${q.scaleTo === 10 ? 'ten' : ''}">${Array.from({ length: q.scaleTo === 10 ? 10 : 5 }, (_, i) => i + 1).map((n, i) => `<button class="ans opt-${i} pop-in ${cur === n ? 'sel' : cur != null ? 'unsel' : ''}" style="animation-delay:${i * 60}ms" data-v="${n}">${n}</button>`).join('')}</div>
+      ${q.scaleMin || q.scaleMax ? `<div class="scale-labels"><span>1 = ${esc(q.scaleMin)}</span><span>${q.scaleTo === 10 ? 10 : 5} = ${esc(q.scaleMax)}</span></div>` : ''}`,
     bind: on => $$('.scale-btns .ans').forEach(b => b.onclick = () => on(+b.dataset.v, b)),
   };
   if (t === 'cloud') {
@@ -874,7 +875,7 @@ function renderPotato(s) {
 function answerSummary(q, v) {
   const t = q.type || 'mc';
   if (v == null) return '';
-  if (t === 'scale') return `⭐ ${v} de 5`;
+  if (t === 'scale') return `⭐ ${v} de ${q.scaleTo === 10 ? 10 : 5}`;
   if (t === 'fill') return (v || []).map(esc).join(' · ');
   if (t === 'open') return `“${esc(v)}”`;
   if (t === 'cloud') return '☁️ ' + (v || []).map(esc).join(' · ');
