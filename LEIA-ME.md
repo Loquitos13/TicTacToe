@@ -123,7 +123,13 @@ Nos resultados, quem não estava marcado aparece como "(extra)". Se a desligar, 
 > **Nomes parecidos.** Se na turma houver um "Rui" e um "Rui Santos", quem escreve "Rui Santos" entra sempre como Rui Santos (ganha o nome mais completo). Se alguém escrever só "Rui" (maiúsculas e acentos não contam) e já tiver entrado um Rui, o telemóvel explica, por baixo do campo, que já entrou um "Rui" e pede para escrever mais alguma coisa do nome (o apelido) — ou, se for o próprio e mudou de telemóvel, para pedir o código de reentrada.
 
 
-**Exemplo pronto:** `exemplos/formatar-documentos.json` (8 perguntas sobre formatação de documentos, com todos os tipos novos). Em ❓ Questionários → **Importar JSON** no curso que quiseres. A imagem da pergunta 3 é `exemplos/regulamento-ferias.png`, com a zona do parágrafo cinzento já marcada; para usar outra, edita a pergunta, remove a imagem, carrega a tua e marca a zona.
+**Votação:** numa escolha múltipla, liga **📊 Votação (sem resposta certa)** para diagnósticos e opiniões ("Como faz os títulos?"). Mostra os votos, não dá pontos e ninguém fica "errado".
+
+**Explicação:** em cada pergunta com resposta certa há um campo **💡 Explicação** (opcional). Aparece com a resposta certa, no projetor e nos telemóveis. Por exemplo: "É mito: usa-se o espaçamento antes e depois do parágrafo."
+
+**Encontrar vários sítios na imagem:** no "🎯 Encontrar na imagem", cada arrasto acrescenta uma zona (até 8 problemas). Os formandos tocam em tantos sítios quantos os problemas e ganham pontos por cada um encontrado ("3 de 5"). Tocar num ponto tira-o. Se o mesmo problema aparece em vários sítios (por exemplo, títulos feitos à mão), as zonas desse problema contam como um só; isso define-se no ficheiro JSON com `"g"` (veja o exemplo `exemplos/formatacao-votacoes-quizzes.json`).
+
+**Exemplos prontos:** `exemplos/formatacao-votacoes-quizzes.json` (15 perguntas: votações, mito ou facto, os 5 problemas, quiz final) e `exemplos/formatar-documentos.json` (8 perguntas sobre formatação de documentos, com todos os tipos novos). Em ❓ Questionários → **Importar JSON** no curso que quiseres. A imagem da pergunta 3 é `exemplos/regulamento-ferias.png`, com a zona do parágrafo cinzento já marcada; para usar outra, edita a pergunta, remove a imagem, carrega a tua e marca a zona.
 
 ## 4. Durante a sessão
 **🎮 Jogo**: escolhe o curso, o questionário e os alunos e clica em **Abrir sala**. Aparece o QR code.

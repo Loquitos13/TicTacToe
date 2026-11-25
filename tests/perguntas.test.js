@@ -74,3 +74,17 @@ test('número, correspondência e encontrar na imagem', () => {
   assert.ok(Q.grade(sp, ['x', 1]).error);
   assert.equal(make({ type: 'spot', text: 'a', image: 'https://fora.com/x.jpg', zone: { x: 0, y: 0, w: .5, h: .5 } }), null, 'imagem de fora é recusada');
 });
+
+test('votação, explicação e vários sítios na imagem', () => {
+  const p = make({ type: 'mc', poll: true, text: 'Como faz os títulos?', options: ['a', 'b'] });
+  assert.equal(Q.isGraded(p), false);
+  assert.equal(Q.grade(p, 1).entry.correct, null, 'votação não tem certo nem errado');
+  const m = make({ type: 'mc', text: 'x', options: ['Mito', 'Facto'], correct: [0], explain: 'porque sim' });
+  assert.equal(Q.solutionOf(m).explain, 'porque sim');
+  assert.ok(!JSON.stringify(Q.publicQuestion(m, false)).includes('porque sim'), 'a explicação só vai com a solução');
+  const s = make({ type: 'spot', text: 'x', image: '/uploads/a.png', zones: [{ x: .1, y: .1, w: .1, h: .1, g: 1 }, { x: .1, y: .5, w: .1, h: .1, g: 1 }, { x: .6, y: .6, w: .1, h: .1 }] });
+  assert.equal(Q.spotCount(s), 2, 'duas zonas do mesmo problema contam como um');
+  assert.equal(Q.grade(s, [.15, .15, .15, .55]).entry.right, 1, 'tocar nas duas zonas do mesmo problema vale um');
+  assert.equal(Q.grade(s, [.15, .55, .65, .65]).entry.correct, true);
+  assert.ok(Q.grade(s, [.1, .1, .2, .2, .3, .3]).error, 'não pode tocar mais vezes do que há problemas');
+});

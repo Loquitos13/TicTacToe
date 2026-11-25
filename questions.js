@@ -26,7 +26,12 @@ const BLANK_RE = /\[\[([^\]]+?)\]\]/g;
 function typeOf(q) { return TYPES.includes(q.type) ? q.type : 'mc'; }
 // é uma pergunta com resposta certa? (a escala e a resposta livre sem respostas aceites não são)
 // (a resposta livre só passa a contar depois de o formador a validar)
-function isGraded(q) { const t = typeOf(q); return t === 'rank' ? !!q.ordered : t !== 'scale' && t !== 'open' && t !== 'cloud'; }
+function isGraded(q) { const t = typeOf(q); return t === 'rank' ? !!q.ordered : t === 'mc' && q && q.poll ? false : t !== 'scale' && t !== 'open' && t !== 'cloud'; }
+// encontrar na imagem: uma ou várias zonas certas (as perguntas antigas tinham só "zone")
+const zonesOf = q => Array.isArray(q.zones) && q.zones.length ? q.zones : q.zone ? [q.zone] : [];
+// várias zonas podem valer pelo mesmo problema (mesmo "g"): conta-se o nº de problemas, não de zonas
+const spotGroups = q => { const m = new Map(); zonesOf(q).forEach((z, k) => { const g = z.g != null ? 'g' + z.g : 'z' + k; m.set(g, [...(m.get(g) || []), z]); }); return [...m.values()]; };
+const spotCount = q => spotGroups(q).length;
 // ranking: ordem (baralhada mas sempre igual para a mesma pergunta) em que as opções aparecem,
 // para não denunciar a ordem certa e para o projetor e os telemóveis mostrarem as mesmas letras
 function rankOrder(q) {
@@ -93,8 +98,12 @@ function cleanQuestion(x, uid, savePhoto) {
     options: [], correct: [],
   };
   if (!base.text) return null;
+  // explicação opcional: aparece junto da resposta certa (no projetor e no telemóvel)
+  const ex = String(x.explain || '').trim().slice(0, 400); if (ex) base.explain = ex;
   if (type === 'mc') {
     base.options = (x.options || []).map(o => String(o).trim()).filter(Boolean).slice(0, 6);
+    // votação: sem resposta certa (opinião, diagnóstico); não dá pontos
+    if (x.poll) { base.poll = true; base.correct = []; if (base.options.length < 2) return null; return base; }
     base.correct = (x.correct || []).map(Number).filter(i => i >= 0 && i < base.options.length);
     if (base.options.length < 2 || !base.correct.length) return null;
   } else if (type === 'tf') {
@@ -127,9 +136,10 @@ function cleanQuestion(x, uid, savePhoto) {
     base.pairs = (x.pairs || []).map(p => ({ left: String(p.left || '').trim().slice(0, 150), right: String(p.right || '').trim().slice(0, 150) })).filter(p => p.left && p.right).slice(0, 6);
     if (base.pairs.length < 2) return null;
   } else if (type === 'spot') {
-    const z = x.zone || {}, f = v => Math.max(0, Math.min(1, Number(v) || 0));
-    base.zone = { x: f(z.x), y: f(z.y), w: f(z.w), h: f(z.h) };
-    if (!base.image || base.zone.w < 0.01 || base.zone.h < 0.01) return null;
+    const f = v => Math.max(0, Math.min(1, Number(v) || 0));
+    base.zones = (Array.isArray(x.zones) ? x.zones : x.zone ? [x.zone] : []).map(z => Object.assign({ x: f(z.x), y: f(z.y), w: f(z.w), h: f(z.h) }, Number.isInteger(z.g) && z.g >= 1 && z.g <= 12 ? { g: z.g } : {}))
+      .filter(z => z.w >= 0.01 && z.h >= 0.01).slice(0, 12);
+    if (!base.image || !base.zones.length) return null;
   } else if (type === 'guess') {
     base.answer = String(x.answer || '').trim().slice(0, 20);
     base.maxTries = Math.max(3, Math.min(8, parseInt(x.maxTries, 10) || 6));
@@ -155,6 +165,7 @@ function grade(q, raw) {
   if (t === 'mc' || t === 'tf') {
     const option = parseInt(raw, 10);
     if (!(option >= 0 && option < q.options.length)) return { error: 'Resposta inválida.' };
+    if (q.poll) return { entry: { option, correct: null, frac: 0 } };   // votação: não há certo nem errado
     const ok = q.correct.includes(option);
     return { entry: { option, correct: ok, frac: ok ? 1 : 0 } };
   }
@@ -212,11 +223,15 @@ function grade(q, raw) {
     return { entry: { value, correct: right === n, frac: right / n, right } };
   }
   if (t === 'spot') {
-    if (!Array.isArray(raw) || raw.length !== 2) return { error: 'Toca na imagem.' };
-    const [px, py] = raw.map(Number), z = q.zone, m = 0.01;
-    if (![px, py].every(v => v >= 0 && v <= 1)) return { error: 'Resposta inválida.' };
-    const ok = px >= z.x - m && px <= z.x + z.w + m && py >= z.y - m && py <= z.y + z.h + m;
-    return { entry: { value: [Math.round(px * 1000) / 1000, Math.round(py * 1000) / 1000], correct: ok, frac: ok ? 1 : 0 } };
+    // [x1, y1, x2, y2, …]: no máximo um toque por zona certa (não vale tocar em todo o lado)
+    const groups = spotGroups(q), n = groups.length, m = 0.01;
+    if (!Array.isArray(raw) || raw.length < 2 || raw.length % 2 || raw.length > 2 * n) return { error: 'Toca na imagem.' };
+    const v = raw.map(Number);
+    if (!v.every(c => c >= 0 && c <= 1)) return { error: 'Resposta inválida.' };
+    const inZ = (px, py, z) => px >= z.x - m && px <= z.x + z.w + m && py >= z.y - m && py <= z.y + z.h + m;
+    const pts = []; for (let k = 0; k < v.length; k += 2) pts.push([v[k], v[k + 1]]);
+    const right = groups.filter(zs => zs.some(z => pts.some(([px, py]) => inZ(px, py, z)))).length;
+    return { entry: { value: v.map(c => Math.round(c * 1000) / 1000), correct: right === n, frac: right / n, right } };
   }
   if (t === 'cross') {
     const ws = q.cross.words;
@@ -242,7 +257,7 @@ function answerText(q, a) {
   const t = typeOf(q);
   if (t === 'number') return String(a.value);
   if (t === 'match') return q.pairs.map((p, i) => `${p.left} → ${(q.pairs[(a.value || [])[i]] || {}).right || '—'}`).join(' | ');
-  if (t === 'spot') return a.correct ? 'Na zona certa' : 'Fora da zona';
+  if (t === 'spot') return spotCount(q) > 1 ? `${a.right || 0} de ${spotCount(q)} encontrados` : a.correct ? 'Na zona certa' : 'Fora da zona';
   if (t === 'mc' || t === 'tf') return `${LETTERS[a.option]}) ${q.options[a.option]}`;
   if (t === 'fill') return (a.value || []).join(' | ');
   if (t === 'cloud') return (a.value || []).join(', ');
@@ -255,7 +270,7 @@ function answerShort(q, a) {
   const t = typeOf(q);
   if (t === 'number') return String(a.value);
   if (t === 'match') return `${a.right ?? 0}/${q.pairs.length}`;
-  if (t === 'spot') return a.correct ? 'zona' : 'fora';
+  if (t === 'spot') return spotCount(q) > 1 ? `${a.right || 0}/${spotCount(q)}` : a.correct ? 'zona' : 'fora';
   if (t === 'mc') return LETTERS[a.option];
   if (t === 'tf') return a.option === 0 ? 'V' : 'F';
   if (t === 'fill') return `${a.right ?? 0}/${q.blanks.length}`;
@@ -271,7 +286,8 @@ function correctText(q) {
   const t = typeOf(q);
   if (t === 'number') return String(q.answer);
   if (t === 'match') return q.pairs.map(p => `${p.left} → ${p.right}`).join(' | ');
-  if (t === 'spot') return '(zona marcada na imagem)';
+  if (t === 'spot') return spotCount(q) > 1 ? `(${spotCount(q)} zonas marcadas na imagem)` : '(zona marcada na imagem)';
+  if (t === 'mc' && q.poll) return 'Votação (sem resposta certa)';
   if (t === 'mc' || t === 'tf') return q.correct.map(i => `${LETTERS[i]}) ${q.options[i]}`).join(' | ');
   if (t === 'fill') return q.blanks.join(' | ');
   if (t === 'open') return (q.accepted || []).length ? 'Modelo: ' + q.accepted.join(' | ') + ' (validada pelo formador)' : '(resposta livre — validada pelo formador)';
@@ -285,8 +301,8 @@ function correctShort(q) {
   const t = typeOf(q);
   if (t === 'number') return String(q.answer);
   if (t === 'match') return q.pairs.length + ' pares';
-  if (t === 'spot') return 'zona';
-  if (t === 'mc') return q.correct.map(i => LETTERS[i]).join('/');
+  if (t === 'spot') return spotCount(q) > 1 ? spotCount(q) + ' zonas' : 'zona';
+  if (t === 'mc') return q.poll ? 'votação' : q.correct.map(i => LETTERS[i]).join('/');
   if (t === 'tf') return q.correct[0] === 0 ? 'V' : 'F';
   if (t === 'fill') return q.blanks.join(', ');
   if (t === 'open') return (q.accepted || []).length ? q.accepted[0] + (q.accepted.length > 1 ? '…' : '') : 'livre';
@@ -303,6 +319,8 @@ function publicQuestion(q, hide) {
   // na imagem do "encontrar na imagem" é a própria pergunta: vai sempre (a zona certa nunca vai)
   const p = { type: t, time: q.time, text: hide ? '' : displayText(q), image: hide && t !== 'spot' ? null : (q.image || null), hidden: !!hide };
   if (t === 'number') Object.assign(p, { min: q.min, max: q.max, step: q.step });
+  if (t === 'spot') p.spots = spotCount(q);      // quantos sítios há para encontrar (não onde)
+  if (t === 'mc' && q.poll) p.poll = true;
   if (t === 'match') { p.lefts = q.pairs.map((x, i) => hide ? '' : x.left); p.rights = matchOrder(q).map((i, k) => ({ k, text: hide ? '' : q.pairs[i].right, letter: LETTERS[k] })); }
   if (t === 'mc' || t === 'tf') p.options = hide ? q.options.map(() => '') : q.options;
   if (t === 'fill') { p.blanks = q.blanks.length; p.bank = wordBank(q); if (!hide) p.parts = String(q.text).split(BLANK_RE).filter((_, i) => i % 2 === 0); }
@@ -320,10 +338,14 @@ function publicQuestion(q, hide) {
 }
 // a resposta certa, para mostrar ao formando quando chega a altura
 function solutionOf(q) {
+  const s = solutionBase(q);
+  return q.explain && s ? { ...s, explain: q.explain } : q.explain ? { explain: q.explain } : s;
+}
+function solutionBase(q) {
   const t = typeOf(q);
   if (t === 'number') return { answer: q.answer };
   if (t === 'match') return { pairs: q.pairs };
-  if (t === 'spot') return { zone: q.zone };
+  if (t === 'spot') return { zones: zonesOf(q) };
   if (t === 'mc' || t === 'tf') return { correct: q.correct };
   if (t === 'fill') return { blanks: q.blanks };
   if (t === 'open') return { accepted: q.accepted || [] };
@@ -339,7 +361,8 @@ function plainCorrect(q) {
   const t = typeOf(q);
   if (t === 'number') return String(q.answer);
   if (t === 'match') return q.pairs.map(p => `${p.left} → ${p.right}`).join('; ');
-  if (t === 'spot') return 'A zona marcada na imagem';
+  if (t === 'spot') return spotCount(q) > 1 ? `As ${spotCount(q)} zonas marcadas na imagem` : 'A zona marcada na imagem';
+  if (t === 'mc' && q.poll) return 'Votação (sem resposta certa)';
   if (t === 'mc' || t === 'tf') return q.correct.map(i => q.options[i]).join(' / ');
   if (t === 'fill') return fillSentence(q, q.blanks);
   if (t === 'open') return (q.accepted || []).length ? q.accepted.join(' / ') : 'Sem resposta modelo (validada pelo formador)';
@@ -353,7 +376,7 @@ function plainAnswer(q, a) {
   const t = typeOf(q);
   if (t === 'number') return String(a.value) + (a.correct ? '' : ` (a resposta era ${q.answer})`);
   if (t === 'match') return q.pairs.map((p, i) => `${p.left} → ${(q.pairs[(a.value || [])[i]] || {}).right || '—'}${(a.value || [])[i] === i ? ' ✓' : ' ✗'}`).join('; ');
-  if (t === 'spot') return a.correct ? 'Tocou na zona certa' : 'Tocou fora da zona certa';
+  if (t === 'spot') return spotCount(q) > 1 ? `Encontrou ${a.right || 0} de ${spotCount(q)}` : a.correct ? 'Tocou na zona certa' : 'Tocou fora da zona certa';
   if (t === 'mc' || t === 'tf') return q.options[a.option];
   if (t === 'fill') return fillSentence(q, a.value || []);
   if (t === 'scale') { const lab = a.value === 1 ? q.scaleMin : a.value === 5 ? q.scaleMax : ''; return `${a.value} de 5${lab ? ' (' + lab + ')' : ''}`; }
@@ -374,4 +397,4 @@ function forPhone(q, v) {
 // correspondência: ordem (sempre igual) em que as opções da direita aparecem no telemóvel e no projetor
 const matchOrder = q => rankOrder({ id: q.id + ':m', options: q.pairs });
 
-module.exports = { matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
+module.exports = { zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };

@@ -218,7 +218,11 @@ function hostView() {
   if (qt === 'match') extra.matchOrder = Q.matchOrder(q);
   if (qt === 'match') extra.matchStats = q.pairs.map((_, i) => Object.values(ans).filter(a => (a.value || [])[i] === i).length);
   // encontrar na imagem: onde tocou cada um (sem nomes)
-  if (qt === 'spot') extra.spotHits = Object.values(ans).slice(0, 300).map(a => [a.value[0], a.value[1], a.correct]);
+  if (qt === 'spot') {
+    // cada toque, com a indicação de ter caído numa zona certa (sem nomes)
+    const zs = Q.zonesOf(q), m = 0.01, inAny = (x, y) => zs.some(z => x >= z.x - m && x <= z.x + z.w + m && y >= z.y - m && y <= z.y + z.h + m);
+    extra.spotHits = Object.values(ans).slice(0, 300).flatMap(a => { const v = a.value || [], o = []; for (let k = 0; k + 1 < v.length; k += 2) o.push([v[k], v[k + 1], inAny(v[k], v[k + 1])]); return o; });
+  }
   // palavras cruzadas: quantos acertaram em cada palavra
   if (qt === 'cross') extra.crossStats = q.cross.words.map((w, k) => Object.values(ans).filter(a => (a.value || [])[k] === w.word).length);
   // ranking: posição média de cada opção (1 = primeiro lugar) e quantos a puseram em 1º

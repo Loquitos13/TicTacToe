@@ -31,7 +31,7 @@ function studentBlock(r, p, ctx) {
     else if (t === 'scale' || t === 'cloud' || (t === 'rank' && !q.ordered)) { res = 'Opinião'; color = '555555'; }
     else if (a.correct === true) { res = '✓ Certa'; color = '166534'; }
     else if (a.correct === false && t === 'number' && a.frac > 0) { res = 'Perto'; color = '92400E'; }
-    else if (a.correct === false) { if ((t === 'fill' || t === 'rank' || t === 'cross' || t === 'match') && a.right) { res = `${a.right}/${t === 'fill' ? q.blanks.length : t === 'cross' ? q.cross.words.length : t === 'match' ? q.pairs.length : q.options.length} certas`; color = '92400E'; } else { res = '✗ Errada'; color = '991B1B'; } }
+    else if (a.correct === false) { if ((t === 'fill' || t === 'rank' || t === 'cross' || t === 'match' || t === 'spot') && a.right) { res = `${a.right}/${t === 'fill' ? q.blanks.length : t === 'cross' ? q.cross.words.length : t === 'match' ? q.pairs.length : t === 'spot' ? Q.spotCount(q) : q.options.length} certas`; color = '92400E'; } else { res = '✗ Errada'; color = '991B1B'; } }
     else { res = 'Por validar'; color = '854D0E'; }
     const qsub = t === 'mc' || t === 'tf' ? 'Opções: ' + q.options.join(' · ') : { fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala 1–5', cloud: 'Nuvem de palavras', rank: 'Ranking de opções' + (q.ordered ? ' (ordem certa)' : ' (opinião)'), scramble: 'Letras baralhadas', cross: 'Palavras cruzadas', guess: 'Adivinha a palavra', number: 'Adivinhar um número', match: 'Correspondência', spot: 'Encontrar na imagem' }[t];
     return new TableRow({ cantSplit: true, children: [
@@ -116,8 +116,9 @@ function keyBlock(q, i) {
     q.pairs.forEach(p => out.push(para([run(p.left + '  →  ', { bold: true }), run(p.right, { bold: true, color: GREEN, bg: GREEN_BG })], { indent: 540, after: 20 })));
     out.push(para([run('Os formandos veem as opções da direita baralhadas.', { size: 17, color: '777777', italics: true })], { indent: 360 }));
   } else if (t === 'spot') {
-    const z = q.zone;
-    out.push(para([run('Zona certa na imagem: ', { bold: true, color: GREEN }), run(`de ${Math.round(z.x * 100)}% a ${Math.round((z.x + z.w) * 100)}% na largura e de ${Math.round(z.y * 100)}% a ${Math.round((z.y + z.h) * 100)}% na altura`, { color: GREEN })], { indent: 360 }));
+    const zs = Q.zonesOf(q);
+    zs.forEach((z, k) => out.push(para([run(zs.length > 1 ? `Zona ${k + 1}: ` : 'Zona certa na imagem: ', { bold: true, color: GREEN }), run(`de ${Math.round(z.x * 100)}% a ${Math.round((z.x + z.w) * 100)}% na largura e de ${Math.round(z.y * 100)}% a ${Math.round((z.y + z.h) * 100)}% na altura`, { color: GREEN })], { indent: 360, after: 20 })));
+    if (zs.length > 1) out.push(para([run('Pontos por cada sítio encontrado.', { size: 17, color: '777777', italics: true })], { indent: 360 }));
   } else if (t === 'guess') {
     out.push(para([run('Palavra secreta: ', { bold: true, color: GREEN }), run(String(q.answer).toUpperCase(), { bold: true, color: GREEN, bg: GREEN_BG }), run(`   (${q.maxTries || 6} tentativas)`, { size: 17, color: '777777' })], { indent: 360 }));
     out.push(para([run('Cada letra fica verde (sítio certo), laranja (existe noutro sítio) ou vermelha (não existe). Mais pontos com menos tentativas.', { size: 17, color: '777777', italics: true })], { indent: 360 }));

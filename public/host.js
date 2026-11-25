@@ -314,7 +314,7 @@ function questionBodyHtml(q) {
       <div class="num-ticks">${ticks.map((v, k) => `<span style="left:${ticks.length > 1 ? k / (ticks.length - 1) * 100 : 50}%">${esc(fmtN(v))}</span>`).join('')}</div></div>
     <p class="cloud-hint" style="margin-top:34px">🔢 Escolhe um número de ${esc(fmtN(q.min))} a ${esc(fmtN(q.max))} no telemóvel — em cheio ganha tudo, perto ainda ganha alguns pontos</p>`; }
   if (t === 'match') return matchStageHtml(q, false);
-  if (t === 'spot') return `${spotStageHtml(q, false)}<p class="cloud-hint">🎯 Toca no sítio certo da imagem, no telemóvel</p>`;
+  if (t === 'spot') return `${spotStageHtml(q, false)}<p class="cloud-hint">🎯 ${spotCountQ(q) > 1 ? `Encontra os <b>${spotCountQ(q)}</b> sítios na imagem, no telemóvel` : 'Toca no sítio certo da imagem, no telemóvel'}</p>`;
   if (t === 'guess') return `<div class="scr-board">${Array.from({ length: cwNorm(q.answer).length }, (_, i) => `<span class="scr-tile gq pop-in" style="animation-delay:${i * 60}ms">?</span>`).join('')}</div>
     <p class="cloud-hint">🟩 letra no sítio certo · 🟧 existe noutro sítio · 🟥 não existe — ${q.maxTries || 6} tentativas</p>
     <div class="gb-wrap" id="guessBoards">${guessBoardsHtml()}</div>`;
@@ -338,9 +338,9 @@ function matchStageHtml(q, showSol) {
 }
 // encontrar na imagem no projetor: a imagem; nos resultados, os toques da turma e (com solução) a zona certa
 function spotStageHtml(q, showSol, hits) {
-  const pc = x => (x * 100).toFixed(1) + '%', z = q.zone;
+  const pc = x => (x * 100).toFixed(1) + '%';
   return `<div class="spot-stage"><img src="${esc(q.image || '')}" alt="">
-    ${showSol && z ? `<div class="spot-zone" style="left:${pc(z.x)};top:${pc(z.y)};width:${pc(z.w)};height:${pc(z.h)}"></div>` : ''}
+    ${showSol ? zonesOfQ(q).map((z, k) => `<div class="spot-zone" style="left:${pc(z.x)};top:${pc(z.y)};width:${pc(z.w)};height:${pc(z.h)}">${spotCountQ(q) > 1 ? `<b>${spotNumOf(q)[k]}</b>` : ''}</div>`).join('') : ''}
     ${(hits || []).map(([x, y, ok], k) => `<i class="spot-dot pop-in ${showSol ? (ok ? 'ok' : 'bad') : ''}" style="left:${pc(x)};top:${pc(y)};animation-delay:${Math.min(k, 40) * 30}ms"></i>`).join('')}</div>`;
 }
 // nuvem de palavras espalhada: a palavra mais escrita fica ao centro e maior; as outras procuram lugar
@@ -472,13 +472,14 @@ function resultsHtml(withAnswer, animate = false) {
   const pct = c => total ? Math.round(c / total * 100) : 0;
   const privateMark = !withAnswer && hiddenReveal() && seeAnswers;
   const poll = pollOn(), who = poll && S.settings.showWho;
+  const noC = t === 'scale' || !!q.poll;   // escala e votação: não há resposta certa
   return `${withAnswer ? '' : poll ? `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">📊 Sondagem <small style="font-size:.5em;opacity:.8">· respostas fechadas</small></div>` : `<div class="big-msg slide-up" style="font-size:2em;margin:0 0 4px">🔒 Respostas fechadas</div>`}
     ${!withAnswer && timed() && !closedShown.has(S.id + ':' + S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
     <div class="question-title" style="font-size:clamp(1.3em,2.6vw,2.2em);margin-top:6px">${esc(q.text)}</div>
     ${t === 'scale' && (q.scaleMin || q.scaleMax) ? `<div class="scale-labels" style="margin-top:0">${'<span>1 = ' + esc(q.scaleMin || '') + '</span><span>5 = ' + esc(q.scaleMax || '') + '</span>'}</div>` : ''}
     <div class="opts ${q.options.some(o => String(o).length > 60) ? 'long' : ''}" style="margin-top:10px">${q.options.map((o, i) => {
       const right = q.correct.includes(i);
-      return `<div class="opt opt-${i} ${withAnswer && t !== 'scale' ? (right ? 'right' : 'dim') : 'slide-up'} ${privateMark && right ? 'right-private' : ''} ${who ? 'has-who' : ''}" style="animation-delay:${withAnswer ? 0 : i * 100}ms">
+      return `<div class="opt opt-${i} ${withAnswer && !noC ? (right ? 'right' : 'dim') : 'slide-up'} ${privateMark && right ? 'right-private' : ''} ${who ? 'has-who' : ''}" style="animation-delay:${withAnswer ? 0 : i * 100}ms">
         ${poll ? `<div class="fill" data-w="${pct(S.counts[i])}%"></div>` : ''}
         <span class="letter">${t === 'scale' ? '★' : LETTERS[i]}</span><span class="txt">${esc(o)}</span>
         ${(withAnswer || privateMark) && right ? '<span class="tick">✔</span>' : ''}${poll ? `<span class="cnt"><span class="num" data-n="${S.counts[i]}">${animate ? 0 : S.counts[i]}</span> <small class="pc" data-p="${pct(S.counts[i])}" style="font-size:.55em;opacity:.85">${animate ? 0 : pct(S.counts[i])}%</small></span>` : ''}
@@ -486,8 +487,11 @@ function resultsHtml(withAnswer, animate = false) {
       </div>`;
     }).join('')}</div>
     ${privateMark ? `<p class="center private-note">👁 Só neste ecrã: ✔ marca a resposta correta. Os formandos não a veem.</p>` : ''}
-    <p class="center" style="font-size:1.3em;margin-top:22px">${t === 'scale' && poll && S.scaleAvg != null ? `⭐ Média ${S.scaleAvg.toFixed(1).replace('.', ',')} · ` : ''}${withAnswer && poll && t !== 'scale' ? `✅ ${q.correct.reduce((a, i) => a + S.counts[i], 0)} acertaram · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
+    <p class="center" style="font-size:1.3em;margin-top:22px">${t === 'scale' && poll && S.scaleAvg != null ? `⭐ Média ${S.scaleAvg.toFixed(1).replace('.', ',')} · ` : ''}${withAnswer && poll && !noC ? `✅ ${q.correct.reduce((a, i) => a + S.counts[i], 0)} acertaram · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>
+    ${withAnswer ? explainHtml(q) : ''}`;
 }
+// explicação escrita pelo formador: aparece com a resposta certa
+const explainHtml = q => q.explain ? `<div class="explain-box slide-up">💡 ${esc(q.explain)}</div>` : '';
 // completar espaços e resposta livre
 function resultsOtherHtml(withAnswer, animate) {
   const q = S.question, t = qType(q), total = S.answeredIds.length, poll = pollOn();
@@ -529,6 +533,7 @@ function resultsOtherHtml(withAnswer, animate) {
     if (showSol) { const order = S.matchOrder || q.pairs.map((_, i) => i); body += `<div class="accepted">✅ Resposta: <b style="font-size:1.3em;letter-spacing:.04em">${q.pairs.map((_, i) => `${i}-${LETTERS[order.indexOf(i)]}`.replace(/^\d+/, n => +n + 1)).join(' · ')}</b></div>`; }
   } else if (t === 'spot') {
     body = spotStageHtml(q, showSol, poll || showSol ? S.spotHits : []);
+    if (showSol && q.explain) body = body.replace('class="spot-stage"', 'class="spot-stage compact"');   // cabe também a explicação
   } else if (t === 'rank') {
     // posição média: quanto mais perto de 1, mais vezes ficou nos primeiros lugares
     const n = q.options.length, st = (S.rankStats || []).filter(x => x.avg != null).sort((a, b) => a.avg - b.avg);
@@ -550,8 +555,9 @@ function resultsOtherHtml(withAnswer, animate) {
     ${!withAnswer && timed() && !closedShown.has(S.id + ':' + S.qIndex) ? `<div class="timeup">⏰ Tempo esgotado!</div>` : ''}
     <div class="question-title" style="font-size:clamp(1.3em,2.6vw,2.2em);margin-top:6px">${t === 'fill' ? '✏️ Completa os espaços' : esc(q.text)}</div>
     ${body}
+    ${showSol ? explainHtml(q) : ''}
     ${!withAnswer && hiddenReveal() && seeAnswers ? `<p class="center private-note">👁 Só neste ecrã: a solução está visível. Os formandos não a veem.</p>` : ''}
-    <p class="center" style="font-size:1.3em;margin-top:16px">${withAnswer && t === 'fill' ? `✅ ${Object.keys(S.lastPoints || {}).filter(id => (S.lastPoints[id] || 0) > 0).length} com pelo menos uma certa · ` : ''}${showSol && t === 'rank' && q.ordered ? `✅ ${S.rankPerfect || 0} acertaram a ordem toda · ` : ''}${t === 'guess' ? `🟩 ${S.guessSolved || 0} adivinharam · ` : ''}${showSol && t === 'scramble' ? `✅ ${(S.attempts || []).filter(a => a.correct).reduce((n, a) => n + a.count, 0)} acertaram · ` : ''}${showSol && t === 'cross' ? `✅ ${Object.values(S.lastPoints || {}).filter(v => v > 0).length} com pelo menos uma palavra certa · ` : ''}${showSol && t === 'number' ? `🎯 ${(S.numberStats || {}).exact || 0} em cheio · ` : ''}${showSol && t === 'spot' ? `🎯 ${(S.spotHits || []).filter(h => h[2]).length} acertaram · ` : ''}${showSol && t === 'match' ? `✅ ${Object.values(S.lastPoints || {}).filter(v => v > 0).length} com pelo menos uma ligação certa · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
+    <p class="center" style="font-size:1.3em;margin-top:16px">${withAnswer && t === 'fill' ? `✅ ${Object.keys(S.lastPoints || {}).filter(id => (S.lastPoints[id] || 0) > 0).length} com pelo menos uma certa · ` : ''}${showSol && t === 'rank' && q.ordered ? `✅ ${S.rankPerfect || 0} acertaram a ordem toda · ` : ''}${t === 'guess' ? `🟩 ${S.guessSolved || 0} adivinharam · ` : ''}${showSol && t === 'scramble' ? `✅ ${(S.attempts || []).filter(a => a.correct).reduce((n, a) => n + a.count, 0)} acertaram · ` : ''}${showSol && t === 'cross' ? `✅ ${Object.values(S.lastPoints || {}).filter(v => v > 0).length} com pelo menos uma palavra certa · ` : ''}${showSol && t === 'number' ? `🎯 ${(S.numberStats || {}).exact || 0} em cheio · ` : ''}${showSol && t === 'spot' ? (spotCountQ(q) > 1 ? `🎯 ${Object.values(S.lastPoints || {}).filter(v => v > 0).length} encontraram pelo menos um · ` : `🎯 ${(S.spotHits || []).filter(h => h[2]).length} acertaram · `) : ''}${showSol && t === 'match' ? `✅ ${Object.values(S.lastPoints || {}).filter(v => v > 0).length} com pelo menos uma ligação certa · ` : ''}${total} responderam · ${S.players.length - total} sem resposta</p>`;
 }
 
 // ----- Pódio com bonecos a dançar -----
@@ -620,8 +626,8 @@ function controlsHtml() {
     ${isExamMode() ? '' : `<label class="switch" title="Mostrar quantos escolheram cada opção"><input type="checkbox" id="setPoll" ${pollOn() ? 'checked' : ''}> Sondagem</label>`}
     ${pollOn() && !S.settings.anonymous ? `<label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>` : ''}
     ${S.settings.noRanking || hiddenReveal() ? '' : `<label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>`}
-    <label class="switch" id="sndMe" title="Música e efeitos neste computador / projetor"><input type="checkbox" id="setMySnd" ${Sound.isMuted() ? '' : 'checked'}> 🔊 Som aqui</label>
-    <label class="switch" id="sndAll" title="Sons nos telemóveis de todos os formandos"><input type="checkbox" id="setPhSnd" ${S.settings.phoneSound !== false ? 'checked' : ''}> 📱 Som nos telemóveis</label>
+    <label class="switch" id="sndMe" title="Música e efeitos neste computador / projetor"><input type="checkbox" id="setMySnd" ${Sound.isMuted() ? '' : 'checked'}> 🔊 Aqui</label>
+    <label class="switch" id="sndAll" title="Sons nos telemóveis de todos os formandos"><input type="checkbox" id="setPhSnd" ${S.settings.phoneSound !== false ? 'checked' : ''}> 📱 Som</label>
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
     ${ph !== 'end' && ph !== 'exam' ? `<button class="btn small danger" id="btnEnd">Terminar</button>` : ''}
@@ -1001,7 +1007,8 @@ function renderQuizzes() {
 function answerKeyItemHtml(q, i) {
   const t = qType(q);
   let body = '';
-  if (t === 'mc' || t === 'tf') body = `<ol class="key-opts" type="A">${q.options.map((o, k) => `<li class="${q.correct.includes(k) ? 'key-ok' : ''}">${esc(o)}${q.correct.includes(k) ? ' <b>✓ correta</b>' : ''}</li>`).join('')}</ol>`;
+  if (t === 'mc' && q.poll) body = `<ol class="key-opts" type="A">${q.options.map(o => `<li>${esc(o)}</li>`).join('')}</ol><p class="muted">📊 Votação: não tem resposta certa nem dá pontos.</p>`;
+  else if (t === 'mc' || t === 'tf') body = `<ol class="key-opts" type="A">${q.options.map((o, k) => `<li class="${q.correct.includes(k) ? 'key-ok' : ''}">${esc(o)}${q.correct.includes(k) ? ' <b>✓ correta</b>' : ''}</li>`).join('')}</ol>`;
   if (t === 'fill') body = `<p class="key-fill">${String(q.text).split(BLANK_RX).map((p, k) => k % 2 ? `<span class="key-ok">${esc(p.trim())}</span>` : esc(p)).join('')}</p>
     <p class="muted">Palavras disponíveis: ${bankOf(q).map(esc).join(' · ')}</p>`;
   if (t === 'open') body = (q.accepted || []).length ? `<p>Resposta de referência: <span class="key-ok">${q.accepted.map(esc).join(' / ')}</span></p><p class="muted">Validada pelo formador, resposta a resposta.</p>`
@@ -1014,11 +1021,12 @@ function answerKeyItemHtml(q, i) {
     <ol class="key-opts" style="list-style:none;padding-left:0">${q.cross.words.map(w => `<li>${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.clue)} — <span class="key-ok">${esc(w.display.toUpperCase())}</span></li>`).join('')}</ol></div>`;
   if (t === 'number') body = `<p>Resposta: <span class="key-ok">${esc(fmtN(q.answer))}</span> · intervalo de ${esc(fmtN(q.min))} a ${esc(fmtN(q.max))}</p><p class="muted">Em cheio dá todos os pontos; perto dá parte dos pontos.</p>`;
   if (t === 'match') body = `<ol class="key-opts">${q.pairs.map(p => `<li>${esc(p.left)} → <span class="key-ok">${esc(p.right)}</span></li>`).join('')}</ol><p class="muted">Os formandos veem as opções da direita baralhadas.</p>`;
-  if (t === 'spot') body = `<div class="key-spot">${spotStageHtml(q, true)}</div><p class="muted">A zona certa está a verde.</p>`;
+  if (t === 'spot') body = `<div class="key-spot">${spotStageHtml(q, true)}</div><p class="muted">${spotCountQ(q) > 1 ? `As ${spotCountQ(q)} zonas certas estão a verde (pontos por cada uma encontrada).` : 'A zona certa está a verde.'}</p>`;
   if (t === 'cloud') body = `<p class="muted">Cada formando escreve até ${q.words || 3} palavra(s). Nuvem de palavras: não tem resposta certa.</p>`;
   if (t === 'rank') body = q.ordered ? `<ol class="key-opts">${q.options.map(o => `<li class="key-ok">${esc(o)}</li>`).join('')}</ol><p class="muted">Ordem certa (os formandos veem as opções baralhadas).</p>`
     : `<ul class="key-opts">${q.options.map(o => `<li>${esc(o)}</li>`).join('')}</ul><p class="muted">Ranking de opinião: não tem ordem certa.</p>`;
-  return `<div class="key-item"><div class="key-q"><b>${i + 1}.</b> ${esc(qTitle(q))} <span class="tag none">${QTYPE_LABEL[t]} · ${q.time} s</span></div>${body}</div>`;
+  if (q.explain) body += `<p>💡 <i>${esc(q.explain)}</i></p>`;
+  return `<div class="key-item"><div class="key-q"><b>${i + 1}.</b> ${esc(qTitle(q))} <span class="tag none">${q.poll ? '📊 Votação' : QTYPE_LABEL[t]} · ${q.time} s</span></div>${body}</div>`;
 }
 function showAnswerKey(quiz) {
   const el = $('#tab-quizzes');
@@ -1065,7 +1073,8 @@ function renderEditor(el) {
     $$('.qedit').forEach((box, i) => {
       const x = q.questions[i], t = qType(x);
       x.type = t; x.text = $('.qText', box).value; x.time = +$('.qTime', box).value || 20;
-      if (t === 'mc') { x.options = $$('.qOpt', box).map(o => o.value); x.correct = $$('.qCor', box).map((c, k) => c.checked ? k : -1).filter(k => k >= 0); }
+      if (t === 'mc') { x.options = $$('.qOpt', box).map(o => o.value); x.poll = $('.qPoll', box).checked; x.correct = x.poll ? [] : $$('.qCor', box).map((c, k) => c.checked ? k : -1).filter(k => k >= 0); }
+      const ex = $('.qExplain', box); if (ex) x.explain = ex.value;
       if (t === 'tf') { x.options = ['Verdadeiro', 'Falso']; x.correct = [$('.qTFc:checked', box) ? +$('.qTFc:checked', box).value : 0]; }
       if (t === 'fill') { x.options = $('.qExtra', box).value.split(',').map(w => w.trim()).filter(Boolean); x.correct = []; }
       if (t === 'open') { x.accepted = $('.qAcc', box).value.split(';').map(w => w.trim()).filter(Boolean); x.options = []; x.correct = []; }
@@ -1077,7 +1086,7 @@ function renderEditor(el) {
       if (t === 'rank') { x.options = $$('.qOpt', box).map(o => o.value); x.ordered = $('.qOrdered', box).checked; x.correct = []; }
       if (t === 'number') { ['min', 'max', 'answer', 'step'].forEach(k => { const v = $('.qN-' + k, box).value; x[k] = v === '' ? null : Number(v.replace(',', '.')); }); x.options = []; x.correct = []; }
       if (t === 'match') { x.pairs = $$('.m-row', box).map(r => ({ left: $('.mL', r).value, right: $('.mR', r).value })); x.options = []; x.correct = []; }
-      if (t === 'spot') { x.options = []; x.correct = []; }
+      if (t === 'spot') { x.options = []; x.correct = []; x.zones = zonesOfQ(x); delete x.zone; }
     });
   };
   $('#cancelEd').onclick = () => { editing = null; renderQuizzes(); };
@@ -1119,7 +1128,7 @@ function renderEditor(el) {
       if (!x.text.trim()) return toast(`Pergunta ${i + 1}: falta o texto`);
       if (t === 'mc') {
         if (x.options.filter(o => o.trim()).length < 2) return toast(`Pergunta ${i + 1}: precisa de pelo menos 2 opções`);
-        if (!x.correct.length || x.correct.some(k => !x.options[k] || !x.options[k].trim())) return toast(`Pergunta ${i + 1}: marca a resposta correta`);
+        if (!x.poll && (!x.correct.length || x.correct.some(k => !x.options[k] || !x.options[k].trim()))) return toast(`Pergunta ${i + 1}: marca a resposta correta (ou liga "Votação" se não houver resposta certa)`, 6000);
       }
       if (t === 'guess' && (cwNorm(x.answer || '').length < 3 || cwNorm(x.answer || '').length > 12)) return toast(`Pergunta ${i + 1}: a palavra secreta tem de ter entre 3 e 12 letras`);
       if (t === 'scramble' && cwNorm(x.answer || '').length < 2) return toast(`Pergunta ${i + 1}: escreve a palavra a adivinhar (pelo menos 2 letras)`);
@@ -1140,7 +1149,7 @@ function renderEditor(el) {
         if (x.pairs.length < 2) return toast(`Pergunta ${i + 1}: a correspondência precisa de pelo menos 2 pares`);
       }
       if (t === 'spot' && !x.image) return toast(`Pergunta ${i + 1}: carrega a imagem (botão 🖼 Imagem)`);
-      if (t === 'spot' && !(x.zone && x.zone.w >= 0.01 && x.zone.h >= 0.01)) return toast(`Pergunta ${i + 1}: marca a zona certa na imagem (arrasta por cima dela)`, 6000);
+      if (t === 'spot' && !zonesOfQ(x).length) return toast(`Pergunta ${i + 1}: marca a zona certa na imagem (arrasta por cima dela)`, 6000);
       if (t === 'rank' && x.options.filter(o => o.trim()).length < 2) return toast(`Pergunta ${i + 1}: o ranking precisa de pelo menos 2 opções`);
       if (t === 'open' && !(x.accepted || []).length) return toast(`Pergunta ${i + 1}: escreve a resposta de referência (é obrigatória nas respostas livres).`, 6000);
       if (t === 'fill' && !fillBlanksOf(x.text).length) return toast(`Pergunta ${i + 1}: põe as palavras certas entre [[ ]] na frase, ex.: A capital é [[Lisboa]].`, 6000);
@@ -1165,16 +1174,24 @@ function renderEditor(el) {
     $$('.mDel', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; if (x.pairs.length <= 2) return; x.pairs.splice(+b.dataset.k, 1); renderQuizzes(); });
     const sp = $('.spotEd', box);
     if (sp) {
-      // arrastar por cima da imagem desenha a zona certa
-      const img = $('img', sp), zEl = $('.spot-zone', sp);
+      // cada arrasto por cima da imagem acrescenta uma zona certa (até 8); os botões apagam a última ou todas
+      const x = q.questions[i]; x.zones = zonesOfQ(x).slice(); delete x.zone;
+      const img = $('img', sp), pc = v => (v * 100).toFixed(1) + '%', r3 = v => Math.round(v * 1000) / 1000;
       const fr = e => { const r = img.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; };
-      const draw = z => { const pc = v => (v * 100).toFixed(1) + '%'; Object.assign(zEl.style, { display: z ? 'block' : 'none', left: pc(z ? z.x : 0), top: pc(z ? z.y : 0), width: pc(z ? z.w : 0), height: pc(z ? z.h : 0) }); };
-      let a0 = null;
+      const box1 = z => `left:${pc(z.x)};top:${pc(z.y)};width:${pc(z.w)};height:${pc(z.h)}`;
+      const msg = () => { const n = spotCountQ(x); $('.spotMsg', box).innerHTML = n ? `✅ ${n} zona${n > 1 ? 's' : ''} marcada${n > 1 ? 's' : ''}${n > 1 ? ' (pontos por cada uma encontrada)' : ''}. Arrasta outra vez para acrescentar.` : '⚠ Ainda falta marcar a zona: arrasta um retângulo por cima do sítio certo.'; };
+      const draw = tmp => { $$('.spot-zone', sp).forEach(e => e.remove()); const all = [...x.zones, ...(tmp ? [tmp] : [])], nums = spotNumOf({ zones: all }); all.forEach((z, k) => sp.insertAdjacentHTML('beforeend', `<div class="spot-zone" style="${box1(z)}"><b>${nums[k]}</b></div>`)); };
+      let a0 = null, cur = null;
       sp.onpointerdown = e => { e.preventDefault(); a0 = fr(e); sp.setPointerCapture(e.pointerId); };
-      sp.onpointermove = e => { if (!a0) return; const b = fr(e), r3 = v => Math.round(v * 1000) / 1000;
-        q.questions[i].zone = { x: r3(Math.min(a0[0], b[0])), y: r3(Math.min(a0[1], b[1])), w: r3(Math.abs(a0[0] - b[0])), h: r3(Math.abs(a0[1] - b[1])) }; draw(q.questions[i].zone); };
-      sp.onpointerup = () => { a0 = null; const z = q.questions[i].zone; $('.spotMsg', box).innerHTML = z && z.w >= 0.01 && z.h >= 0.01 ? '✅ Zona marcada. Arrasta outra vez para a mudar.' : '⚠ Zona muito pequena: arrasta um retângulo por cima do sítio certo.'; };
-      draw(q.questions[i].zone);
+      sp.onpointermove = e => { if (!a0) return; const b = fr(e); cur = { x: r3(Math.min(a0[0], b[0])), y: r3(Math.min(a0[1], b[1])), w: r3(Math.abs(a0[0] - b[0])), h: r3(Math.abs(a0[1] - b[1])) }; draw(cur); };
+      sp.onpointerup = () => {
+        a0 = null;
+        if (cur && cur.w >= 0.01 && cur.h >= 0.01) { if (x.zones.length >= 8) toast('No máximo 8 zonas'); else x.zones.push(cur); }
+        cur = null; draw(); msg();
+      };
+      $('.spotUndo', box).onclick = () => { x.zones.pop(); draw(); msg(); };
+      $('.spotClear', box).onclick = () => { x.zones = []; draw(); msg(); };
+      draw(); msg();
     }
     $$('.qRankUp', box).forEach(b => b.onclick = () => { sync(); const o = q.questions[i].options, k = +b.dataset.k; if (k > 0) { [o[k - 1], o[k]] = [o[k], o[k - 1]]; renderQuizzes(); } });
     $('.qType', box).onchange = e => {
@@ -1188,7 +1205,7 @@ function renderEditor(el) {
       if (t === 'cross') Object.assign(x, { options: [], correct: [], entries: (x.entries || []).length ? x.entries : [{ word: '', clue: '' }, { word: '', clue: '' }, { word: '', clue: '' }], time: Math.max(x.time || 0, 120) });
       if (t === 'number') Object.assign(x, { options: [], correct: [], min: x.min ?? 0, max: x.max ?? 10, answer: x.answer != null && !isNaN(x.answer) ? x.answer : 5, step: x.step || 1 });
       if (t === 'match') Object.assign(x, { options: [], correct: [], pairs: (x.pairs || []).length ? x.pairs : [{ left: '', right: '' }, { left: '', right: '' }, { left: '', right: '' }] });
-      if (t === 'spot') Object.assign(x, { options: [], correct: [], zone: x.zone || null });
+      if (t === 'spot') Object.assign(x, { options: [], correct: [], zones: zonesOfQ(x) });
       if (t === 'rank') Object.assign(x, { options: (x.options || []).filter(o => o && o !== 'Verdadeiro' && o !== 'Falso').length >= 2 ? x.options.filter(o => o && o !== 'Verdadeiro' && o !== 'Falso') : ['', '', '', ''], correct: [], ordered: !!x.ordered });
       renderQuizzes();
     };
@@ -1196,7 +1213,7 @@ function renderEditor(el) {
     if (pv) tx.oninput = () => { const b = fillBlanksOf(tx.value); pv.innerHTML = b.length ? `${b.length} espaço(s): ${b.map(w => `<b>${esc(w)}</b>`).join(', ')}` : '⚠ Ainda sem espaços: escreve a palavra certa entre [[ ]]'; };
     $('.qImg', box).onchange = async e => { const f = e.target.files[0]; if (!f) return; sync(); q.questions[i].image = await resizeImage(f, 900, false); renderQuizzes(); };
     const rm = $('.qImgDel', box); if (rm) rm.onclick = () => { sync(); q.questions[i].image = null; renderQuizzes(); };
-    $$('.qOptDel', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; const k = +b.dataset.k; if (x.options.length <= 2) return; x.options.splice(k, 1); x.correct = x.correct.filter(c => c !== k).map(c => c > k ? c - 1 : c); if (!x.correct.length && qType(x) === 'mc') x.correct = [0]; renderQuizzes(); });
+    $$('.qOptDel', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; const k = +b.dataset.k; if (x.options.length <= 2) return; x.options.splice(k, 1); x.correct = x.correct.filter(c => c !== k).map(c => c > k ? c - 1 : c); if (!x.correct.length && qType(x) === 'mc' && !x.poll) x.correct = [0]; renderQuizzes(); });
   });
 }
 function qEditHtml(x, i) {
@@ -1205,7 +1222,8 @@ function qEditHtml(x, i) {
   if (t === 'mc') body = `${x.options.map((o, k) => `<div class="opt-row"><span class="letter" style="background:var(--${'abcdef'[k]})">${LETTERS[k]}</span><input type="text" class="qOpt" value="${esc(o)}" placeholder="Opção ${LETTERS[k]}">
       <label class="switch" title="Resposta correta"><input type="checkbox" class="qCor" ${x.correct.includes(k) ? 'checked' : ''}> correta</label>
       <button class="btn small qOptDel" data-k="${k}" title="Remover opção">−</button></div>`).join('')}
-    <div class="row" style="margin-top:6px"><button class="btn small qAddOpt">+ Opção</button></div>`;
+    <div class="row" style="margin-top:6px"><button class="btn small qAddOpt">+ Opção</button>
+      <label class="switch" title="Sem resposta certa: só mostra os votos (diagnóstico, opinião). Não dá pontos."><input type="checkbox" class="qPoll" ${x.poll ? 'checked' : ''}> 📊 Votação (sem resposta certa)</label></div>`;
   if (t === 'tf') body = `<div class="row" style="margin-top:8px"><span class="muted">Resposta correta:</span>
       <label class="switch"><input type="radio" class="qTFc" name="tf${i}" value="0" ${(x.correct || [0])[0] !== 1 ? 'checked' : ''}> Verdadeiro</label>
       <label class="switch"><input type="radio" class="qTFc" name="tf${i}" value="1" ${(x.correct || [0])[0] === 1 ? 'checked' : ''}> Falso</label></div>`;
@@ -1238,9 +1256,9 @@ function qEditHtml(x, i) {
   if (t === 'match') body = `<p class="muted" style="margin:8px 0 4px">🔗 Escreve cada par: item à esquerda e a opção certa à direita. Os formandos veem as opções da direita baralhadas. Pontos por cada ligação certa.</p>
     ${(x.pairs || []).map((p, k) => `<div class="opt-row m-row"><span class="letter" style="background:var(--${'abcdef'[k]})">${k + 1}</span><input type="text" class="mL grow" maxlength="150" value="${esc(p.left)}" placeholder="Item (ex.: .pdf)"><span>→</span><input type="text" class="mR grow" maxlength="150" value="${esc(p.right)}" placeholder="Opção certa"><button class="btn small mDel" data-k="${k}" title="Remover">−</button></div>`).join('')}
     <div class="row" style="margin-top:6px"><button class="btn small mAdd">+ Par</button></div>`;
-  if (t === 'spot') body = x.image ? `<p class="muted" style="margin:8px 0 4px">🎯 <b>Arrasta por cima da imagem</b> para marcar a zona certa (retângulo verde). Os formandos tocam na imagem; acertam se tocarem dentro da zona.</p>
-    <div class="spotEd"><img src="${esc(x.image)}" alt="" draggable="false"><div class="spot-zone"></div></div>
-    <p class="muted spotMsg">${x.zone && x.zone.w >= 0.01 ? '✅ Zona marcada. Arrasta outra vez para a mudar.' : '⚠ Ainda falta marcar a zona.'}</p>`
+  if (t === 'spot') body = x.image ? `<p class="muted" style="margin:8px 0 4px">🎯 <b>Arrasta por cima da imagem</b> para marcar a zona certa (retângulo verde). Para "encontrar os 5 problemas", marca uma zona por problema: os formandos tocam em tantos sítios quantas as zonas e ganham pontos por cada um que encontrarem.</p>
+    <div class="spotEd"><img src="${esc(x.image)}" alt="" draggable="false"></div>
+    <div class="row" style="margin-top:6px"><button class="btn small spotUndo" type="button">↶ Apagar a última zona</button><button class="btn small spotClear" type="button">Apagar todas</button><span class="muted spotMsg"></span></div>`
     : `<p class="key-warn">🎯 Carrega a imagem (botão 🖼 Imagem, em baixo) e depois marca nela a zona certa.</p>`;
   if (t === 'rank') body = `<label class="switch" style="margin-top:8px"><input type="checkbox" class="qOrdered" ${x.ordered ? 'checked' : ''}> <b>Tem ordem certa</b> — escreve as opções pela ordem correta (1ª em cima); os formandos veem-nas baralhadas e ganham pontos por cada posição certa</label>
     ${(x.options || []).map((o, k) => `<div class="opt-row"><span class="letter" style="background:var(--${'abcdef'[k]})">${k + 1}º</span><input type="text" class="qOpt" value="${esc(o)}" placeholder="Opção ${k + 1}">
@@ -1255,6 +1273,7 @@ function qEditHtml(x, i) {
     <textarea class="qText" rows="2" style="width:100%;margin-top:8px" placeholder="${t === 'fill' ? 'A capital de Portugal é [[Lisboa]].' : 'Escreve a pergunta…'}">${esc(x.text)}</textarea>
     ${x.image ? `<div class="row">${t === 'spot' ? '' : `<img src="${esc(x.image)}" style="max-height:100px;border-radius:8px">`}<button class="btn small qImgDel">Remover imagem</button></div>` : ''}
     ${body}
+    ${['scale', 'cloud'].includes(t) || (t === 'rank' && !x.ordered) || (t === 'mc' && x.poll) ? '' : `<input type="text" class="qExplain" maxlength="400" style="width:100%;margin-top:8px" value="${esc(x.explain || '')}" placeholder="💡 Explicação (opcional): aparece com a resposta certa, no ecrã e nos telemóveis">`}
     <div class="row" style="margin-top:6px"><label class="btn small">🖼 Imagem<input type="file" accept="image/*,.heic,.heif" class="qImg" hidden></label></div></div>`;
 }
 function download(name, content, type) {
@@ -1273,7 +1292,7 @@ function sheetHtml(p) {
     if (graded(i)) { n++; if (a && a.correct === true) ok++; }
     if (a && t === 'open' && a.correct == null) pend++;
     const res = !asked.has(i) ? '<span class="tag none">não feita</span>' : !a ? `<span class="tag none">${joined.has(p.id) ? 'Sem resposta' : 'Ausente'}</span>`
-      : !qGraded(q) && t !== 'open' ? '<span class="tag none">opinião</span>' : a.correct === true ? '<span class="tag ok">✓ Certa</span>' : a.correct === false ? ((t === 'fill' || t === 'rank' || t === 'cross' || t === 'match') && a.right ? `<span class="tag pend">${a.right}/${t === 'fill' ? fillBlanksOf(q.text).length : t === 'cross' ? q.cross.words.length : t === 'match' ? q.pairs.length : q.options.length}</span>` : t === 'number' && a.points > 0 ? '<span class="tag pend">≈ Perto</span>' : '<span class="tag bad">✗ Errada</span>') : '<span class="tag pend">❔ Por validar</span>';
+      : !qGraded(q) && t !== 'open' ? '<span class="tag none">opinião</span>' : a.correct === true ? '<span class="tag ok">✓ Certa</span>' : a.correct === false ? ((t === 'fill' || t === 'rank' || t === 'cross' || t === 'match' || t === 'spot') && a.right ? `<span class="tag pend">${a.right}/${t === 'fill' ? fillBlanksOf(q.text).length : t === 'cross' ? q.cross.words.length : t === 'match' ? q.pairs.length : t === 'spot' ? spotCountQ(q) : q.options.length}</span>` : t === 'number' && a.points > 0 ? '<span class="tag pend">≈ Perto</span>' : '<span class="tag bad">✗ Errada</span>') : '<span class="tag pend">❔ Por validar</span>';
     return `<tr><td>${i + 1}</td><td><b>${esc(qTitle(q))}</b><br><small class="muted">${QTYPE_LABEL[t]}${t === 'mc' || t === 'tf' ? ' · opções: ' + q.options.map(esc).join(' · ') : ''}</small></td>
       <td>${esc(plainCorrectOf(q))}</td><td>${a ? esc(plainAnswerOf(q, a)) : ''}</td><td>${res}</td><td class="num">${a ? (a.points || 0) : 0}</td></tr>`;
   }).join('');
@@ -1440,8 +1459,8 @@ async function openResult(id) {
   const nAsked = r.asked.filter(graded).length;
   const stats = list.map(p => { let ok = 0; r.questions.forEach((q, i) => { const a = (r.answers[i] || {})[p.id]; if (a && a.correct === true) ok++; }); return ok; });
   const ansText = (q, a) => { const t = qType(q); return t === 'mc' || t === 'tf' ? `${LETTERS[a.option]}) ${q.options[a.option]}` : t === 'fill' ? (a.value || []).join(' · ') : t === 'cloud' || t === 'rank' || t === 'cross' || t === 'guess' || t === 'match' || t === 'spot' ? plainAnswerOf(q, a) : t === 'scramble' ? String(a.value || '').toUpperCase() : String(a.value ?? ''); };
-  const ansShort = (q, a) => { const t = qType(q); return t === 'number' ? String(a.value) : t === 'match' ? `${a.right ?? 0}/${q.pairs.length}` : t === 'spot' ? (a.correct ? '🎯 zona' : '✗ fora') : t === 'mc' ? LETTERS[a.option] : t === 'tf' ? (a.option === 0 ? 'V' : 'F') : t === 'fill' ? `${a.right ?? 0}/${fillBlanksOf(q.text).length}` : t === 'scale' ? '★' + a.value : t === 'cross' ? `${a.right ?? 0}/${q.cross.words.length}` : t === 'guess' ? (a.correct ? `${a.tries}ª tent.` : `✗ ${(a.value || []).length}`) : t === 'scramble' ? String(a.value || '').toUpperCase().slice(0, 14) : t === 'rank' ? (q.ordered ? `${a.right ?? 0}/${q.options.length}` : '1º ' + String(q.options[(a.value || [])[0]] || '').slice(0, 12)) : t === 'cloud' ? '☁ ' + (a.value || []).join(', ').slice(0, 14) : (String(a.value).length > 14 ? String(a.value).slice(0, 14) + '…' : String(a.value)); };
-  const corShort = q => { const t = qType(q); return t === 'number' ? String(q.answer) : t === 'match' ? q.pairs.length + ' pares' : t === 'spot' ? 'zona' : t === 'mc' ? q.correct.map(k => LETTERS[k]).join('/') : t === 'tf' ? (q.correct[0] === 0 ? 'V' : 'F') : t === 'fill' ? fillBlanksOf(q.text).join(', ') : t === 'open' ? 'livre' : t === 'cloud' ? 'nuvem' : t === 'scramble' || t === 'guess' ? String(q.answer).toUpperCase().slice(0, 14) : t === 'cross' ? q.cross.words.length + ' palavras' : t === 'rank' ? (q.ordered ? 'ordem' : 'opinião') : '1–5'; };
+  const ansShort = (q, a) => { const t = qType(q); return t === 'number' ? String(a.value) : t === 'match' ? `${a.right ?? 0}/${q.pairs.length}` : t === 'spot' ? (spotCountQ(q) > 1 ? `${a.right ?? 0}/${spotCountQ(q)}` : a.correct ? '🎯 zona' : '✗ fora') : t === 'mc' ? LETTERS[a.option] : t === 'tf' ? (a.option === 0 ? 'V' : 'F') : t === 'fill' ? `${a.right ?? 0}/${fillBlanksOf(q.text).length}` : t === 'scale' ? '★' + a.value : t === 'cross' ? `${a.right ?? 0}/${q.cross.words.length}` : t === 'guess' ? (a.correct ? `${a.tries}ª tent.` : `✗ ${(a.value || []).length}`) : t === 'scramble' ? String(a.value || '').toUpperCase().slice(0, 14) : t === 'rank' ? (q.ordered ? `${a.right ?? 0}/${q.options.length}` : '1º ' + String(q.options[(a.value || [])[0]] || '').slice(0, 12)) : t === 'cloud' ? '☁ ' + (a.value || []).join(', ').slice(0, 14) : (String(a.value).length > 14 ? String(a.value).slice(0, 14) + '…' : String(a.value)); };
+  const corShort = q => { const t = qType(q); return t === 'number' ? String(q.answer) : t === 'match' ? q.pairs.length + ' pares' : t === 'spot' ? (spotCountQ(q) > 1 ? spotCountQ(q) + ' zonas' : 'zona') : t === 'mc' ? (q.poll ? 'votação' : q.correct.map(k => LETTERS[k]).join('/')) : t === 'tf' ? (q.correct[0] === 0 ? 'V' : 'F') : t === 'fill' ? fillBlanksOf(q.text).join(', ') : t === 'open' ? 'livre' : t === 'cloud' ? 'nuvem' : t === 'scramble' || t === 'guess' ? String(q.answer).toUpperCase().slice(0, 14) : t === 'cross' ? q.cross.words.length + ' palavras' : t === 'rank' ? (q.ordered ? 'ordem' : 'opinião') : '1–5'; };
   const cls = a => a.correct === true ? 'ok' : a.correct === false ? 'bad' : 'pend';
   const mark = a => a.correct === true ? ' ✓' : a.correct === false ? ' ✗' : '';
   const cell = (p, q, i) => {
