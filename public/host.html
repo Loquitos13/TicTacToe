@@ -39,7 +39,8 @@
   body.slide #main.hidden { display: none; }
   body.slide #stage { min-height: 720px; padding: 14px 22px 74px; box-sizing: border-box; }
   body.slide .controls { padding: 6px 10px; gap: 6px; background: rgba(20,10,40,.55); }
-  body.slide .controls > :not(#btnNext):not(#btnClose):not(#btnEnd):not(.info):not(#sndMe):not(#sndAll) { display: none; }
+  body.slide .controls > :not(#btnNext):not(#btnClose):not(#btnEnd):not(.info):not(#sndMe):not(#sndAll):not(#slideNote) { display: none; }
+  #slideNote { font-weight: 800; color: #ffd93d; font-size: 1.05em; }
   body.slide .controls .info { font-size: .8em; }
   /* diapositivo a editar: pré-visualização e escolha do papel */
   #slidePrev { position: fixed; inset: 0; display: grid; place-items: center; padding: 3vw; overflow: auto; font-size: clamp(11px, 2.1vw, 26px); }

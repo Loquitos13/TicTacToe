@@ -323,6 +323,11 @@ Com o endereço fixo, o quiz pode ficar **dentro de um diapositivo**, como o Sli
 A editar a apresentação, o diapositivo mostra só uma pré-visualização (o texto da pergunta). Não abre nada nem pede palavra-passe.
 
 **Durante a apresentação:**
+- **Só manda o diapositivo que está à vista.** Ao configurar, cada diapositivo guarda o seu identificador do PowerPoint. O PowerPoint carrega todos os diapositivos com o quiz logo no início, mas só o que está a ser mostrado abre a sala ou começa a pergunta.
+- **No diapositivo de entrada** vê-se sempre o QR code e quem entrou. Não tem botão de começar: quando todos tiverem entrado, avança no PowerPoint.
+- **No diapositivo de uma pergunta**, o botão amarelo faz só os passos dessa pergunta: fechar → sondagem → resposta certa → ranking. No fim aparece "➡ Avança para o diapositivo seguinte".
+- As setas e o espaço ficam para o PowerPoint.
+- **Diapositivos configurados numa versão anterior:** abra cada um uma vez no modo de edição para guardar o identificador. Até lá, a pergunta não começa sozinha e aparece o botão **▶ Começar a pergunta N**.
 - **Os formandos entram pelo nome**, sem precisares de escolher alunos.
 - **Voltar a um diapositivo de uma pergunta já feita** não a repete. Depois do pódio, só o diapositivo de entrada começa uma sessão nova.
 - **Se uma pergunta não começar sozinha**, aparece no topo o botão **▶ Começar a pergunta N**.

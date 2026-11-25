@@ -26,12 +26,28 @@ const slideGetView = () => new Promise(res => {
   try { Office.context.document.getActiveViewAsync(r => res(r.status === 'succeeded' ? r.value : 'read')); } catch { res('read'); }
 });
 
+// id do diapositivo que o PowerPoint tem selecionado (a editar) ou à vista (a apresentar); null se não souber
+const slideGetId = () => new Promise(res => {
+  if (!officeOk) return res(null);
+  try {
+    Office.context.document.getSelectedDataAsync(Office.CoercionType.SlideRange, r => {
+      const sl = r.status === 'succeeded' && r.value && r.value.slides;
+      res(sl && sl.length === 1 ? sl[0].id : null);
+    });
+  } catch { res(null); }
+});
+
 async function slideBoot() {
   slideCfg = window.slideCfg = slideStore.get();
   slideView = await slideGetView();
   // passou de editar para apresentar (ou ao contrário): recomeça no modo certo
   if (officeOk) try { Office.context.document.addHandlerAsync(Office.EventType.ActiveViewChanged, () => location.reload()); } catch {}
-  if (slideView === 'edit') return slidePreview();
+  if (slideView === 'edit') {
+    // a editar, o diapositivo à vista é o deste suplemento: guarda o id (serve também para diapositivos copiados)
+    const id = await slideGetId();
+    if (slideCfg && id != null && slideCfg.slideId !== id) { slideCfg.slideId = id; slideStore.set(slideCfg, () => {}); }
+    return slidePreview();
+  }
   if (!PW) return slideLogin('Para apresentar o quiz, autoriza este computador. Só é preciso uma vez.');
   start();
 }
@@ -92,33 +108,68 @@ async function slideConfigure() {
     const k = q.questions.findIndex(x => x.id === $('#spQ', pv).value);
     const cfg = { quizId: q.id, quizTitle: q.title, role, mode: $('#spMode', pv).value, qTotal: q.questions.length };
     if (role === 'question') Object.assign(cfg, { qid: q.questions[k].id, qNum: k + 1, qText: String(q.questions[k].text).replace(/\[\[|\]\]/g, '') });
-    slideStore.set(cfg, () => { slideCfg = window.slideCfg = cfg; slidePreview(); });
+    slideGetId().then(id => { if (id != null) cfg.slideId = id; slideStore.set(cfg, () => { slideCfg = window.slideCfg = cfg; slidePreview(); }); });
   };
 }
 
 // ---------- a apresentar ----------
-let slideT = null;
+let slideT = null, slideMine = null, slideKnown = false;
 function slideOnSocket(sock) {
   if (!slideCfg) return;
-  // só o diapositivo que está à vista manda (o PowerPoint pode ter outros diapositivos carregados por trás)
-  const fire = force => {
-    if (document.visibilityState !== 'visible') return;
+  // o PowerPoint carrega os diapositivos com o suplemento todos ao mesmo tempo: só o que está à vista pode mandar.
+  // Sabe-se qual é pelo id do diapositivo (guardado ao configurar). Sem esse id, as perguntas não arrancam sozinhas
+  // (aparece o botão "Começar a pergunta"), para nunca começarem fora do sítio.
+  const auto = () => slideMine === true || (slideKnown && slideMine === null && slideCfg.role === 'join' && document.visibilityState === 'visible');
+  const fire = (force, manual) => {
+    if (!manual && !auto()) return;
     clearTimeout(slideT);
     slideT = setTimeout(() => sock.emit('host:slide', { ...slideCfg, force: !!force }, r => {
       if (r && r.conflict) slideConflict(r.conflict); else if (r && r.error) toast(r.error, 6000);
     }), 400);
   };
-  window.slideFire = fire;
+  window.slideFire = force => fire(force, true);
   sock.on('connect', () => fire());
   document.addEventListener('visibilitychange', () => fire());
-  if (sock.connected) fire();
+  // de 0,7 em 0,7 s: este diapositivo passou a estar à vista?
+  const check = async () => {
+    const id = await slideGetId();
+    const now = id == null || slideCfg.slideId == null ? null : id === slideCfg.slideId;
+    const first = !slideKnown; slideKnown = true;
+    if (now !== slideMine || first) {
+      slideMine = now;
+      Sound.setForcedOff(now === false);   // os diapositivos carregados por trás ficam calados
+      if (now !== false && sock.connected) fire();
+      slideCheck();
+    }
+  };
+  check(); setInterval(check, 700);
   sock.on('state', () => setTimeout(slideCheck, 50));
+}
+// botões do diapositivo: a entrada não começa o quiz; numa pergunta, o botão amarelo só faz os passos dessa pergunta
+// (pergunta → fechar → sondagem → resposta certa → ranking); a seguinte começa no diapositivo dela
+function slideTweak() {
+  if (!slideCfg || !S || !$('.controls')) return;
+  const nb = $('#btnNext'), c = slideCfg;
+  let hide = false, msg = '';
+  if (c.role === 'join' && S.phase !== 'end') { hide = true; msg = S.phase === 'lobby' ? '➡ Quando todos tiverem entrado, avança para o diapositivo seguinte' : ''; }
+  else if (c.role === 'question') {
+    const here = S.question && S.question.id === c.qid;
+    if (!here && S.phase !== 'end') hide = true;
+    else if (nb && /Próxima pergunta|Resultados finais/.test(nb.textContent)) { hide = true; msg = '➡ Avança para o diapositivo seguinte'; }
+  }
+  if (nb && (nb.style.display === 'none') !== hide) nb.style.display = hide ? 'none' : '';
+  const be = $('#btnEnd'); if (be && be.style.display !== 'none') be.style.display = 'none';
+  const ci = $('#ctlInfo'); if (ci && ci.textContent.includes('espaço')) ci.textContent = ci.textContent.replace(' · espaço/→ avança', '');   // termina-se no diapositivo final ou no painel
+  let n = $('#slideNote');
+  if (!n && msg) { n = document.createElement('span'); n.id = 'slideNote'; $('.controls').appendChild(n); }
+  if (n && n.textContent !== msg) n.textContent = msg;
+  if (n && (n.style.display === 'none') !== !msg) n.style.display = msg ? '' : 'none';
 }
 // a pergunta deste diapositivo não começou sozinha (ex.: o PowerPoint não avisou): botão para a começar
 function slideCheck() {
   let b = $('#slideGo');
-  const c = slideCfg, need = c && c.role === 'question' && S && S.phase !== 'end' && S.phase !== 'exam'
-    && !(S.question && S.question.id === c.qid) && !(S.askedIds || []).includes(c.qid);
+  const c = slideCfg, need = slideMine !== false && c && c.role === 'question' && (!S || S.phase !== 'end' && S.phase !== 'exam'
+    && !(S.question && S.question.id === c.qid) && !(S.askedIds || []).includes(c.qid));
   if (!need) { if (b) b.remove(); return; }
   if (!b) { b = document.createElement('button'); b.id = 'slideGo'; b.className = 'btn primary'; document.body.appendChild(b); b.onclick = () => window.slideFire && window.slideFire(); }
   b.textContent = `▶ Começar a pergunta ${c.qNum}`;

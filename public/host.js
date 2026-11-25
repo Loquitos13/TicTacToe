@@ -14,7 +14,7 @@ function fitSlide() {
 }
 if (SLIDE) {
   addEventListener('resize', fitSlide);
-  new MutationObserver(() => requestAnimationFrame(fitSlide)).observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(() => requestAnimationFrame(() => { fitSlide(); if (window.slideTweak) slideTweak(); })).observe(document.body, { childList: true, subtree: true });
 }
 let PW = TOK.getItem('aq_tok') || '';
 let socket = null, S = null; // estado do servidor
@@ -59,7 +59,7 @@ async function start() {
   socket.on('tunnel', u => { joinUrl = u; window._joinSuggestions = [u, ...window._joinSuggestions.filter(x => x !== u)]; toast('🌍 Online: o QR code já usa ' + u, 5000); if (S && S.phase === 'lobby') renderGame(true); });
   $$('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
   document.addEventListener('keydown', e => {
-    if (tab !== 'game' || !S || e.repeat || S.phase === 'exam' || document.querySelector('.dlg') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+    if (SLIDE || tab !== 'game' || !S || e.repeat || S.phase === 'exam' || document.querySelector('.dlg') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
     if (e.key === ' ' || e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); next(); }
   });
 }
@@ -146,28 +146,30 @@ function renderGame(full) {
   const ph = S.phase;
   let html = `<div id="stage"><div class="stage-top"><span>${S.courseName ? '🎓 ' + esc(S.courseName) + ' · ' : ''}📝 ${esc(S.quizTitle)}</span>
     <span>${isExamMode() ? '⏳ Tempo total' : isAuto() ? '🤖 Automático' : timed() ? '⏱ Por tempo' : '🎮 Manual'} · ${ph === 'lobby' ? 'Sala aberta' : ph === 'end' ? 'Final' : ph === 'exam' ? `${S.total} perguntas` : `Pergunta ${S.qIndex + 1} / ${S.total}`}</span></div>`;
-  if (ph === 'lobby') html += lobbyHtml();
-  if (ph === 'ready') html += readyHtml();
-  if (ph === 'exam') html += examHtml();
-  if (ph === 'question') html += questionHtml();
-  const firstPoll = ph === 'closed' && !closedShown.has(S.id + ':' + S.qIndex);
-  if (ph === 'closed') { html += resultsHtml(false, firstPoll); closedShown.add(S.id + ':' + S.qIndex); }
-  if (ph === 'reveal') html += showCorrectHere() ? resultsHtml(true) + (hiddenReveal() ? `<p class="center private-note">👁 Só neste ecrã: os formandos não veem a resposta correta.</p>` : '') : hiddenRevealHtml();
-  if (ph === 'leaderboard') html += S.settings.teams ? `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Equipas</div>` + teamPodiumHtml(false)
+  // no diapositivo de entrada (PowerPoint) vê-se sempre a sala: QR code e quem entrou
+  const vph = slideJoinView() ? 'lobby' : ph;
+  if (vph === 'lobby') html += lobbyHtml();
+  if (vph === 'ready') html += readyHtml();
+  if (vph === 'exam') html += examHtml();
+  if (vph === 'question') html += questionHtml();
+  const firstPoll = vph === 'closed' && !closedShown.has(S.id + ':' + S.qIndex);
+  if (vph === 'closed') { html += resultsHtml(false, firstPoll); closedShown.add(S.id + ':' + S.qIndex); }
+  if (vph === 'reveal') html += showCorrectHere() ? resultsHtml(true) + (hiddenReveal() ? `<p class="center private-note">👁 Só neste ecrã: os formandos não veem a resposta correta.</p>` : '') : hiddenRevealHtml();
+  if (vph === 'leaderboard') html += S.settings.teams ? `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Equipas</div>` + teamPodiumHtml(false)
     : `<div class="big-msg slide-up" style="font-size:2.4em;margin:0">🏆 Top 5</div>` + podiumHtml(S.ranking.slice(0, 5), false);
-  if (ph === 'end') html += (showAnswersList ? answersListHtml() : endHtml());
+  if (vph === 'end') html += (showAnswersList ? answersListHtml() : endHtml());
   lastControls = controlsHtml();
   html += `</div>` + lastControls;
   el.innerHTML = html;
   $$('#tab-game .cloud').forEach(c => { c.dataset.sig = JSON.stringify(S.cloud || []); renderCloud(c, S.cloud); });
   bindGame();
-  if (ph === 'question' && timed()) runRing();
-  if (ph === 'ready') runReady();
-  if (ph === 'exam') runExamClock();
+  if (vph === 'question' && timed()) runRing();
+  if (vph === 'ready') runReady();
+  if (vph === 'exam') runExamClock();
   const tu = $('.timeup'); if (tu) tu.addEventListener('animationend', () => tu.classList.add('hidden'));
   // sondagem: as barras e as percentagens sobem de 0% até ao valor (com som); na resposta correta já aparecem cheias
-  if (ph === 'closed' && firstPoll && pollOn()) growPoll(timed() ? 1700 : 700);
-  else if (ph === 'closed' || ph === 'reveal') $$('.opt .fill').forEach(f => { f.style.transition = 'none'; f.style.width = f.dataset.w; });
+  if (vph === 'closed' && firstPoll && pollOn()) growPoll(timed() ? 1700 : 700);
+  else if (vph === 'closed' || vph === 'reveal') $$('.opt .fill').forEach(f => { f.style.transition = 'none'; f.style.width = f.dataset.w; });
 }
 
 // diapositivo sem sessão aberta: um ecrã de espera em vez do formulário inteiro
@@ -681,18 +683,19 @@ function runRing() {
 }
 
 // atualizações sem redesenhar tudo (ex.: alguém respondeu / entrou)
+const slideJoinView = () => SLIDE && !!window.slideCfg && window.slideCfg.role === 'join' && !!S && S.phase !== 'end';
 function updateLive() {
   if (S.phase === 'exam') {
     const g = $('#examGrid'); if (g) g.innerHTML = examGridHtml();
     const st = $('#examStats'); if (st) st.innerHTML = examStatsHtml();
     runExamClock(); // o formador pode ter acrescentado tempo
   }
-  if (S.phase === 'lobby' && S.settings.teams) {
+  if ((S.phase === 'lobby' || slideJoinView()) && S.settings.teams) {
     $('#joinCount') && ($('#joinCount').textContent = connectedN());
     const tl = $('#teamsLobby'), html = teamsLobbyHtml();
     if (tl && tl.dataset.sig !== html) { const grew = S.players.length > +(tl.dataset.n || 0); tl.dataset.sig = html; tl.dataset.n = S.players.length; tl.innerHTML = html; bindTeamsLobby(); if (grew) Sound.play('pop'); }
   }
-  if (S.phase === 'lobby' && !S.settings.teams) {
+  if ((S.phase === 'lobby' || slideJoinView()) && !S.settings.teams) {
     const on = new Set(S.players.filter(p => p.connected).map(p => p.studentId));
     $('#joinCount') && ($('#joinCount').textContent = on.size);
     // entrou alguém que não estava na turma (participante extra): acrescenta o cartão
