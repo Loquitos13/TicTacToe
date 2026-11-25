@@ -620,6 +620,8 @@ function controlsHtml() {
     ${isExamMode() ? '' : `<label class="switch" title="Mostrar quantos escolheram cada opção"><input type="checkbox" id="setPoll" ${pollOn() ? 'checked' : ''}> Sondagem</label>`}
     ${pollOn() && !S.settings.anonymous ? `<label class="switch" title="Mostrar no ecrã as fotos de quem escolheu cada opção"><input type="checkbox" id="setWho" ${S.settings.showWho ? 'checked' : ''}> Quem respondeu</label>` : ''}
     ${S.settings.noRanking || hiddenReveal() ? '' : `<label class="switch" title="Mostrar o pódio Top 5 depois de cada pergunta"><input type="checkbox" id="setRank" ${S.settings.rankEach ? 'checked' : ''}> Ranking por pergunta</label>`}
+    <label class="switch" id="sndMe" title="Música e efeitos neste computador / projetor"><input type="checkbox" id="setMySnd" ${Sound.isMuted() ? '' : 'checked'}> 🔊 Som aqui</label>
+    <label class="switch" id="sndAll" title="Sons nos telemóveis de todos os formandos"><input type="checkbox" id="setPhSnd" ${S.settings.phoneSound !== false ? 'checked' : ''}> 📱 Som nos telemóveis</label>
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
     ${ph !== 'end' && ph !== 'exam' ? `<button class="btn small danger" id="btnEnd">Terminar</button>` : ''}
@@ -643,6 +645,8 @@ function bindGame() {
   on('btnPlayers', playersDialog);
   on('btnAnswers', () => { showAnswersList = !showAnswersList; if (showAnswersList) Sound.play('revealCorrect'); renderGame(true); });
   const ss = $('#setSee'); if (ss) ss.onchange = e => { seeAnswers = e.target.checked; try { localStorage.setItem('aq_see_answers', seeAnswers ? '1' : '0'); } catch {} renderGame(true); };
+  const ms = $('#setMySnd'); if (ms) ms.onchange = e => { Sound.init(); Sound.setMuted(!e.target.checked); };
+  const ps = $('#setPhSnd'); if (ps) ps.onchange = e => socket.emit('host:settings', { phoneSound: e.target.checked });
   const so = $('#setOpen'); if (so) so.onchange = e => socket.emit('host:settings', { openJoin: e.target.checked });
   const sw = $('#setWho'); if (sw) sw.onchange = e => socket.emit('host:settings', { showWho: e.target.checked });
   const sp = $('#setPoll'); if (sp) sp.onchange = e => socket.emit('host:settings', { showPoll: e.target.checked });
@@ -813,6 +817,8 @@ function renderSetup(el) {
         <label class="switch"><input type="checkbox" id="sWho"> Mostrar no ecrã quem respondeu o quê (fotos em cada opção)</label>
         <label class="switch"><input type="checkbox" id="sSpeed" checked> Pontos extra por responder depressa</label>
         <label class="switch"><input type="checkbox" id="sShuffle"> Baralhar a ordem das perguntas</label>
+        <label class="switch"><input type="checkbox" id="sMySnd" ${Sound.isMuted() ? '' : 'checked'}> 🔊 Som neste computador (música e efeitos no projetor)</label>
+        <label class="switch"><input type="checkbox" id="sPhSnd" checked> 📱 Som nos telemóveis dos formandos</label>
         <p class="muted" style="margin:4px 0">Independentemente destas opções, a grelha final regista sempre quem respondeu o quê.</p>
         ${SLIDE ? '' : `<details class="muted" style="margin:4px 0"><summary style="cursor:pointer"><b>📽 Usar dentro do PowerPoint</b></summary>
           <p>Insere o quiz num diapositivo (<b>Inserir → Suplementos → Os meus suplementos → Quiz ao vivo</b>): mostra o QR code, as perguntas e os resultados em direto, e avanças com o botão dentro do diapositivo.</p>
@@ -880,6 +886,7 @@ function renderSetup(el) {
     download('suplemento-powerpoint.xml', await r.text(), 'application/xml');
   };
   if ($('#allOn')) { $('#allOn').onclick = () => { $$('.sStu').forEach(c => c.checked = true); syncAnon(); }; $('#allOff').onclick = () => { $$('.sStu').forEach(c => c.checked = false); syncAnon(); }; }
+  $('#sMySnd').onchange = e => { Sound.init(); Sound.setMuted(!e.target.checked); };
   $('#sOpen').onchange = syncAnon; $$('.sStu').forEach(c => c.onchange = syncAnon);
   go.onclick = () => {
     const ids = $$('.sStu').filter(c => c.checked).map(c => c.value);
@@ -889,7 +896,7 @@ function renderSetup(el) {
     socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sRevEach').checked ? 'each' : ($('#sRevEnd').checked ? 'end' : 'never'), revealEnd: $('#sRevEnd').checked,
       rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
       autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, hideOnPhones: $('#sHide').checked, examMinutes: +$('#tTotal').value, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked,
-      teams: $('#sTeams').checked ? +$('#sTeamsN').value : 0, openJoin: $('#sOpen').checked } });
+      teams: $('#sTeams').checked ? +$('#sTeamsN').value : 0, openJoin: $('#sOpen').checked, phoneSound: $('#sPhSnd').checked } });
   };
 }
 

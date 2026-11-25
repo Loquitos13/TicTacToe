@@ -977,7 +977,8 @@ io.on('connection', socket => {
       if (fixed >= 5) qs.forEach(q => q.time = Math.min(300, fixed));
       // anónimo: nenhuma ligação à turma (sem nomes, fotos nem ranking)
       settings.anonymous = !!quiz.anonymous;
-      settings.openJoin = settings.openJoin !== false;   // quem não está na lista pode entrar com o nome que escreve
+      settings.openJoin = settings.openJoin !== false;
+      settings.phoneSound = settings.phoneSound !== false;   // sons nos telemóveis dos formandos   // quem não está na lista pode entrar com o nome que escreve
       if (settings.anonymous) { settings.noRanking = true; settings.rankEach = false; settings.finalPodium = false; settings.showWho = false; }
       // jogos em grupo: 2 a 6 equipas (não há equipas no anónimo nem sem ranking)
       const nt = parseInt(settings.teams, 10);
@@ -1039,6 +1040,7 @@ io.on('connection', socket => {
       if (session.settings.revealMode !== 'each') delete s.rankEach;
       if ('showPoll' in s) s.showPoll = !!s.showPoll;
       if ('openJoin' in s) s.openJoin = !!s.openJoin;
+      if ('phoneSound' in s) s.phoneSound = !!s.phoneSound;
       Object.assign(session.settings, s);
       persistSession();
       if ('paused' in s || 'rankEach' in s) scheduleAuto();

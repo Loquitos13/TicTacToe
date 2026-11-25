@@ -2,13 +2,14 @@
 const Sound = (() => {
   let ctx = null, master = null, musicGain = null, sfxGain = null;
   let volume = 0.9; // volume geral (0–1); nos telemóveis dos alunos é mais baixo
+  let forced = false;   // o formador desligou o som nos telemóveis de todos
   let muted = false, current = null, timerId = null, step = 0, nextTime = 0;
   try { muted = localStorage.getItem('aq_muted') === '1'; } catch {}
 
   function init() {
     if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
     ctx = new (window.AudioContext || window.webkitAudioContext)();
-    master = ctx.createGain(); master.gain.value = muted ? 0 : volume; master.connect(ctx.destination);
+    master = ctx.createGain(); master.gain.value = muted || forced ? 0 : volume; master.connect(ctx.destination);
     const comp = ctx.createDynamicsCompressor(); comp.connect(master);
     musicGain = ctx.createGain(); musicGain.gain.value = 0.5; musicGain.connect(comp);
     sfxGain = ctx.createGain(); sfxGain.gain.value = 0.8; sfxGain.connect(comp);
@@ -182,17 +183,23 @@ const Sound = (() => {
       kick(sfxGain, t + sec, 0.8); noise(sfxGain, t + sec, 0.8, 0.25, 4000);
     },
   };
-  function play(name, ...a) { init(); if (sfx[name]) sfx[name](...a); }
+  function play(name, ...a) { if (forced) return; init(); if (sfx[name]) sfx[name](...a); }
+  function setForcedOff(f) {
+    if (forced === !!f) return;
+    forced = !!f;
+    if (master) master.gain.setTargetAtTime(muted || forced ? 0 : volume, ctx.currentTime, 0.05);
+  }
 
   function setMuted(m) {
     muted = m; try { localStorage.setItem('aq_muted', m ? '1' : '0'); } catch {}
-    if (master) master.gain.setTargetAtTime(m ? 0 : volume, ctx.currentTime, 0.05);
+    if (master) master.gain.setTargetAtTime(m || forced ? 0 : volume, ctx.currentTime, 0.05);
+    $$('.mute-btn').forEach(b => b.textContent = m ? '🔇' : '🔊');
   }
   function setVolume(v) {
     volume = Math.max(0, Math.min(1, v));
-    if (master && !muted) master.gain.setTargetAtTime(volume, ctx.currentTime, 0.05);
+    if (master && !muted && !forced) master.gain.setTargetAtTime(volume, ctx.currentTime, 0.05);
   }
-  return { init, music, stopMusic, play, setMuted, setVolume, isMuted: () => muted, get current() { return current; } };
+  return { init, music, stopMusic, play, setMuted, setForcedOff, setVolume, isMuted: () => muted, get current() { return current; } };
 })();
 
 // Confettis simples em canvas

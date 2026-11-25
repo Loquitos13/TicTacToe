@@ -23,7 +23,7 @@ socket.on('roster', r => {
   if (r.session && me && me.sessionId === r.session.id && !state) return reclaim(me);
   if (!state) render();
 });
-socket.on('state', s => { if (!s.session) { state = null; roster = { session: null }; stopCamera(); render(); return; } state = s; render(); });
+socket.on('state', s => { Sound.setForcedOff(!!(s.session && s.session.settings && s.session.settings.phoneSound === false)); if (!s.session) { state = null; roster = { session: null }; stopCamera(); render(); return; } state = s; render(); });
 socket.on('reload', () => { state = null; joinStep = { kind: 'form' }; store(null); });
 socket.on('released', () => { state = null; store(null); joinStep = { kind: 'form' }; toast('O formador libertou o teu lugar. Para voltar, usa o código de reentrada que ele te der.', 6000); render(); });
 

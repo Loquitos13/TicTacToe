@@ -324,6 +324,10 @@ A editar a apresentação, o diapositivo mostra só uma pré-visualização (o t
 - **O PowerPoint guarda o papel de cada diapositivo dentro do ficheiro .pptx.** Num computador ainda não autorizado, só pede a palavra-passe ao começar a apresentar.
 
 ## Som
+Há dois interruptores de som, nas opções ao abrir a sala e na barra de baixo durante o quiz (também dentro do diapositivo do PowerPoint):
+- **🔊 Som aqui:** música e efeitos só neste computador ou projetor. Fica memorizado neste computador.
+- **📱 Som nos telemóveis:** liga ou desliga os sons de todos os formandos de uma vez, mesmo a meio do quiz.
+
 A música e os efeitos são gerados pelo próprio browser (sem ficheiros nem direitos de autor). Liga o som do projetor; o botão 🔊 no canto liga/desliga.
 
 O que se ouve em cada momento (no projetor):
