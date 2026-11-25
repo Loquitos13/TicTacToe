@@ -334,13 +334,19 @@ const fmtN = n => Number(n).toLocaleString('pt-PT');
 // ---------- Batata quente no projetor ----------
 function potatoBoxHtml() {
   const P = S.potato; if (!P) return '<div class="big-msg">🥔 A preparar…</div>';
+  const last = P.last ? `<div class="pot-last">✅ <b>${esc(P.last.group)}</b>: «${esc(P.last.word)}»${P.last.a ? `<br><span>R: ${esc(P.last.a)}</span>` : ''}</div>` : '';
   if (P.status === 'boom') return `<div class="pot-boom pop-in"><div>💥</div><h1>Rebentou com <span style="color:${P.boom.color}">${P.boom.emoji} ${esc(P.boom.name)}</span>!</h1>
-    <p>−${P.boom.penalty} pontos · ${P.round < P.rounds ? 'próxima ronda daqui a pouco…' : 'fim do jogo'}</p></div>${potatoGroupsHtml(P)}`;
-  return `<div class="pot-head"><span>Ronda ${P.round} de ${P.rounds}</span><div class="pot-theme">${esc(P.theme)}</div></div>
+    <p>−${P.boom.penalty} pontos · ${P.question ? 'a pergunta passa ao grupo seguinte…' : P.round < P.rounds ? 'próxima ronda daqui a pouco…' : 'fim do jogo'}</p></div>${potatoGroupsHtml(P)}`;
+  if (P.status === 'between') return `<div class="pot-boom pop-in"><div>✅</div><h1>Secção «${esc(P.theme)}» concluída!</h1>
+    <p>${P.round < P.rounds ? 'Vem aí a próxima secção…' : 'Fim do jogo'}</p></div>${last}${potatoGroupsHtml(P)}`;
+  return `<div class="pot-head"><span>Ronda ${P.round} de ${P.rounds}${P.question ? ` · ${esc(P.theme)} · pergunta ${P.question.n} de ${P.question.total}` : ''}</span>
+      ${P.question ? `<div class="pot-q">${esc(P.question.text)}</div>` : `<div class="pot-theme">${esc(P.theme)}</div>`}</div>
     <div class="pot-mid"><div class="pot-potato" id="potPotato">🥔</div>
       <div class="pot-holder" style="background:${P.holder ? P.holder.color : '#555'}">${P.holder ? `${P.holder.emoji} ${esc(P.holder.name)}` : '—'}${P.rep ? `<small>vez de ${esc(P.rep)}</small>` : ''}</div></div>
     <div class="pot-fuse"><i id="potFuse"></i></div>
     ${P.reject ? `<div class="pot-rej">${P.reject.reason === 'used' ? '🔁 Já dita' : '✗ Não aceite'}: «${esc(P.reject.word)}» ${P.reject.reason === 'used' ? '' : '<button class="btn small go" id="potAcc">✔ Aceitar</button>'}</div>` : ''}
+    ${P.question ? `<div class="pot-rej"><button class="btn small ghost" id="potSkip">⏭ Outra pergunta</button></div>` : ''}
+    ${last}
     <div class="pot-log">${P.log.filter(l => l.word).map(l => `<span class="pop-in">${esc(l.word)} <b>+${l.pts}</b></span>`).join('')}</div>
     ${potatoGroupsHtml(P)}`;
 }
@@ -348,8 +354,8 @@ const potatoGroupsHtml = P => `<div class="pot-groups">${P.groups.map(g => `<div
 let potRaf = 0, potEndT = 0, potTotT = 1, potSig = '';
 function potatoRun() {
   const P = S && S.potato; if (!P) return;
-  const sig = JSON.stringify([P.status, P.round, P.holder && P.holder.id, P.log.length]);
-  if (potSig && sig !== potSig) Sound.play(P.status === 'boom' ? 'wrong' : 'pop');
+  const sig = JSON.stringify([P.status, P.round, P.holder && P.holder.id, P.log.length, P.question && P.question.n]);
+  if (potSig && sig !== potSig) Sound.play(P.status === 'boom' ? 'wrong' : P.status === 'between' ? 'correct' : 'pop');
   potSig = sig;
   potEndT = performance.now() + (P.remainingMs || 0); potTotT = P.totalMs || 1;
   if (P.status !== 'running' || potRaf) return;
@@ -362,7 +368,7 @@ function potatoRun() {
   };
   potRaf = requestAnimationFrame(tick);
 }
-document.addEventListener('click', e => { if (e.target && e.target.id === 'potAcc') socket.emit('host:potatoAccept'); });
+document.addEventListener('click', e => { if (e.target && e.target.id === 'potAcc') socket.emit('host:potatoAccept'); if (e.target && e.target.id === 'potSkip') socket.emit('host:potatoSkip'); });
 // correspondência no projetor: itens numerados à esquerda, opções baralhadas (com letra) à direita
 function matchStageHtml(q, showSol) {
   const order = S.matchOrder || q.pairs.map((_, i) => i), st = S.matchStats || [], total = S.answeredIds.length;
@@ -1105,7 +1111,9 @@ function answerKeyItemHtml(q, i) {
   if (t === 'number') body = `<p>Resposta: <span class="key-ok">${esc(fmtN(q.answer))}</span> · intervalo de ${esc(fmtN(q.min))} a ${esc(fmtN(q.max))}</p><p class="muted">Em cheio dá todos os pontos; perto dá parte dos pontos.</p>`;
   if (t === 'match') body = `<ol class="key-opts">${q.pairs.map(p => `<li>${esc(p.left)} → <span class="key-ok">${esc(p.right)}</span></li>`).join('')}</ol><p class="muted">Os formandos veem as opções da direita baralhadas.</p>`;
   if (t === 'spot') body = `<div class="key-spot">${spotStageHtml(q, true)}</div><p class="muted">${spotCountQ(q) > 1 ? `As ${spotCountQ(q)} zonas certas estão a verde (pontos por cada uma encontrada).` : 'A zona certa está a verde.'}</p>`;
-  if (t === 'potato') body = `${q.rounds.map((r, k) => `<p><b>Ronda ${k + 1} — ${esc(r.theme)}:</b> <span class="key-ok">${r.words.map(esc).join(', ')}</span></p>`).join('')}
+  if (t === 'potato') body = `${q.rounds.map((r, k) => (r.questions || []).length
+      ? `<p><b>Ronda ${k + 1} — ${esc(r.theme)}</b></p><ol class="key-opts">${r.questions.map(o => `<li>${esc(o.q)} — <span class="key-ok">${esc(o.a || o.keys.join(' / '))}</span></li>`).join('')}</ol>`
+      : `<p><b>Ronda ${k + 1} — ${esc(r.theme)}:</b> <span class="key-ok">${r.words.map(esc).join(', ')}</span></p>`).join('')}
     <p class="muted">Rastilho de ${q.fuseMin} a ${q.fuseMax} s · até ${q.pts} pontos por palavra (mais quanto mais cedo) · −${q.penalty} quando rebenta (nunca abaixo de 0).</p>`;
   if (t === 'cloud') body = `<p class="muted">Cada formando escreve até ${q.words || 3} palavra(s). Nuvem de palavras: não tem resposta certa.</p>`;
   if (t === 'rank') body = q.ordered ? `<ol class="key-opts">${q.options.map(o => `<li class="key-ok">${esc(o)}</li>`).join('')}</ol><p class="muted">Ordem certa (os formandos veem as opções baralhadas).</p>`
@@ -1172,7 +1180,9 @@ function renderEditor(el) {
       if (t === 'number') { ['min', 'max', 'answer', 'step'].forEach(k => { const v = $('.qN-' + k, box).value; x[k] = v === '' ? null : Number(v.replace(',', '.')); }); x.options = []; x.correct = []; }
       if (t === 'match') { x.pairs = $$('.m-row', box).map(r => ({ left: $('.mL', r).value, right: $('.mR', r).value })); x.options = []; x.correct = []; }
       if (t === 'spot') { x.options = []; x.correct = []; x.zones = zonesOfQ(x); delete x.zone; }
-      if (t === 'potato') { x.options = []; x.correct = []; x.rounds = $$('.pot-row', box).map(r => ({ theme: $('.potTheme', r).value, words: $('.potWords', r).value }));
+      if (t === 'potato') { x.options = []; x.correct = []; x.rounds = $$('.pot-row', box).map(r => $('.potMode', r).value === 'q'
+          ? { theme: $('.potTheme', r).value, questions: $('.potWords', r).value.split('\n').filter(l => l.trim()).map(l => { const [q, keys, a] = l.split(' = '); return { q: (q || '').trim(), keys: String(keys || '').split('|').map(k => k.trim()).filter(Boolean), a: (a || '').trim() }; }) }
+          : { theme: $('.potTheme', r).value, words: $('.potWords', r).value });
         ['fuseMin', 'fuseMax', 'pts', 'penalty'].forEach(k => x[k] = +$('.pot-' + k, box).value || undefined); }
     });
   };
@@ -1217,7 +1227,7 @@ function renderEditor(el) {
         if (x.options.filter(o => o.trim()).length < 2) return toast(`Pergunta ${i + 1}: precisa de pelo menos 2 opções`);
         if (!x.poll && (!x.correct.length || x.correct.some(k => !x.options[k] || !x.options[k].trim()))) return toast(`Pergunta ${i + 1}: marca a resposta correta (ou liga "Votação" se não houver resposta certa)`, 6000);
       }
-      if (t === 'guess' && (cwNorm(x.answer || '').length < 3 || cwNorm(x.answer || '').length > 12)) return toast(`Pergunta ${i + 1}: a palavra secreta tem de ter entre 3 e 12 letras`);
+      if (t === 'guess' && (cwNorm(x.answer || '').length < 3 || cwNorm(x.answer || '').length > 14)) return toast(`Pergunta ${i + 1}: a palavra secreta tem de ter entre 3 e 14 letras`);
       if (t === 'scramble' && cwNorm(x.answer || '').length < 2) return toast(`Pergunta ${i + 1}: escreve a palavra a adivinhar (pelo menos 2 letras)`);
       if (t === 'cross') {
         const ok = (x.entries || []).filter(e => cwNorm(e.word).length >= 2);
@@ -1236,8 +1246,8 @@ function renderEditor(el) {
         if (x.pairs.length < 2) return toast(`Pergunta ${i + 1}: a correspondência precisa de pelo menos 2 pares`);
       }
       if (t === 'potato') {
-        x.rounds = (x.rounds || []).filter(r => r.theme.trim() || String(r.words).trim());
-        if (!x.rounds.length || x.rounds.some(r => !r.theme.trim() || !String(r.words).trim())) return toast(`Pergunta ${i + 1}: cada ronda da batata quente precisa de um tema e das palavras aceites`, 6000);
+        x.rounds = (x.rounds || []).filter(r => r.theme.trim() || String(r.words || '').trim() || (r.questions || []).length);
+        if (!x.rounds.length || x.rounds.some(r => !r.theme.trim() || (r.questions ? !r.questions.some(o => o.q && o.keys.length) : !String(r.words).trim()))) return toast(`Pergunta ${i + 1}: cada ronda da batata quente precisa de um tema e das palavras aceites`, 6000);
       }
       if (t === 'spot' && !x.image) return toast(`Pergunta ${i + 1}: carrega a imagem (botão 🖼 Imagem)`);
       if (t === 'spot' && !zonesOfQ(x).length) return toast(`Pergunta ${i + 1}: marca a zona certa na imagem (arrasta por cima dela)`, 6000);
@@ -1261,6 +1271,7 @@ function renderEditor(el) {
       const cw = buildCrossword(es);
       pv.innerHTML = cw.words.length ? crossGridHtml(cw, Object.fromEntries(cw.words.flatMap(w => crossCellsOf(w).map((k, j) => [k, w.word[j]]))), {}, 'mini') + (cw.unplaced.length ? `<p class="key-warn">⚠ Não cruza: ${cw.unplaced.map(esc).join(', ')} — troca ou apaga (precisa de letras em comum com as outras).</p>` : `<p class="muted">✅ ${cw.words.length} palavras cruzadas (${cw.rows}×${cw.cols})</p>`) : '<p class="muted">Escreve pelo menos 2 palavras para ver a grelha.</p>'; };
     $$('.cwWord', box).forEach(inp => inp.oninput = cwPrev); cwPrev();
+    $$('.potMode', box).forEach((sel, k) => sel.onchange = () => { sync(); const r = q.questions[i].rounds[k]; if (sel.value === 'q') { r.mode = 'q'; r.questions = r.questions || []; delete r.words; } else { r.mode = 'w'; r.words = r.words || ''; delete r.questions; } renderQuizzes(); });
     $$('.potAdd', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; if (x.rounds.length >= 12) return toast('No máximo 12 rondas'); x.rounds.push({ theme: '', words: '' }); renderQuizzes(); });
     $$('.potDel', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; if (x.rounds.length <= 1) return; x.rounds.splice(+b.dataset.k, 1); renderQuizzes(); });
     $$('.mAdd', box).forEach(b => b.onclick = () => { sync(); const x = q.questions[i]; if (x.pairs.length >= 6) return toast('No máximo 6 pares'); x.pairs.push({ left: '', right: '' }); renderQuizzes(); });
@@ -1336,7 +1347,7 @@ function qEditHtml(x, i) {
       <p class="muted" style="margin:6px 0 0">Escala de opinião: não tem resposta certa nem dá pontos.</p>`;
   if (t === 'guess') body = `<div class="row" style="margin-top:8px"><label class="muted"><b>Palavra secreta</b></label><input type="text" class="qAnswer grow" maxlength="20" value="${esc(x.answer || '')}" placeholder="ex.: Valor">
       <label class="muted">Tentativas <select class="qTries">${[3, 4, 5, 6, 7, 8].map(n => `<option ${(x.maxTries || 6) === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label></div>
-      <p class="muted" style="margin:6px 0 0">🟩 A pergunta é a <b>pista</b> (opcional, ex.: "Benefício que o cliente percebe"). Os formandos escrevem palavras com o mesmo nº de letras; cada letra fica <b style="color:#16a34a">verde</b> (sítio certo), <b style="color:#ea580c">laranja</b> (existe noutro sítio) ou <b style="color:#dc2626">vermelha</b> (não existe). 3 a 12 letras, uma só palavra; acentos não contam. Mais pontos com menos tentativas.</p>`;
+      <p class="muted" style="margin:6px 0 0">🟩 A pergunta é a <b>pista</b> (opcional, ex.: "Benefício que o cliente percebe"). Os formandos escrevem palavras com o mesmo nº de letras; cada letra fica <b style="color:#16a34a">verde</b> (sítio certo), <b style="color:#ea580c">laranja</b> (existe noutro sítio) ou <b style="color:#dc2626">vermelha</b> (não existe). 3 a 14 letras, uma só palavra; acentos não contam. Mais pontos com menos tentativas.</p>`;
   if (t === 'scramble') body = `<div class="row" style="margin-top:8px"><label class="muted"><b>Palavra a adivinhar</b></label><input type="text" class="qAnswer grow" maxlength="30" value="${esc(x.answer || '')}" placeholder="ex.: Cliente"></div>
       <p class="muted" style="margin:6px 0 0">🔤 A pergunta é a <b>pista</b> (ex.: "Quem compra o produto?"). Os formandos veem as letras baralhadas e tocam nelas pela ordem. Acentos e maiúsculas não contam. Pode ter duas palavras (ex.: "pós venda").</p>`;
   if (t === 'cross') body = `<p class="muted" style="margin:8px 0 4px">✏️ Escreve as palavras e as pistas — a grelha monta-se sozinha. A pergunta acima é o título (ex.: "Palavras cruzadas: técnicas de venda"). Pontos por cada palavra certa; acentos não contam.</p>
@@ -1346,8 +1357,11 @@ function qEditHtml(x, i) {
       <select class="qWords">${[1, 2, 3].map(n => `<option value="${n}" ${(x.words || 3) === n ? 'selected' : ''}>${n} palavra${n > 1 ? 's' : ''}</option>`).join('')}</select></label></div>
       <p class="muted" style="margin:6px 0 0">☁️ As palavras aparecem numa nuvem no teu ecrã, em direto; as mais repetidas ficam maiores. Não tem resposta certa nem dá pontos.</p>`;
   if (t === 'potato') body = `<p class="muted" style="margin:8px 0 4px">🥔 <b>Batata quente</b> (jogo em grupo; sem equipas cada formando joga por si). Em cada ronda aparece o tema; o representante do grupo que tem a batata escreve uma palavra — se estiver na lista, ganha pontos (mais quanto mais cedo) e a batata passa ao grupo seguinte. O rastilho nunca volta ao início; quando rebenta, o grupo que a tem perde pontos (nunca abaixo de 0). Palavras não previstas podem ser aceites no projetor (✔).</p>
-    ${(x.rounds || []).map((r, k) => `<div class="pot-row" style="border:1px solid #e5e7eb;border-radius:10px;padding:8px;margin:6px 0"><div class="row"><b>Ronda ${k + 1}</b><input type="text" class="potTheme grow" maxlength="120" value="${esc(r.theme)}" placeholder="Tema (ex.: Atalhos de teclado)"><button class="btn small potDel" data-k="${k}" title="Remover ronda">−</button></div>
-      <textarea class="potWords" rows="2" style="width:100%;margin-top:6px" placeholder="Palavras aceites, separadas por vírgulas (ex.: copiar, colar, Ctrl+Z/desfazer). Acentos, maiúsculas e plural não contam; use / para alternativas.">${esc(Array.isArray(r.words) ? r.words.join(', ') : r.words || '')}</textarea></div>`).join('')}
+    ${(x.rounds || []).map((r, k) => { const qm = !!(r.questions && r.questions.length) || r.mode === 'q';
+      return `<div class="pot-row" style="border:1px solid #e5e7eb;border-radius:10px;padding:8px;margin:6px 0"><div class="row"><b>Ronda ${k + 1}</b><input type="text" class="potTheme grow" maxlength="120" value="${esc(r.theme)}" placeholder="Tema / secção (ex.: Fórmulas)">
+        <select class="potMode"><option value="w">Palavras do tema</option><option value="q" ${qm ? 'selected' : ''}>Perguntas e respostas</option></select><button class="btn small potDel" data-k="${k}" title="Remover ronda">−</button></div>
+      <textarea class="potWords" rows="${qm ? 6 : 2}" style="width:100%;margin-top:6px;font-size:.92em" placeholder="${qm ? 'Uma pergunta por linha:  Pergunta = resposta aceite = explicação   (várias respostas aceites com | ; alternativas com /)' : 'Palavras aceites, separadas por vírgulas (ex.: copiar, colar, Ctrl+Z/desfazer). Acentos, maiúsculas e plural não contam; use / para alternativas.'}">${esc(qm ? (r.questions || []).map(o => `${o.q} = ${(o.keys || []).join(' | ')} = ${o.a || ''}`).join('\n') : Array.isArray(r.words) ? r.words.join(', ') : r.words || '')}</textarea>
+      ${qm ? '<p class="muted" style="margin:2px 0 0;font-size:.85em">A pergunta aparece quando a batata chega ao grupo; o representante responde. Conta como certa se for igual a uma resposta aceite (sem espaços, acentos e maiúsculas) ou se tiver todas as palavras dela (ex.: «esquerda direita»). No projetor pode aceitar (✔) ou passar a outra pergunta (⏭). A explicação aparece depois da resposta certa.</p>' : ''}</div>`; }).join('')}
     <div class="row" style="margin-top:6px"><button class="btn small potAdd">+ Ronda</button>
       <label class="muted">Rastilho de <input type="number" class="pot-fuseMin" value="${x.fuseMin || 25}" min="5" max="300" style="width:64px"> a <input type="number" class="pot-fuseMax" value="${x.fuseMax || 50}" min="5" max="600" style="width:64px"> s</label>
       <label class="muted">Até <input type="number" class="pot-pts" value="${x.pts || 100}" min="1" max="1000" style="width:70px"> pts por palavra</label>

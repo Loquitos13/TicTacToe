@@ -1,0 +1,191 @@
+{
+  "title": "Excel S9 · Letras baralhadas",
+  "questions": [
+    {
+      "type": "scramble",
+      "text": "Ficheiro com várias folhas",
+      "answer": "Livro",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Coluna com linha, como B3",
+      "answer": "Célula",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Escreve-se com dois pontos",
+      "answer": "Intervalo",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Separa as casas decimais",
+      "answer": "Vírgula",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Muda o aspeto, não o valor",
+      "answer": "Formato",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "0,23 aparece como 23 %",
+      "answer": "Percentagem",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Formato com o símbolo do euro",
+      "answer": "Moeda",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O quadradinho azul continua a série",
+      "answer": "Preenchimento",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Ver › ____ › 1 linha",
+      "answer": "Fixar",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "#### no Excel",
+      "answer": "Cardinais",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Começa com =",
+      "answer": "Fórmula",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Multiplicar",
+      "answer": "Asterisco",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Mudam a ordem das contas",
+      "answer": "Parênteses",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "B2 em vez do número",
+      "answer": "Referência",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Ajusta-se ao copiar",
+      "answer": "Relativa",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Não muda ao copiar",
+      "answer": "Absoluta",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "$",
+      "answer": "Cifrão",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Adiciona um intervalo",
+      "answer": "Soma",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O valor médio",
+      "answer": "Média",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O maior valor",
+      "answer": "Máximo",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O menor valor",
+      "answer": "Mínimo",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Conta as células com números",
+      "answer": "Contar",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "> < = <>",
+      "answer": "Comparador",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "=6<12",
+      "answer": "Verdadeiro",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "=12<6",
+      "answer": "Falso",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Envolvem o texto",
+      "answer": "Aspas",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O que o SE escreve quando falta stock",
+      "answer": "Encomendar",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Dados › ________ intervalo",
+      "answer": "Ordenar",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "A linha dos títulos",
+      "answer": "Cabeçalho",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Mostra só o que interessa",
+      "answer": "Filtro",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O filtro não apaga, só…",
+      "answer": "Esconde",
+      "time": 40
+    }
+  ]
+}

@@ -145,10 +145,15 @@ function cleanQuestion(x, uid, savePhoto) {
     if (!base.image || !base.zones.length) return null;
   } else if (type === 'potato') {
     const cl = (v, a, b, d) => { v = Math.round(Number(v)); return isFinite(v) && v ? Math.max(a, Math.min(b, v)) : d; };
-    base.rounds = (x.rounds || []).map(r => ({
-      theme: String((r && r.theme) || '').trim().slice(0, 120),
-      words: (Array.isArray(r && r.words) ? r.words : String((r && r.words) || '').split(/[,;\n]/)).map(w => String(w).trim().slice(0, 60)).filter(Boolean).slice(0, 300),
-    })).filter(r => r.theme && r.words.length).slice(0, 12);
+    // cada ronda: um tema com palavras aceites, OU uma lista de perguntas (a pergunta segue com a batata)
+    const qLine = l => { const [q, keys, a] = String(l).split(/\s+=\s+|\s*=\s*$/); return { q, keys: String(keys || '').split('|'), a }; };
+    base.rounds = (x.rounds || []).map(r => {
+      const qs = (Array.isArray(r && r.questions) ? r.questions : String((r && r.questions) || '').split('\n').filter(l => l.trim()).map(qLine))
+        .map(o => ({ q: String((o && o.q) || '').trim().slice(0, 300), keys: (Array.isArray(o && o.keys) ? o.keys : [o && o.keys]).map(k => String(k || '').trim().slice(0, 120)).filter(Boolean).slice(0, 12), a: String((o && o.a) || '').trim().slice(0, 300) }))
+        .filter(o => o.q && o.keys.length).slice(0, 60);
+      const words = (Array.isArray(r && r.words) ? r.words : String((r && r.words) || '').split(/[,;\n]/)).map(w => String(w).trim().slice(0, 60)).filter(Boolean).slice(0, 300);
+      return qs.length ? { theme: String((r && r.theme) || '').trim().slice(0, 120), questions: qs } : { theme: String((r && r.theme) || '').trim().slice(0, 120), words };
+    }).filter(r => r.theme && ((r.questions || []).length || (r.words || []).length)).slice(0, 12);
     base.fuseMin = cl(x.fuseMin, 5, 300, 25); base.fuseMax = Math.max(base.fuseMin, cl(x.fuseMax, 5, 600, 50));
     base.pts = cl(x.pts, 1, 1000, 100); base.penalty = cl(x.penalty, 0, 1000, 50);
     if (!base.rounds.length) return null;
@@ -156,7 +161,7 @@ function cleanQuestion(x, uid, savePhoto) {
     base.answer = String(x.answer || '').trim().slice(0, 20);
     base.maxTries = Math.max(3, Math.min(8, parseInt(x.maxTries, 10) || 6));
     const n = cwNorm(base.answer).length;
-    if (n < 3 || n > 12) return null;
+    if (n < 3 || n > 14) return null;
   } else if (type === 'cross') {
     base.entries = (x.entries || []).map(e => ({ word: String(e.word || '').trim().slice(0, 30), clue: String(e.clue || '').trim().slice(0, 200) }))
       .filter(e => cwNorm(e.word).length >= 2 && e.clue).slice(0, 15);
@@ -378,7 +383,7 @@ function solutionBase(q) {
 const fillSentence = (q, words) => { let k = 0; return String(q.text).replace(BLANK_RE, () => { const w = words[k++]; return w ? w : '_____'; }); };
 function plainCorrect(q) {
   const t = typeOf(q);
-  if (t === 'potato') return q.rounds.map(r => `${r.theme}: ${r.words.join(', ')}`).join(' | ');
+  if (t === 'potato') return q.rounds.map(r => `${r.theme}: ${(r.questions || []).length ? r.questions.length + ' perguntas' : r.words.join(', ')}`).join(' | ');
   if (t === 'number') return String(q.answer);
   if (t === 'match') return q.pairs.map(p => `${p.left} → ${p.right}`).join('; ');
   if (t === 'spot') return spotCount(q) > 1 ? `As ${spotCount(q)} zonas marcadas na imagem` : 'A zona marcada na imagem';
@@ -420,8 +425,28 @@ const matchOrder = q => rankOrder({ id: q.id + ':m', options: q.pairs });
 
 // batata quente: a palavra conta se for uma das aceites do tema da ronda (acentos, maiúsculas, pontuação e plural
 // não contam; "a/b" na lista são alternativas) e se ainda não foi dita nesta ronda
+// pergunta da batata: certa se for igual a uma das respostas aceites (sem espaços, acentos nem maiúsculas: "=B3*C3",
+// "A2:A10", "62,5" — estas têm de ser iguais) ou, se a resposta aceite só tiver palavras, se as tiver todas
+// ("esquerda direita" aceita "o texto à esquerda e os números à direita"); "a/b" são alternativas
+function potatoAnswer(item, typed) {
+  const raw = t => String(t || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, '');
+  const forms = t => { const n = norm(t); return n ? [n, n.replace(/es$/, ''), n.replace(/s$/, '')] : []; };
+  const have = new Set(norm(typed).split(' ').filter(Boolean).flatMap(forms));
+  if (!raw(typed)) return false;
+  return item.keys.some(k => String(k).split('/').some(alt => {
+    if (raw(alt) && raw(alt) === raw(typed)) return true;
+    // com números ou símbolos (62,5 · C4 · =B3*C3 · $H$1) tem de ser igual; só com palavras, basta contê-las
+    if (/[^\p{L}\s]/u.test(alt)) return false;
+    const kt = norm(alt).split(' ').filter(Boolean);
+    return kt.length > 0 && kt.every(t => forms(t).some(f => have.has(f)));
+  }));
+}
 function potatoCheck(q, round, word, used) {
   const r = (q.rounds || [])[round]; if (!r) return { ok: false, reason: 'no' };
+  if ((r.questions || []).length) {   // modo perguntas: confere com a pergunta em curso (used = [índice da pergunta])
+    const item = r.questions[used[0] || 0];
+    return item && potatoAnswer(item, word) ? { ok: true, key: 'q' + (used[0] || 0) } : { ok: false, reason: 'no' };
+  }
   const forms = w => { const n = norm(w); return n ? [n, n.replace(/es$/, ''), n.replace(/s$/, '')].filter(Boolean) : []; };
   const typed = forms(word); if (!typed.length) return { ok: false, reason: 'no' };
   for (const entry of r.words) {
@@ -445,4 +470,4 @@ function finalGrade(questions, answers, asked, sid, scale = 20) {
   const sum = idx.reduce((s, i) => { const a = (answers[i] || {})[sid]; if (!a) return s; return s + (a.correct === true ? 1 : typeof a.frac === 'number' ? Math.max(0, Math.min(1, a.frac)) : 0); }, 0);
   return scale === 100 ? Math.round(sum / idx.length * 100) : Math.round(sum / idx.length * 200) / 10;
 }
-module.exports = { qualOf, finalGrade, potatoCheck, zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
+module.exports = { potatoAnswer, qualOf, finalGrade, potatoCheck, zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };

@@ -1,0 +1,402 @@
+{
+  "title": "Excel S9 · Batata quente",
+  "questions": [
+    {
+      "type": "potato",
+      "text": "🥔 Batata quente · Excel: respondam à pergunta e passem a batata!",
+      "time": 30,
+      "fuseMin": 45,
+      "fuseMax": 75,
+      "pts": 100,
+      "penalty": 50,
+      "rounds": [
+        {
+          "theme": "Secção 1 · A folha por dentro",
+          "questions": [
+            {
+              "q": "Como se chama o ficheiro de folha de cálculo, que pode ter várias folhas?",
+              "keys": [
+                "livro"
+              ],
+              "a": "Livro. As folhas aparecem em separadores no fundo do ecrã."
+            },
+            {
+              "q": "Qual é o endereço da célula da coluna C com a linha 4?",
+              "keys": [
+                "C4"
+              ],
+              "a": "C4: primeiro a letra, depois o número."
+            },
+            {
+              "q": "Como se escreve o intervalo que vai de A2 até A10?",
+              "keys": [
+                "A2:A10"
+              ],
+              "a": "A2:A10, com dois pontos."
+            },
+            {
+              "q": "Por defeito, para que lado encosta o texto? E os números e as datas?",
+              "keys": [
+                "esquerda direita"
+              ],
+              "a": "O texto encosta à esquerda. Os números e as datas encostam à direita."
+            },
+            {
+              "q": "Escreveu um número e ele ficou encostado à esquerda. Que sinal é esse?",
+              "keys": [
+                "texto"
+              ],
+              "a": "A folha leu-o como texto, e ele não vai entrar nas contas."
+            },
+            {
+              "q": "Alguém escreveu «40 un.» numa célula. A soma da coluna conta este valor?",
+              "keys": [
+                "não",
+                "texto"
+              ],
+              "a": "Não, porque passou a texto. Na célula vai só o número, e a unidade vai para o título da coluna."
+            },
+            {
+              "q": "Em Portugal, como se escreve sessenta e dois e meio numa célula?",
+              "keys": [
+                "62,5"
+              ],
+              "a": "62,5, com vírgula. Com ponto, pode ficar texto ou até virar data."
+            },
+            {
+              "q": "A célula guarda 62,5, mas sem casas decimais mostra 63. Que valor entra nas contas?",
+              "keys": [
+                "62,5"
+              ],
+              "a": "62,5. O formato muda o aspeto, não o valor."
+            },
+            {
+              "q": "Onde se escolhe o formato Moeda ou Percentagem no Google Sheets?",
+              "keys": [
+                "formatar número"
+              ],
+              "a": "Formatar › Número."
+            },
+            {
+              "q": "Escreve «janeiro» e arrasta o quadradinho azul para baixo. O que acontece?",
+              "keys": [
+                "fevereiro",
+                "série",
+                "continua"
+              ],
+              "a": "A série continua: fevereiro, março, abril…"
+            },
+            {
+              "q": "Como se faz a série 1, 2, 3, 4…?",
+              "keys": [
+                "duas células",
+                "arrastar",
+                "arrasta",
+                "1 e 2"
+              ],
+              "a": "Escreve-se 1 e 2 em duas células, selecionam-se as duas e arrasta-se o quadradinho azul."
+            },
+            {
+              "q": "Onde se fixa a primeira linha?",
+              "keys": [
+                "ver fixar",
+                "fixar painéis"
+              ],
+              "a": "No Google Sheets, em Ver › Fixar › 1 linha. No Excel, em Ver › Fixar Painéis."
+            },
+            {
+              "q": "No Excel, a célula mostra ####. Perdeu-se o número?",
+              "keys": [
+                "não",
+                "estreita",
+                "largura"
+              ],
+              "a": "Não, a coluna é estreita demais. Um duplo clique na divisória entre as letras das colunas ajusta a largura."
+            },
+            {
+              "q": "No Google Sheets, onde se confirma que a região é Portugal?",
+              "keys": [
+                "definições",
+                "local"
+              ],
+              "a": "Ficheiro › Definições › Local."
+            }
+          ]
+        },
+        {
+          "theme": "Secção 2 · Fórmulas",
+          "questions": [
+            {
+              "q": "Por que sinal começa sempre uma fórmula?",
+              "keys": [
+                "=",
+                "igual"
+              ],
+              "a": "Pelo sinal de igual (=)."
+            },
+            {
+              "q": "Quanto dá =5+2*3?",
+              "keys": [
+                "11",
+                "onze"
+              ],
+              "a": "11, porque a multiplicação faz-se antes da soma."
+            },
+            {
+              "q": "Com 5, 2 e 3, como se escreve a fórmula para dar 21?",
+              "keys": [
+                "=(5+2)*3",
+                "(5+2)*3"
+              ],
+              "a": "=(5+2)*3"
+            },
+            {
+              "q": "Que símbolo se usa para multiplicar? E para dividir?",
+              "keys": [
+                "asterisco barra",
+                "* /",
+                "*/",
+                "* e /"
+              ],
+              "a": "O asterisco (*) e a barra (/)."
+            },
+            {
+              "q": "Porque é melhor =B2*C2 do que =40*62,5?",
+              "keys": [
+                "atualiza",
+                "atualizam",
+                "muda",
+                "mudam"
+              ],
+              "a": "Só a primeira se atualiza quando os valores mudam."
+            },
+            {
+              "q": "Mudou o preço em C2. Tem de reescrever a fórmula do total?",
+              "keys": [
+                "não",
+                "sozinho"
+              ],
+              "a": "Não, o total atualiza-se sozinho."
+            },
+            {
+              "q": "Copia =B2*C2 de D2 para D3. Que fórmula fica em D3?",
+              "keys": [
+                "=B3*C3",
+                "B3*C3"
+              ],
+              "a": "=B3*C3. É a referência relativa."
+            },
+            {
+              "q": "Qual é a fórmula que soma as células de D2 a D6?",
+              "keys": [
+                "=SOMA(D2:D6)",
+                "SOMA(D2:D6)"
+              ],
+              "a": "=SOMA(D2:D6)"
+            },
+            {
+              "q": "Diga três funções da família da SOMA.",
+              "keys": [
+                "média máximo",
+                "média mínimo",
+                "média contar",
+                "máximo mínimo",
+                "máximo contar",
+                "mínimo contar"
+              ],
+              "a": "MÉDIA, MÁXIMO, MÍNIMO e CONTAR."
+            },
+            {
+              "q": "Em português, que sinal separa os argumentos de uma função?",
+              "keys": [
+                "ponto e vírgula",
+                ";"
+              ],
+              "a": "O ponto e vírgula (;)."
+            },
+            {
+              "q": "A taxa de IVA está em H1. Copiou =D2*(1+H1) para baixo e o IVA desapareceu. Porquê?",
+              "keys": [
+                "$H$1",
+                "absoluta",
+                "vazia",
+                "H2"
+              ],
+              "a": "A fórmula passou a apontar para H2, que está vazia. Era preciso escrever $H$1."
+            },
+            {
+              "q": "O que faz o cifrão em $H$1?",
+              "keys": [
+                "prende",
+                "fixa",
+                "absoluta",
+                "bloqueia"
+              ],
+              "a": "Prende a referência, que passa a ser absoluta."
+            },
+            {
+              "q": "Que tecla põe os cifrões?",
+              "keys": [
+                "F4",
+                "tecla F4"
+              ],
+              "a": "F4, com o cursor em cima da referência."
+            },
+            {
+              "q": "Dê um exemplo de célula que deve ter referência absoluta.",
+              "keys": [
+                "taxa",
+                "objetivo",
+                "preço",
+                "IVA"
+              ],
+              "a": "Uma taxa, um objetivo ou um preço fixo."
+            }
+          ]
+        },
+        {
+          "theme": "Secção 3 · Decidir, ordenar e filtrar",
+          "questions": [
+            {
+              "q": "Diga os seis comparadores.",
+              "keys": [
+                "> < >= <= = <>",
+                "><>=<==<>",
+                "maior menor igual diferente"
+              ],
+              "a": "> < >= <= = <>"
+            },
+            {
+              "q": "Como se escreve «diferente»?",
+              "keys": [
+                "<>"
+              ],
+              "a": "<>"
+            },
+            {
+              "q": "O stock é 6 e o mínimo é 12. O que dá =6<12?",
+              "keys": [
+                "verdadeiro",
+                "true"
+              ],
+              "a": "Verdadeiro. No Google Sheets aparece TRUE."
+            },
+            {
+              "q": "Quantas partes tem a função SE e o que as separa?",
+              "keys": [
+                "três",
+                "3",
+                "ponto e vírgula"
+              ],
+              "a": "Três (o teste, o resultado se for verdadeiro e o resultado se for falso), separadas por ponto e vírgula."
+            },
+            {
+              "q": "Complete: =SE(C2<D2;\"Encomendar\";___)",
+              "keys": [
+                "\"OK\"",
+                "ok"
+              ],
+              "a": "\"OK\""
+            },
+            {
+              "q": "Porque é que «Encomendar» vai entre aspas?",
+              "keys": [
+                "texto"
+              ],
+              "a": "Porque é texto."
+            },
+            {
+              "q": "O stock de um artigo muda amanhã. É preciso voltar a comparar à mão?",
+              "keys": [
+                "não",
+                "sozinha"
+              ],
+              "a": "Não, a palavra muda sozinha."
+            },
+            {
+              "q": "O que quer dizer #DIV/0!?",
+              "keys": [
+                "divisão por zero",
+                "zero",
+                "vazia"
+              ],
+              "a": "Divisão por zero ou por uma célula vazia."
+            },
+            {
+              "q": "Escreveu =SOMAR(D2:D6) e apareceu #NAME? (#NOME? no Excel). Porquê?",
+              "keys": [
+                "mal escrito",
+                "nome errado",
+                "soma",
+                "aspas"
+              ],
+              "a": "O nome da função está mal escrito: é SOMA. Este erro também aparece quando falta pôr aspas num texto."
+            },
+            {
+              "q": "O que quer dizer #VALUE! (#VALOR! no Excel)?",
+              "keys": [
+                "texto"
+              ],
+              "a": "A conta tem texto pelo meio."
+            },
+            {
+              "q": "O que quer dizer #REF!?",
+              "keys": [
+                "apagada",
+                "apagou",
+                "apagaram",
+                "eliminada"
+              ],
+              "a": "A fórmula apontava para uma célula que foi apagada."
+            },
+            {
+              "q": "Selecionou só a coluna do stock e ordenou. O que correu mal?",
+              "keys": [
+                "nomes",
+                "errada",
+                "desalinhada",
+                "baralhou"
+              ],
+              "a": "Os números mudaram de lugar e os nomes não, por isso a lista ficou errada."
+            },
+            {
+              "q": "Para ordenar bem, o que se seleciona e que opção se marca?",
+              "keys": [
+                "tabela toda",
+                "cabeçalho"
+              ],
+              "a": "Seleciona-se a tabela toda e marca-se «Dados com linha de cabeçalho»."
+            },
+            {
+              "q": "Onde se cria um filtro?",
+              "keys": [
+                "dados criar filtro",
+                "dados"
+              ],
+              "a": "Dados › Criar um filtro."
+            },
+            {
+              "q": "O filtro apaga linhas? Como se percebe?",
+              "keys": [
+                "não",
+                "esconde",
+                "saltam"
+              ],
+              "a": "Não, só as esconde. Percebe-se porque os números das linhas saltam."
+            },
+            {
+              "q": "O que fazer ao filtro antes de partilhar o ficheiro?",
+              "keys": [
+                "remover",
+                "remove",
+                "tirar",
+                "retirar"
+              ],
+              "a": "Removê-lo, em Dados › Remover filtro."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

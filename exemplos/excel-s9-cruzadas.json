@@ -1,0 +1,79 @@
+{
+  "title": "Excel S9 · Palavras cruzadas",
+  "questions": [
+    {
+      "type": "cross",
+      "text": "Palavras cruzadas · A folha por dentro",
+      "entries": [
+        {
+          "word": "Ordenar",
+          "clue": "Dados › ________ intervalo"
+        },
+        {
+          "word": "Celula",
+          "clue": "Encontro de uma coluna com uma linha, como B3"
+        },
+        {
+          "word": "Virgula",
+          "clue": "Em Portugal, separa as casas decimais"
+        },
+        {
+          "word": "Formato",
+          "clue": "Muda o aspeto do número, mas não o valor guardado"
+        },
+        {
+          "word": "Fixar",
+          "clue": "Ver › ____ › 1 linha"
+        },
+        {
+          "word": "Livro",
+          "clue": "O ficheiro da folha de cálculo, com várias folhas"
+        },
+        {
+          "word": "Intervalo",
+          "clue": "Conjunto de células seguidas, como C2:C6"
+        }
+      ],
+      "time": 240
+    },
+    {
+      "type": "cross",
+      "text": "Palavras cruzadas · Fórmulas e filtros",
+      "entries": [
+        {
+          "word": "Cabecalho",
+          "clue": "A linha dos títulos, que não deve ir para o meio ao ordenar"
+        },
+        {
+          "word": "Media",
+          "clue": "Função que calcula o valor médio"
+        },
+        {
+          "word": "Soma",
+          "clue": "Função que adiciona os valores de um intervalo"
+        },
+        {
+          "word": "Formula",
+          "clue": "Começa sempre com o sinal de igual"
+        },
+        {
+          "word": "Cifrao",
+          "clue": "Prende a coluna ou a linha numa referência"
+        },
+        {
+          "word": "Filtro",
+          "clue": "Mostra só as linhas que interessam, sem apagar nada"
+        },
+        {
+          "word": "Asterisco",
+          "clue": "Operador da multiplicação"
+        },
+        {
+          "word": "Aspas",
+          "clue": "Envolvem o texto dentro de uma fórmula"
+        }
+      ],
+      "time": 240
+    }
+  ]
+}

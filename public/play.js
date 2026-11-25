@@ -828,7 +828,7 @@ let potLast = null, potEnd = 0, potTot = 1, potRaf = 0;
 function renderPotato(s) {
   const P = state.potato;
   if (!P) return set('potwait' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji wiggle">🥔</div><h1>A preparar a batata…</h1></div>`);
-  const sig = JSON.stringify([P.status, P.round, P.holder && P.holder.id, P.rep, P.isRep, P.mine, P.log.length, P.groups.map(g => g.score)]);
+  const sig = JSON.stringify([P.status, P.round, P.holder && P.holder.id, P.rep, P.isRep, P.mine, P.log.length, P.groups.map(g => g.score), P.question && P.question.n]);
   // sons e vibração quando a batata chega ao grupo, quando é a minha vez e quando rebenta
   if (potLast && potLast !== sig) {
     if (P.status === 'boom') { Sound.play('wrong'); navigator.vibrate && navigator.vibrate(400); }
@@ -837,19 +837,21 @@ function renderPotato(s) {
   }
   potLast = sig;
   let body;
-  if (P.status === 'boom') body = `<div class="big-emoji wiggle">💥</div><h1>Rebentou com ${esc(P.boom.name)}!</h1>
+  if (P.status === 'between') body = `<div class="big-emoji pop-in">✅</div><h1>Secção concluída!</h1><p>Vem aí a próxima…</p>`;
+  else if (P.status === 'boom') body = `<div class="big-emoji wiggle">💥</div><h1>Rebentou com ${esc(P.boom.name)}!</h1>
     <p>${P.myGroup && P.boom.id === P.myGroup.id ? `O teu grupo perde ${P.boom.penalty} pontos 😬` : 'Vem aí a próxima ronda…'}</p>`;
-  else if (P.isRep) body = `<div class="pot-me pop-in">🥔 É a TUA vez!</div><p style="margin:4px 0 10px">Escreve uma palavra sobre o tema e passa a batata — depressa!</p>
-    <form id="potForm" class="pot-form"><input id="potIn" class="search" maxlength="60" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="A tua palavra">
+  else if (P.isRep) body = `<div class="pot-me pop-in">🥔 É a TUA vez!</div><p style="margin:4px 0 10px">${P.question ? 'Responde à pergunta e passa a batata — depressa!' : 'Escreve uma palavra sobre o tema e passa a batata — depressa!'}</p>
+    <form id="potForm" class="pot-form"><input id="potIn" class="search" maxlength="60" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="${P.question ? 'A tua resposta' : 'A tua palavra'}">
     <button class="btn primary">🔥 Passar</button></form><p id="potMsg" class="pot-msg"></p>`;
-  else if (P.mine) body = `<div class="pot-me pop-in">🥔 A batata está com o teu grupo!</div><p>É a vez de <b>${esc(P.rep || '')}</b> — ajuda a pensar numa palavra!</p>`;
+  else if (P.mine) body = `<div class="pot-me pop-in">🥔 A batata está com o teu grupo!</div><p>É a vez de <b>${esc(P.rep || '')}</b> — ajuda a pensar ${P.question ? 'na resposta' : 'numa palavra'}!</p>`;
   else body = `<div class="big-emoji">🥔</div><p style="font-size:1.15em">A batata está com <b style="color:${P.holder ? P.holder.color : '#fff'}">${P.holder ? esc(P.holder.name) : '—'}</b>${P.rep ? `<br><small>(vez de ${esc(P.rep)})</small>` : ''}</p>`;
   set('pot' + s.qIndex + sig, header() + qmeta() + `<div class="pot-wrap">
     <div class="pot-round">Ronda ${P.round} de ${P.rounds}${P.myGroup ? ` · ${P.myGroup.emoji} ${esc(P.myGroup.name)}` : ''}</div>
-    <div class="pot-theme">${esc(P.theme)}</div>
+    ${P.question && P.status === 'running' ? `<div class="pot-theme pot-qq"><small>${esc(P.theme)} · pergunta ${P.question.n} de ${P.question.total}</small>${esc(P.question.text)}</div>` : `<div class="pot-theme">${esc(P.theme)}</div>`}
     ${P.status === 'running' ? '<div class="pot-fuse"><i id="potFuse"></i></div>' : ''}
     <div class="pot-body">${body}</div>
-    ${P.log.some(l => l.word) ? `<div class="pot-log">${P.log.filter(l => l.word).map(l => `<span>${esc(l.word)}</span>`).join('')}</div>` : ''}</div>`, () => {
+    ${P.last ? `<div class="pot-lastp">✅ «${esc(P.last.word)}»${P.last.a ? ` — ${esc(P.last.a)}` : ''}</div>` : ''}
+    ${!P.question && P.log.some(l => l.word) ? `<div class="pot-log">${P.log.filter(l => l.word).map(l => `<span>${esc(l.word)}</span>`).join('')}</div>` : ''}</div>`, () => {
     const f = $('#potForm'); if (!f) return;
     const inp = $('#potIn'); inp.focus();
     f.onsubmit = e => {

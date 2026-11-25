@@ -216,13 +216,30 @@ function potatoRound(k) {
   const q = currentQ(), P = session.potato;
   clearTimeout(potatoTimer);
   if (!P || k >= q.rounds.length) return closeQuestion();
-  P.round = k; P.used = []; P.status = 'running';
+  P.round = k; P.used = []; P.qi = 0; P.last = null;
+  const gs = potatoGroups();
+  potatoFuse(P, P.startNext || (gs.length ? gs[crypto.randomInt(gs.length)].id : null));
+}
+const potatoQs = () => { const q = currentQ(), P = session.potato; return ((q.rounds[P.round] || {}).questions) || []; };
+// rastilho novo (início da ronda, ou depois de rebentar no modo de perguntas) e a batata vai para o grupo gid
+function potatoFuse(P, gid) {
+  const q = currentQ();
+  clearTimeout(potatoTimer);
+  P.status = 'running';
   const dur = (q.fuseMin + crypto.randomInt(q.fuseMax - q.fuseMin + 1)) * 1000;
   P.fuseStart = Date.now(); P.fuseEnd = P.fuseStart + dur;
-  const gs = potatoGroups();
-  potatoGive(P, P.startNext || (gs.length ? gs[crypto.randomInt(gs.length)].id : null));
+  potatoGive(P, gid);
   potatoTimer = setTimeout(potatoBoom, dur);
   persistSession(); broadcast();
+}
+// modo de perguntas: a pergunta seguinte; quando acabam, a secção termina (sem penalização) e segue a próxima ronda
+function potatoNextQ(P) {
+  P.qi++; P.reject = null;
+  if (P.qi < potatoQs().length) return false;
+  clearTimeout(potatoTimer); P.status = 'between'; P.startNext = potatoNext(P);
+  persistSession(); broadcast();
+  potatoTimer = setTimeout(() => { if (session && session.potato === P && session.phase === 'question') potatoRound(P.round + 1); }, 4000);
+  return true;
 }
 function potatoBoom() {
   const P = session && session.potato; if (!P || P.status !== 'running' || session.phase !== 'question') return;
@@ -232,7 +249,9 @@ function potatoBoom() {
   P.log.push({ round: P.round, group: P.holder, boom: true, pts: -q.penalty });
   P.startNext = potatoNext(P);
   persistSession(); broadcast();
-  potatoTimer = setTimeout(() => { if (session && session.potato === P && session.phase === 'question') potatoRound(P.round + 1); }, 5000);
+  // modo de perguntas: a ronda continua (rastilho novo; a mesma pergunta passa ao grupo seguinte); com palavras, ronda seguinte
+  const qmode = potatoQs().length > 0;
+  potatoTimer = setTimeout(() => { if (!session || session.potato !== P || session.phase !== 'question') return; if (qmode) potatoFuse(P, P.startNext); else potatoRound(P.round + 1); }, qmode ? 4000 : 5000);
 }
 function potatoAccept(word, key) {
   const P = session.potato, q = currentQ(), g = potatoGroups().find(x => x.id === P.holder);
@@ -244,6 +263,8 @@ function potatoAccept(word, key) {
   const rep = P.rep;
   g.members.forEach(m => potatoScore(m, pts, m.studentId === rep ? word : null));
   P.log.push({ round: P.round, group: g.id, word, pts, rep });
+  const item = potatoQs()[P.qi];
+  if (item) { P.last = { q: item.q, a: item.a, word, group: g.id }; if (potatoNextQ(P)) return pts; }
   potatoGive(P, potatoNext(P));
   persistSession(); broadcast();
   return pts;
@@ -257,6 +278,9 @@ function potatoView(forHost, p) {
   const name = id => { const g = gs.find(x => x.id === id); return g ? g.name : '?'; };
   const v = {
     status: P.status, round: P.round + 1, rounds: q.rounds.length, theme: (q.rounds[P.round] || {}).theme || '',
+    // modo de perguntas: a pergunta em curso (nunca a resposta) e a última respondida (com a explicação)
+    question: (() => { const qs = (q.rounds[P.round] || {}).questions || []; return qs.length && P.qi < qs.length ? { text: qs[P.qi].q, n: P.qi + 1, total: qs.length } : null; })(),
+    last: P.last ? { q: P.last.q, a: P.last.a, word: P.last.word, group: name(P.last.group) } : null,
     remainingMs: P.status === 'running' ? Math.max(0, P.fuseEnd - Date.now()) : 0, totalMs: P.fuseEnd - P.fuseStart,
     holder: info(holder), rep: rep ? (rep.short || rep.name) : null, boom: P.status === 'boom' ? { ...info(boomG), penalty: q.penalty } : null,
     groups: gs.map(g => ({ ...info(g), size: g.members.length, score: P.gscore[g.id] || 0 })).sort((a, b) => b.score - a.score),
@@ -1160,6 +1184,12 @@ io.on('connection', socket => {
       if (!P || P.status !== 'running' || session.phase !== 'question' || !P.reject || P.reject.group !== P.holder || P.reject.reason === 'used') return;
       potatoAccept(P.reject.word, Q.norm(P.reject.word));
     }));
+    // modo de perguntas: ninguém sabe → outra pergunta (a batata fica com o mesmo grupo)
+    socket.on('host:potatoSkip', guard(() => {
+      const P = session && session.potato;
+      if (!P || P.status !== 'running' || session.phase !== 'question' || !potatoQs().length) return;
+      if (!potatoNextQ(P)) { persistSession(); broadcast(); }
+    }));
 
     socket.on('host:settings', guard(s => {
       if (!session) return;
@@ -1465,7 +1495,7 @@ io.on('connection', socket => {
     if (!me || me.socketId !== socket.id || P.rep !== me.studentId) return cb({ error: 'Não é a tua vez.' });
     const w = String(typeof word === 'string' ? word : '').trim().replace(/\s+/g, ' ').slice(0, 60);
     if (!w) return cb({ error: 'Escreve uma palavra.' });
-    const r = Q.potatoCheck(q, P.round, w, P.used);
+    const r = Q.potatoCheck(q, P.round, w, (q.rounds[P.round] || {}).questions ? [P.qi] : P.used);
     if (!r.ok) { P.reject = { word: w, group: P.holder, reason: r.reason }; broadcast(); return cb({ ok: false, reason: r.reason }); }
     cb({ ok: true, pts: potatoAccept(w, r.key) });
   });
