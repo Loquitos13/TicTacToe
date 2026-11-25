@@ -435,10 +435,14 @@ function potatoCheck(q, round, word, used) {
 }
 // Nota de 0 a 20: média das perguntas com resposta certa (as meio certas contam a parte certa; certa = inteira).
 // Não contam: opiniões, votações, respostas livres por validar e jogos ao vivo (batata quente).
-function finalGrade(questions, answers, asked, sid) {
+// escala qualitativa (sobre a % de acerto): <50 Insuficiente · 50–69 Suficiente · 70–89 Elevado · ≥90 Excelente
+const QUAL_LEVELS = [[90, 'Excelente'], [70, 'Elevado'], [50, 'Suficiente'], [0, 'Insuficiente']];
+const qualOf = pct => pct == null ? null : QUAL_LEVELS.find(([min]) => pct >= min)[1];
+function finalGrade(questions, answers, asked, sid, scale = 20) {
+  if (scale === 'q') { const pct = finalGrade(questions, answers, asked, sid, 100); return pct == null ? null : qualOf(pct); }
   const idx = asked.filter(i => { const q = questions[i]; if (!q || typeOf(q) === 'potato') return false; return isGraded(q) || Object.values(answers[i] || {}).some(a => a.correct != null); });
   if (!idx.length) return null;
   const sum = idx.reduce((s, i) => { const a = (answers[i] || {})[sid]; if (!a) return s; return s + (a.correct === true ? 1 : typeof a.frac === 'number' ? Math.max(0, Math.min(1, a.frac)) : 0); }, 0);
-  return Math.round(sum / idx.length * 200) / 10;
+  return scale === 100 ? Math.round(sum / idx.length * 100) : Math.round(sum / idx.length * 200) / 10;
 }
-module.exports = { finalGrade, potatoCheck, zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
+module.exports = { qualOf, finalGrade, potatoCheck, zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };

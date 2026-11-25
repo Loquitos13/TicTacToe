@@ -142,7 +142,10 @@ Nos resultados, quem não estava marcado aparece como "(extra)". Se a desligar, 
 - **⏱ Tempo por pergunta:** passado o tempo de cada pergunta, já não se responde.
 - **⏳ Tempo geral:** cada um ao seu ritmo; pode voltar atrás, rever e mudar as respostas até acabar o tempo.
 - **Mostrar as respostas certas no fim** (ou não).
-- **Mostrar a nota (0 a 20)** a cada formando no fim.
+- **Mostrar a nota** a cada formando no fim (ou não), na escala que escolher:
+  - **0 a 20 valores**;
+  - **0 a 100 %**;
+  - **qualitativa**: Insuficiente (menos de 50 %), Suficiente (50 a 69 %), Elevado (70 a 89 %) ou Excelente (90 % ou mais).
 
 Durante a avaliação os telemóveis não mostram certo/errado. A nota é a média das perguntas com resposta certa: as meio certas contam a parte certa, e opiniões, votações e jogos ao vivo não contam. A grelha de resultados e o Excel têm sempre a coluna **Nota**. Pode juntar no mesmo questionário perguntas e jogos (cruzadas, adivinha, correspondência, encontrar na imagem, batata quente…). Exemplo pronto: `exemplos/avaliacao-final-formatacao.json`.
 

@@ -847,7 +847,8 @@ function renderSetup(el) {
             <label class="switch"><input type="radio" name="sFinT" value="exam"> ⏳ <span><b>Tempo geral</b> — cada um ao seu ritmo: pode voltar atrás, rever e mudar as respostas até acabar o tempo:
               <input type="number" id="sFinMin" min="1" max="300" value="30" style="width:70px"> min</span></label>
             <label class="switch"><input type="checkbox" id="sFinAns" checked> Mostrar as respostas certas no fim</label>
-            <label class="switch"><input type="checkbox" id="sGrade" checked> Mostrar a nota a cada formando no fim (0 a 20)</label>
+            <label class="switch"><input type="checkbox" id="sGrade" checked> Mostrar a nota a cada formando no fim, em
+              <select id="sGradeScale"><option value="20">0 a 20 valores</option><option value="100">0 a 100 %</option><option value="q">Qualitativa (Insuficiente · Suficiente · Elevado · Excelente)</option></select></label>
             <p class="muted" style="margin:2px 0 0">Durante a avaliação os telemóveis não mostram certo/errado. A nota é a média das perguntas com resposta certa (as meio certas contam a parte certa); opiniões, votações e jogos ao vivo não contam. Os jogos ao vivo (batata quente) só funcionam com tempo por pergunta.</p>
           </div></div>
         <label>Como avançam as perguntas? <small class="muted">(aplica-se a todo o quiz)</small></label>
@@ -978,7 +979,7 @@ function renderSetup(el) {
     go.disabled = true; Sound.init();
     socket.emit('host:start', { quizId: $('#sQuiz').value, studentIds: ids, settings: { mode: $('[name=sMode]:checked').value, fixedTime: +$('#sTime').value, revealMode: $('#sRevEach').checked ? 'each' : ($('#sRevEnd').checked ? 'end' : 'never'), revealEnd: $('#sRevEnd').checked,
       rankEach: $('#sRanking').value === 'each', finalPodium: $('#sRanking').value !== 'none', noRanking: $('#sRanking').value === 'none',
-      autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, hideOnPhones: $('#sHide').checked, examMinutes: +$('#tTotal').value, showGrade: $('#sFinal').checked && $('#sGrade').checked, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked,
+      autoTimes: { poll: +$('#tPoll').value, reveal: +$('#tReveal').value, board: +$('#tBoard').value }, showPoll: $('#sPoll').checked, hideOnPhones: $('#sHide').checked, examMinutes: +$('#tTotal').value, showGrade: $('#sFinal').checked && $('#sGrade').checked, gradeScale: $('#sGradeScale').value === 'q' ? 'q' : +$('#sGradeScale').value, showWho: $('#sWho').checked, speedPoints: $('#sSpeed').checked, shuffle: $('#sShuffle').checked,
       teams: $('#sTeams').checked ? +$('#sTeamsN').value : 0, openJoin: $('#sOpen').checked, phoneSound: $('#sPhSnd').checked } });
   };
 }
@@ -1559,6 +1560,7 @@ async function openResult(id) {
   const graded = i => { const q = r.questions[i], t = qType(q); return t === 'open' ? Object.values(r.answers[i] || {}).some(a => a.correct != null) : qGraded(q); };
   const nAsked = r.asked.filter(graded).length;
   const stats = list.map(p => { let ok = 0; r.questions.forEach((q, i) => { const a = (r.answers[i] || {})[p.id]; if (a && a.correct === true) ok++; }); return ok; });
+  const gsR = gradeScaleOf(r.settings);   // escala da nota escolhida nessa sessão
   const ansText = (q, a) => { const t = qType(q); return t === 'mc' || t === 'tf' ? `${LETTERS[a.option]}) ${q.options[a.option]}` : t === 'fill' ? (a.value || []).join(' · ') : t === 'cloud' || t === 'rank' || t === 'cross' || t === 'guess' || t === 'match' || t === 'spot' || t === 'potato' ? plainAnswerOf(q, a) : t === 'scramble' ? String(a.value || '').toUpperCase() : String(a.value ?? ''); };
   const ansShort = (q, a) => { const t = qType(q); return t === 'potato' ? '🥔 ' + (a.points || 0) : t === 'number' ? String(a.value) : t === 'match' ? `${a.right ?? 0}/${q.pairs.length}` : t === 'spot' ? (spotCountQ(q) > 1 ? `${a.right ?? 0}/${spotCountQ(q)}` : a.correct ? '🎯 zona' : '✗ fora') : t === 'mc' ? LETTERS[a.option] : t === 'tf' ? (a.option === 0 ? 'V' : 'F') : t === 'fill' ? `${a.right ?? 0}/${fillBlanksOf(q.text).length}` : t === 'scale' ? '★' + a.value : t === 'cross' ? `${a.right ?? 0}/${q.cross.words.length}` : t === 'guess' ? (a.correct ? `${a.tries}ª tent.` : `✗ ${(a.value || []).length}`) : t === 'scramble' ? String(a.value || '').toUpperCase().slice(0, 14) : t === 'rank' ? (q.ordered ? `${a.right ?? 0}/${q.options.length}` : '1º ' + String(q.options[(a.value || [])[0]] || '').slice(0, 12)) : t === 'cloud' ? '☁ ' + (a.value || []).join(', ').slice(0, 14) : (String(a.value).length > 14 ? String(a.value).slice(0, 14) + '…' : String(a.value)); };
   const corShort = q => { const t = qType(q); return t === 'potato' ? 'batata' : t === 'number' ? String(q.answer) : t === 'match' ? q.pairs.length + ' pares' : t === 'spot' ? (spotCountQ(q) > 1 ? spotCountQ(q) + ' zonas' : 'zona') : t === 'mc' ? (q.poll ? 'votação' : q.correct.map(k => LETTERS[k]).join('/')) : t === 'tf' ? (q.correct[0] === 0 ? 'V' : 'F') : t === 'fill' ? fillBlanksOf(q.text).join(', ') : t === 'open' ? 'livre' : t === 'cloud' ? 'nuvem' : t === 'scramble' || t === 'guess' ? String(q.answer).toUpperCase().slice(0, 14) : t === 'cross' ? q.cross.words.length + ' palavras' : t === 'rank' ? (q.ordered ? 'ordem' : 'opinião') : `1–${q.scaleTo === 10 ? 10 : 5}`; };
@@ -1589,10 +1591,10 @@ async function openResult(id) {
     ${r.teams && r.teams.length ? `<h3>👥 Equipas</h3><div class="res-teams">${r.teams.map((t, k) => `<div class="res-team" style="--tc:${t.color}"><b>${k + 1}º ${t.emoji} Equipa ${esc(t.name)}</b> · ${t.score} pts (média)<br><small>${t.members.map(m => esc(m.name)).join(', ')}</small></div>`).join('')}</div>` : ''}
     <h3>Grelha: quem respondeu o quê</h3>
     <div class="tbl-wrap"><table class="res"><thead>
-      <tr><th>Aluno</th>${r.questions.map((q, i) => `<th title="${esc(q.text)}">P${i + 1}</th>`).join('')}<th>Certas</th><th>%</th><th title="0 a 20: média das perguntas com resposta certa (meio certas contam a parte certa)">Nota</th><th>Pontos</th></tr>
+      <tr><th>Aluno</th>${r.questions.map((q, i) => `<th title="${esc(q.text)}">P${i + 1}</th>`).join('')}<th>Certas</th><th>%</th><th title="Média das perguntas com resposta certa (meio certas contam a parte certa)">Nota${gsR === 100 ? ' (%)' : gsR === 'q' ? '' : ' (0–20)'}</th><th>Pontos</th></tr>
       <tr><th>Resposta correta</th>${r.questions.map(q => `<th style="color:var(--ok)" title="${esc(QTYPE_LABEL[qType(q)])}">${esc(corShort(q))}</th>`).join('')}<th></th><th></th><th></th><th></th></tr></thead>
       <tbody>${list.map((p, j) => `<tr><td><a href="#" class="sheet-link" data-sheet="${esc(p.id)}" title="Abrir a ficha de respostas">📄 ${esc(p.name)}</a>${r.teams ? (t => t ? ` <span title="Equipa ${esc(t.name)}">${t.emoji}</span>` : '')((r.teams || []).find(t => t.id === ((r.players.find(x => x.studentId === p.id) || {}).team))) : ''}${p.homonym ? ' <small style="color:#b45309">⚠ nome repetido</small>' : (p.extra || p.guest) ? ' <small class="muted">(extra)</small>' : ''}</td>${r.questions.map((q, i) => cell(p, q, i)).join('')}
-        <td><b>${stats[j]}</b>/${nAsked}</td><td>${nAsked ? Math.round(stats[j] / nAsked * 100) : 0}%</td><td><b>${fmtGrade(finalGradeOf(r.questions, r.answers, r.asked, p.id))}</b></td><td>${score[p.id] ?? 0}</td></tr>`).join('')}</tbody></table></div>
+        <td><b>${stats[j]}</b>/${nAsked}</td><td>${nAsked ? Math.round(stats[j] / nAsked * 100) : 0}%</td><td><b>${fmtGrade(finalGradeOf(r.questions, r.answers, r.asked, p.id, gsR), gsR)}</b></td><td>${score[p.id] ?? 0}</td></tr>`).join('')}</tbody></table></div>
     <h3 style="margin-top:28px">Detalhe por pergunta</h3>
     ${r.questions.map((q, i) => {
       const ans = r.answers[i] || {};

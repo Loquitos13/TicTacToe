@@ -10,13 +10,18 @@ const spotNumOf = q => { const seen = new Map(); return zonesOfQ(q).map((z, k) =
 const spotCountQ = q => new Set(spotNumOf(q)).size;
 // Nota de 0 a 20: média das perguntas com resposta certa (as meio certas contam a parte certa; certa = inteira).
 // Não contam: opiniões, votações, respostas livres por validar e jogos ao vivo (batata quente).
-function finalGradeOf(questions, answers, asked, sid) {
+// escala qualitativa (sobre a % de acerto): <50 Insuficiente · 50–69 Suficiente · 70–89 Elevado · ≥90 Excelente
+const QUAL_LEVELS = [[90, 'Excelente'], [70, 'Elevado'], [50, 'Suficiente'], [0, 'Insuficiente']];
+const qualOf = pct => pct == null ? null : QUAL_LEVELS.find(([min]) => pct >= min)[1];
+function finalGradeOf(questions, answers, asked, sid, scale = 20) {
+  if (scale === 'q') { const pct = finalGradeOf(questions, answers, asked, sid, 100); return pct == null ? null : `${qualOf(pct)} (${pct}%)`; }
   const idx = asked.filter(i => { const q = questions[i]; if (!q || qType(q) === 'potato') return false; return qGraded(q) || Object.values(answers[i] || {}).some(a => a.correct != null); });
   if (!idx.length) return null;
   const sum = idx.reduce((s, i) => { const a = (answers[i] || {})[sid]; if (!a) return s; return s + (a.correct === true ? 1 : typeof a.frac === 'number' ? Math.max(0, Math.min(1, a.frac)) : 0); }, 0);
-  return Math.round(sum / idx.length * 200) / 10;
+  return scale === 100 ? Math.round(sum / idx.length * 100) : Math.round(sum / idx.length * 200) / 10;
 }
-const fmtGrade = g => g == null ? '—' : String(g).replace('.', ',');
+const fmtGrade = (g, scale = 20) => g == null ? '—' : String(g).replace('.', ',') + (scale === 100 ? '%' : '');
+const gradeScaleOf = st => (st || {}).gradeScale === 100 ? 100 : (st || {}).gradeScale === 'q' ? 'q' : 20;
 const BLANK_RX = /\[\[([^\]]+?)\]\]/g;
 // partes de texto entre os espaços: "A capital é [[Lisboa]]." → ["A capital é ", "."]
 const fillPartsOf = text => String(text || '').split(BLANK_RX).filter((_, i) => i % 2 === 0);

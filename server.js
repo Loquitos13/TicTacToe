@@ -405,7 +405,7 @@ function playerView(p) {
   // no fim (modo "só no fim"): todas as perguntas, a resposta correta e a resposta do formando
   if (isEnd) v.answeredCount = session.asked.filter(i => (session.answers[i] || {})[p.studentId]).length;
   // perguntas que contam para "certas" (a escala e a resposta livre por avaliar não contam)
-  if (isEnd && session.settings.showGrade) v.grade = Q.finalGrade(session.questions, session.answers, session.asked, p.studentId);
+  if (isEnd && session.settings.showGrade) { v.gradeScale = session.settings.gradeScale === 100 ? 100 : session.settings.gradeScale === 'q' ? 'q' : 20; v.grade = Q.finalGrade(session.questions, session.answers, session.asked, p.studentId, v.gradeScale); }
   if (isEnd) v.gradedTotal = session.asked.filter(i => Q.isGraded(session.questions[i]) || Object.values(session.answers[i] || {}).some(a => a.correct != null)).length;
   if (isEnd && revealEnd) {
     v.review = session.asked.map(i => {
@@ -914,12 +914,13 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
   const score = Object.fromEntries(r.players.map(p => [p.studentId, p.score]));
   let rows;
   if (req.query.type === 'grelha') {
+    const gs = (r.settings || {}).gradeScale === 100 ? 100 : (r.settings || {}).gradeScale === 'q' ? 'q' : 20;
     rows = [['Curso', r.courseName || ''], ['Questionário', r.quizTitle], ['Data', new Date(r.startedAt).toLocaleString('pt-PT')], []];
     // jogos em grupo: coluna com a equipa e, no fim, a pontuação de cada equipa
     const teamName = Object.fromEntries((r.teams || []).map(t => [t.id, t.name]));
     const teamOf = Object.fromEntries(r.players.map(p => [p.studentId, p.team]));
     const tcol = r.teams ? [''] : [];
-    rows.push(['Aluno', ...(r.teams ? ['Equipa'] : []), ...r.questions.map((q, i) => 'P' + (i + 1)), 'Certas', 'Perguntas avaliadas', '% acerto', 'Nota (0-20)', 'Pontos']);
+    rows.push(['Aluno', ...(r.teams ? ['Equipa'] : []), ...r.questions.map((q, i) => 'P' + (i + 1)), 'Certas', 'Perguntas avaliadas', '% acerto', gs === 100 ? 'Nota (%)' : gs === 'q' ? 'Nota (qualitativa)' : 'Nota (0-20)', 'Pontos']);
     rows.push(['RESPOSTA CORRETA', ...tcol, ...r.questions.map(q => Q.correctShort(q)), '', '', '', '', '']);
     // conta só as perguntas com resposta certa (a escala e a resposta livre por avaliar não contam)
     const gradedIdx = r.asked.filter(i => Q.isGraded(r.questions[i]) || Object.values(r.answers[i] || {}).some(a => a.correct != null));
@@ -933,7 +934,7 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
         return Q.answerShort(q, a) + (a.correct === true ? ' ✓' : a.correct === false ? ' ✗' : Q.typeOf(q) === 'open' ? ' ?' : '');
       });
       const n = gradedIdx.length;
-      rows.push([p.name, ...(r.teams ? [teamName[teamOf[p.id]] || ''] : []), ...cells, ok, n, n ? Math.round(ok / n * 100) + '%' : '', (g => g == null ? '' : String(g).replace('.', ','))(Q.finalGrade(r.questions, r.answers, r.asked, p.id)), score[p.id] ?? 0]);
+      rows.push([p.name, ...(r.teams ? [teamName[teamOf[p.id]] || ''] : []), ...cells, ok, n, n ? Math.round(ok / n * 100) + '%' : '', (g => g == null ? '' : gs === 'q' ? `${g} (${Q.finalGrade(r.questions, r.answers, r.asked, p.id, 100)}%)` : String(g).replace('.', ',') + (gs === 100 ? '%' : ''))(Q.finalGrade(r.questions, r.answers, r.asked, p.id, gs)), score[p.id] ?? 0]);
     }
     if (r.teams) { rows.push([]); rows.push(['EQUIPAS', 'Lugar', 'Membros', 'Pontos (média)']); r.teams.forEach((t, k) => rows.push(['Equipa ' + t.name, k + 1 + 'º', t.members.map(m => m.name).join(', '), t.score])); }
   } else {
@@ -1091,7 +1092,8 @@ io.on('connection', socket => {
       settings.anonymous = !!quiz.anonymous;
       settings.openJoin = settings.openJoin !== false;
       settings.phoneSound = settings.phoneSound !== false;
-      settings.showGrade = !!settings.showGrade;   // avaliação final: nota de 0 a 20 no telemóvel, no fim   // sons nos telemóveis dos formandos   // quem não está na lista pode entrar com o nome que escreve
+      settings.showGrade = !!settings.showGrade;
+      settings.gradeScale = settings.gradeScale === 'q' ? 'q' : Number(settings.gradeScale) === 100 ? 100 : 20;   // 0 a 20 valores, 0 a 100 % ou qualitativa   // avaliação final: nota de 0 a 20 no telemóvel, no fim   // sons nos telemóveis dos formandos   // quem não está na lista pode entrar com o nome que escreve
       if (settings.anonymous) { settings.noRanking = true; settings.rankEach = false; settings.finalPodium = false; settings.showWho = false; }
       // jogos em grupo: 2 a 6 equipas (não há equipas no anónimo nem sem ranking)
       const nt = parseInt(settings.teams, 10);

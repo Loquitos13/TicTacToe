@@ -285,7 +285,7 @@ function renderGameInner() {
     set('end' + JSON.stringify([m.score, m.position, m.correct, m.teamPosition, (state.review || []).map(r => r.ok)]), header() + `<div class="middle">${podium ? `<div class="pop-in">${dancer(m, ['jump', 'disco', 'wave', 'sway', 'robot'][m.position - 1], ['#ffd93d', '#e5e7eb', '#f4a261', '#7dd3fc', '#c4b5fd'][m.position - 1], m.position === 1)}</div>` : s.settings.anonymous ? '<div class="big-emoji pop-in">🕶️</div>' : avatar(m, 'xl pop-in')}<h1>Terminou! 🏁</h1>
       ${m.score != null || m.position != null || state.grade != null ? `<div class="card" style="width:100%">
         ${m.score != null ? `<div style="font-size:2.4em;font-weight:700">${m.score} pts</div><div class="muted">${m.correct} de ${state.gradedTotal ?? s.total} respostas certas</div>` : ''}
-        ${state.grade != null ? `<div class="grade-box pop-in">Nota<br><b>${String(state.grade).replace('.', ',')}</b><small> / 20</small></div>` : ''}
+        ${state.grade != null ? `<div class="grade-box pop-in">Nota<br><b class="${state.gradeScale === 'q' ? 'qual' : ''}">${String(state.grade).replace('.', ',')}${state.gradeScale === 100 ? '%' : ''}</b>${state.gradeScale === 20 ? '<small> / 20</small>' : ''}</div>` : ''}
         ${m.position != null && (s.settings.finalPodium || showRank) ? `<div style="font-size:1.4em;margin-top:8px">${m.position <= 3 ? ['🥇', '🥈', '🥉'][m.position - 1] : '🏅'} ${m.position}º lugar</div>` : ''}</div>` : ''}
       ${m.team && m.teamPosition ? teamCard(true) : ''}
       ${(state.board || []).length && m.position != null ? `<h2 style="margin:10px 0 0">🏆 Classificação final</h2>${boardHtml(false)}` : ''}
