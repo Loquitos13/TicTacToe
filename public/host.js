@@ -1001,7 +1001,12 @@ function renderQuizzes() {
   $$('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('Apagar este questionário?')) return; await api('DELETE', '/api/quizzes/' + b.dataset.del); after(); });
   $$('[data-key]').forEach(b => b.onclick = () => showAnswerKey(quizzes.find(q => q.id === b.dataset.key)));
   $$('[data-exp]').forEach(b => b.onclick = () => { const q = quizzes.find(q => q.id === b.dataset.exp); download(q.title + '.json', JSON.stringify(q, null, 2), 'application/json'); });
-  $$('[data-imp]').forEach(inp => inp.onchange = async e => { try { const q = JSON.parse(await e.target.files[0].text()); delete q.id; q.courseId = inp.dataset.imp; await api('POST', '/api/quizzes', q); toast('Importado'); after(); } catch (err) { toast('Ficheiro inválido'); } });
+  $$('[data-imp]').forEach(inp => inp.onchange = async e => { try { const q = JSON.parse(await e.target.files[0].text()); delete q.id; q.courseId = inp.dataset.imp; const sent = (q.questions || []).length, saved = await api('POST', '/api/quizzes', q);
+    // avisa se alguma pergunta não entrou (incompleta, ou de um tipo que esta versão não conhece)
+    const lost = sent - saved.questions.length;
+    if (lost > 0) toast(`Importado, mas ${lost} de ${sent} perguntas não entraram (incompletas ou de um tipo que esta versão não conhece). Atualiza a app (git pull) e importa de novo.`, 9000);
+    else toast(`Importado: ${saved.questions.length} perguntas`);
+    after(); } catch (err) { toast('Ficheiro inválido'); } });
 }
 // Lista de soluções: todas as perguntas com a resposta correta destacada (imprimir / PDF / Word)
 function answerKeyItemHtml(q, i) {
