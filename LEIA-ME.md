@@ -327,7 +327,11 @@ A editar a apresentação, o diapositivo mostra só uma pré-visualização (o t
 - **No diapositivo de entrada** vê-se sempre o QR code e quem entrou. Não tem botão de começar: quando todos tiverem entrado, avança no PowerPoint.
 - **No diapositivo de uma pergunta**, o botão amarelo faz só os passos dessa pergunta: fechar → sondagem → resposta certa → ranking. No fim aparece "➡ Avança para o diapositivo seguinte".
 - As setas e o espaço ficam para o PowerPoint.
-- **Diapositivos configurados numa versão anterior:** abra cada um uma vez no modo de edição para guardar o identificador. Até lá, a pergunta não começa sozinha e aparece o botão **▶ Começar a pergunta N**.
+- **Cada diapositivo fica ligado ao seu sítio quando carrega em ⚙ Mudar → Guardar nesse diapositivo.** A pré-visualização mostra "📍 Ligado ao diapositivo N". Se o número não for o do diapositivo, volte a guardar. Depois de copiar um diapositivo com o quiz, guarde a cópia também.
+- **Se dois diapositivos estiverem ligados ao mesmo sítio**, nenhum começa sozinho e aparece um aviso.
+- **Sem ligação ao diapositivo**, a pergunta não começa sozinha e aparece o botão **▶ Começar a pergunta N**.
+- **Terminar, no diapositivo:** carregue duas vezes (o PowerPoint não mostra caixas de confirmação).
+- **🔄 Recomeçar o quiz, no diapositivo de entrada:** se a sessão de um ensaio ficou a meio, este botão abre uma nova (dois cliques).
 - **Os formandos entram pelo nome**, sem precisares de escolher alunos.
 - **Voltar a um diapositivo de uma pergunta já feita** não a repete. Depois do pódio, só o diapositivo de entrada começa uma sessão nova.
 - **Se uma pergunta não começar sozinha**, aparece no topo o botão **▶ Começar a pergunta N**.

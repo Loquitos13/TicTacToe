@@ -637,6 +637,14 @@ function controlsHtml() {
   </div>`;
 }
 
+// confirmação: no PowerPoint as caixas do browser não aparecem (e o confirm() devolve "não"), por isso carrega-se duas vezes
+function sure(id, msg, fn) {
+  if (!SLIDE) return confirm(msg) && fn();
+  const b = $('#' + id); if (!b) return fn();
+  if (b.dataset.armed) { delete b.dataset.armed; return fn(); }
+  b.dataset.armed = '1'; const old = b.textContent; b.textContent = 'Carrega outra vez para confirmar';
+  setTimeout(() => { if (b.isConnected && b.dataset.armed) { delete b.dataset.armed; b.textContent = old; } }, 3500);
+}
 function bindTeamsLobby() {
   $$('[data-move]').forEach(b => b.onclick = () => socket.emit('host:moveTeam', b.dataset.move));
 }
@@ -646,8 +654,8 @@ function bindGame() {
   const on = (id, fn) => { const e = $('#' + id); if (e) e.onclick = fn; };
   on('btnNext', () => { if (S.phase === 'exam' && !confirm('Terminar agora? As respostas dadas até aqui ficam entregues.')) return; next(); });
   on('btnExtend', () => socket.emit('host:extend', 1));
-  on('btnEnd', () => confirm('Terminar o quiz agora? As perguntas que faltam ficam como "não feitas".') && socket.emit('host:end'));
-  on('btnClose', () => confirm('Fechar a sessão? (os resultados ficam guardados em Resultados)') && socket.emit('host:close'));
+  on('btnEnd', () => sure('btnEnd', 'Terminar o quiz agora? As perguntas que faltam ficam como "não feitas".', () => socket.emit('host:end')));
+  on('btnClose', () => sure('btnClose', 'Fechar a sessão? (os resultados ficam guardados em Resultados)', () => socket.emit('host:close')));
   on('btnGrid', () => { showTab('results'); openResult(S.id); });
   on('btnFs', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
   on('btnPlayers', playersDialog);

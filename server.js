@@ -64,6 +64,7 @@ function newHostToken() {
   hostTokens.set(t, now + 12 * 3600e3);
   return t;
 }
+let lastSlide = null;   // último pedido automático de um diapositivo (travão contra rajadas)
 // Diapositivos do PowerPoint: o computador do formador fica autorizado uma vez (chave guardada só como hash, 180 dias)
 const SLIDE_KEYS_FILE = path.join(DATA_DIR, 'chaves-diapositivos.json');
 let slideKeys = (() => { try { return JSON.parse(fs.readFileSync(SLIDE_KEYS_FILE, 'utf8')); } catch { return []; } })();
@@ -1008,7 +1009,11 @@ io.on('connection', socket => {
     //  join → abre a sala deste quiz (se ainda não estiver aberta); question → começa essa pergunta; final → pódio
     socket.on('host:slide', guard((d, cb) => {
       if (typeof cb !== 'function') cb = () => {};
-      const { quizId, role, qid, mode, force } = (d && typeof d === 'object') ? d : {};
+      const { quizId, role, qid, mode, force, manual, restart } = (d && typeof d === 'object') ? d : {};
+      // travão: dois diapositivos diferentes a pedir perguntas em menos de 2,5 s não é o formador a avançar
+      const key = role + ':' + (qid || ''), now = Date.now();
+      if (!manual && role !== 'join' && lastSlide && lastSlide.key !== key && now - lastSlide.t < 2500) return cb({ ok: true, ignored: true });
+      if (role !== 'join') lastSlide = { key, t: now };
       const quiz = db.quizzes.find(q => q.id === quizId);
       if (!quiz) return cb({ error: 'O questionário deste diapositivo já não existe.' });
       // outra sessão a decorrer (com respostas): não se estraga sem o formador confirmar
@@ -1016,7 +1021,10 @@ io.on('connection', socket => {
       if (other && !force) return cb({ conflict: session.quizTitle });
       // quiz deste diapositivo já terminou: voltar atrás numa pergunta ou no pódio não abre outra sessão (só a entrada recomeça)
       if (session && session.quizId === quizId && session.phase === 'end' && role !== 'join') return cb({ ok: true });
-      if (!session || session.quizId !== quizId || session.phase === 'end' || other) {
+      // "Recomeçar o quiz" no diapositivo de entrada: a sessão de um ensaio anterior fica guardada e abre-se outra
+      const again = role === 'join' && restart && session && session.quizId === quizId && session.phase !== 'lobby';
+      if (again) { session.endedAt = session.endedAt || Date.now(); persistSession(); }
+      if (!session || session.quizId !== quizId || session.phase === 'end' || other || again) {
         if (role === 'final') return cb({ ok: true });
         doStart({ quizId, studentIds: [], settings: { mode: mode === 'timed' ? 'timed' : 'manual', openJoin: true, rankEach: true, finalPodium: true, showPoll: true, speedPoints: true, revealMode: 'each' } });
       }
