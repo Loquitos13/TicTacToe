@@ -290,12 +290,29 @@ Com o endereço fixo, o quiz pode ficar **dentro de um diapositivo**, como o Sli
 - **PowerPoint no Windows (Microsoft 365, 2016 ou mais recente):** o `iniciar-online.bat` instala o suplemento sozinho. Fecha e volta a abrir o PowerPoint da primeira vez.
 - **PowerPoint na web:** no painel, em 🎮 Jogo → "📽 Usar dentro do PowerPoint", descarrega o ficheiro do suplemento. Carrega-o em **Inserir → Suplementos → Os meus suplementos → Carregar o meu suplemento**.
 
-**Usar:**
-1. **Inserir → Suplementos → Os meus suplementos → Quiz ao vivo**. O quiz fica no diapositivo; podes redimensioná-lo como uma imagem.
-2. Da primeira vez pede a palavra-passe do formador. Os outros diapositivos com o quiz já não pedem.
-3. Sem sala aberta, o diapositivo mostra "Quiz ao vivo" e o botão **Abrir a sala aqui**. Podes também abrir a sala no painel normal.
-4. Durante a apresentação, o diapositivo mostra em direto o QR code, as perguntas, os resultados e o ranking. Avanças com o botão amarelo dentro do diapositivo.
-5. O palco ajusta-se sozinho ao tamanho do diapositivo.
+**Cada diapositivo do quiz tem um papel**, como no Slido:
+
+| Papel | Na apresentação |
+|---|---|
+| 📱 **Entrada** | Abre a sala e mostra o QR code e quem já entrou. Põe-no no início, para os formandos entrarem logo. |
+| ❓ **Pergunta** | Quando o diapositivo aparece, essa pergunta **começa sozinha**. Fechas, mostras a resposta e o ranking com o botão amarelo dentro do diapositivo. Depois passas ao diapositivo seguinte. |
+| 🏆 **Pódio final** | Termina o quiz e mostra o pódio. |
+
+**Preparar a apresentação:**
+1. **Inserir → Suplementos → Os meus suplementos → Quiz ao vivo**, num diapositivo.
+2. Carrega em **⚙ Escolher**: o questionário, o papel e, se for uma pergunta, qual.
+   - Da primeira vez pede a palavra-passe para **autorizar este computador**. Fica autorizado 180 dias e os outros diapositivos já não pedem.
+   - Na entrada escolhes também se as perguntas avançam à mão ou por tempo.
+3. Repete para cada pergunta. O quiz ocupa só a caixa, por isso podes pôr o teu conteúdo à volta.
+
+A editar a apresentação, o diapositivo mostra só uma pré-visualização (o texto da pergunta). Não abre nada nem pede palavra-passe.
+
+**Durante a apresentação:**
+- **Os formandos entram pelo nome**, sem precisares de escolher alunos.
+- **Voltar a um diapositivo de uma pergunta já feita** não a repete. Depois do pódio, só o diapositivo de entrada começa uma sessão nova.
+- **Se uma pergunta não começar sozinha**, aparece no topo o botão **▶ Começar a pergunta N**.
+- **Se estiver aberto outro quiz com respostas**, o diapositivo pergunta antes de o terminar.
+- **O PowerPoint guarda o papel de cada diapositivo dentro do ficheiro .pptx.** Num computador ainda não autorizado, só pede a palavra-passe ao começar a apresentar.
 
 ## Som
 A música e os efeitos são gerados pelo próprio browser (sem ficheiros nem direitos de autor). Liga o som do projetor; o botão 🔊 no canto liga/desliga.

@@ -1,9 +1,9 @@
 // modo diapositivo (/slide.html, dentro do PowerPoint): sem menu, só o palco e o botão de avançar
 const SLIDE = document.body.classList.contains('slide');
-// no PowerPoint cada diapositivo com o suplemento é uma página à parte: o token fica partilhado entre eles
+// no PowerPoint cada diapositivo com o suplemento é uma página à parte: a chave fica partilhada entre eles
+// (o resto do modo diapositivo está no slide.js)
 const TOK = SLIDE ? localStorage : sessionStorage;
-if (SLIDE && window.Office) Office.onReady(() => {});
-let slideSetup = false;
+let slideSetup = false;   // no diapositivo, o formulário de abrir a sala só aparece se o formador pedir
 // encolhe o palco (1280 de largura) para caber inteiro no diapositivo, centrado
 function fitSlide() {
   const m = $('#main'); if (!SLIDE || !m || m.classList.contains('hidden')) return;
@@ -15,7 +15,7 @@ function fitSlide() {
 if (SLIDE) {
   addEventListener('resize', fitSlide);
   new MutationObserver(() => requestAnimationFrame(fitSlide)).observe(document.body, { childList: true, subtree: true });
-}   // no diapositivo, o formulário de abrir a sala só aparece se o formador pedir
+}
 let PW = TOK.getItem('aq_tok') || '';
 let socket = null, S = null; // estado do servidor
 let students = [], quizzes = [], courses = [], joinUrl = '';
@@ -33,11 +33,11 @@ const api = async (method, url, body) => {
 $('#loginForm').onsubmit = async e => {
   e.preventDefault();
   const pw = $('#pw').value;
-  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) }).then(r => r.json());
+  const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw, slide: SLIDE }) }).then(r => r.json());
   if (!r.ok) { $('#login .card').classList.remove('shake'); void $('#login .card').offsetWidth; $('#login .card').classList.add('shake'); return toast(r.error || 'Palavra-passe errada'); }
-  PW = r.token; TOK.setItem('aq_tok', PW); start();  // a palavra-passe não fica guardada: só o token da sessão
+  PW = r.token; TOK.setItem('aq_tok', PW); if (SLIDE) return slideAfterLogin(); start();  // a palavra-passe não fica guardada: só o token da sessão
 };
-if (PW) start();
+if (PW && !SLIDE) start();   // no diapositivo quem arranca é o slide.js
 
 async function start() {
   $('#login').classList.add('hidden'); $('#main').classList.remove('hidden');
@@ -54,6 +54,7 @@ async function start() {
   socket.on('connect', () => document.body.classList.remove('offline'));
   socket.on('state', st => { const prev = S; S = st.session; onState(prev); });
   socket.on('toast', m => toast(m));
+  if (SLIDE) slideOnSocket(socket);
   // o túnel ficou pronto depois de a página abrir: o QR code passa a usar o endereço da internet
   socket.on('tunnel', u => { joinUrl = u; window._joinSuggestions = [u, ...window._joinSuggestions.filter(x => x !== u)]; toast('🌍 Online: o QR code já usa ' + u, 5000); if (S && S.phase === 'lobby') renderGame(true); });
   $$('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -171,6 +172,7 @@ function renderGame(full) {
 
 // diapositivo sem sessão aberta: um ecrã de espera em vez do formulário inteiro
 function renderSlideIdle(el) {
+  if (window.slideCfg) { el.innerHTML = `<div id="stage" class="slide-idle"><div class="big-emoji wiggle">🎯</div><h1>A preparar o quiz…</h1></div>`; return; }
   el.innerHTML = `<div id="stage" class="slide-idle"><div class="big-emoji">🎯</div><h1>Quiz ao vivo</h1>
     <p>Quando abrires a sala (aqui ou no painel do formador), este diapositivo mostra o QR code, as perguntas e os resultados em direto.</p>
     <button class="btn primary" id="slideOpen">▶ Abrir a sala aqui</button></div>`;

@@ -64,7 +64,19 @@ function newHostToken() {
   hostTokens.set(t, now + 12 * 3600e3);
   return t;
 }
-const tokenOk = t => typeof t === 'string' && (hostTokens.get(t) || 0) > Date.now();
+// Diapositivos do PowerPoint: o computador do formador fica autorizado uma vez (chave guardada só como hash, 180 dias)
+const SLIDE_KEYS_FILE = path.join(DATA_DIR, 'chaves-diapositivos.json');
+let slideKeys = (() => { try { return JSON.parse(fs.readFileSync(SLIDE_KEYS_FILE, 'utf8')); } catch { return []; } })();
+const keyHash = k => crypto.createHash('sha256').update(k).digest('hex');
+function newSlideKey() {
+  const k = 's.' + crypto.randomBytes(32).toString('base64url');
+  slideKeys = slideKeys.filter(x => x.exp > Date.now()).slice(-19);   // no máximo 20 computadores
+  slideKeys.push({ h: keyHash(k), exp: Date.now() + 180 * 864e5 });
+  try { fs.writeFileSync(SLIDE_KEYS_FILE, JSON.stringify(slideKeys), { mode: 0o600 }); } catch {}
+  return k;
+}
+const tokenOk = t => typeof t === 'string' && ((hostTokens.get(t) || 0) > Date.now()
+  || (t.startsWith('s.') && t.length < 100 && slideKeys.some(x => x.exp > Date.now() && x.h === keyHash(t))));
 function pwNext(origin, q) {
   const it = q.items.shift();
   if (!it) { pwQueues.delete(origin); return; }
@@ -184,7 +196,7 @@ function hostView() {
   const pick = a => qt === 'scale' ? a.value : a.option;
   const counts = slots.map(v => Object.values(ans).filter(a => pick(a) === v).length);
   const whoByOption = slots.map(v => Object.entries(ans).filter(([, a]) => pick(a) === v).map(([sid]) => sid));
-  const extra = {};
+  const extra = { askedIds: session.asked.map(i => (session.questions[i] || {}).id) };   // diapositivos do PowerPoint
   if (qt === 'fill') extra.fillStats = q.blanks.map((w, b) => ({ word: w, right: Object.values(ans).filter(a => Q.norm((a.value || [])[b]) === Q.norm(w)).length }));
   if (qt === 'open') { const m = new Map(); Object.values(ans).forEach(a => { const k = Q.norm(a.value); const e = m.get(k) || { text: a.value, count: 0, correct: a.correct }; e.count++; m.set(k, e); }); extra.openAnswers = [...m.values()].sort((a, b) => b.count - a.count).slice(0, 40); }
   if (qt === 'scale') { const vals = Object.values(ans).map(a => a.value); extra.scaleAvg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null; }
@@ -574,7 +586,8 @@ const OFFICE_FRAMES = 'https://*.officeapps.live.com https://*.office.com https:
 app.get('/slide.html', (req, res) => {
   const html = fs.readFileSync(path.join(__dirname, 'public', 'host.html'), 'utf8')
     .replace('<body>', '<body class="slide">')
-    .replace('<script src="/socket.io/socket.io.js"></script>', `<script src="${OFFICE_JS}"></script>\n<script src="/socket.io/socket.io.js"></script>`);
+    .replace('<script src="/socket.io/socket.io.js"></script>', `<script src="${OFFICE_JS}"></script>\n<script src="/socket.io/socket.io.js"></script>`)
+    .replace('<script src="host.js"></script>', '<script src="host.js"></script>\n<script src="slide.js"></script>');
   res.removeHeader('X-Frame-Options');
   res.set('Content-Security-Policy', CSP.replace("script-src 'self'", "script-src 'self' https://appsforoffice.microsoft.com")
     .replace("connect-src 'self'", "connect-src 'self' https://appsforoffice.microsoft.com")
@@ -635,7 +648,7 @@ require('./feedback')(app, { auth, DATA_DIR });
 
 app.post('/api/login', (req, res) => {
   pwCheck(originOf(req.ip, req.get('cf-connecting-ip')), req.body && req.body.password, ok =>
-    ok === null ? res.status(429).json({ ok: false, error: 'Demasiadas tentativas. Espera um pouco.' }) : res.json(ok ? { ok, token: newHostToken() } : { ok }));
+    ok === null ? res.status(429).json({ ok: false, error: 'Demasiadas tentativas. Espera um pouco.' }) : res.json(ok ? { ok, token: req.body.slide === true ? newSlideKey() : newHostToken() } : { ok }));
 });
 
 // Alunos
@@ -926,7 +939,7 @@ io.on('connection', socket => {
     socket.emit('state', hostView());
 
 
-    socket.on('host:start', guard(({ quizId, settings, studentIds }) => {
+    const doStart = ({ quizId, settings, studentIds }) => {
       if (session) persistSession();
       clearTimeout(timer); clearTimeout(autoTimer);
       const quiz = db.quizzes.find(q => q.id === quizId);
@@ -979,6 +992,39 @@ io.on('connection', socket => {
       io.to('players').emit('reload');
       io.in('players').socketsJoin('lobby'); io.in('players').socketsLeave('players');
       broadcast();
+    };
+    socket.on('host:start', guard(doStart));
+
+    // Diapositivo do PowerPoint a ser apresentado: { quizId, role: 'join' | 'question' | 'final', qid, mode, force }
+    //  join → abre a sala deste quiz (se ainda não estiver aberta); question → começa essa pergunta; final → pódio
+    socket.on('host:slide', guard((d, cb) => {
+      if (typeof cb !== 'function') cb = () => {};
+      const { quizId, role, qid, mode, force } = (d && typeof d === 'object') ? d : {};
+      const quiz = db.quizzes.find(q => q.id === quizId);
+      if (!quiz) return cb({ error: 'O questionário deste diapositivo já não existe.' });
+      // outra sessão a decorrer (com respostas): não se estraga sem o formador confirmar
+      const other = session && session.quizId !== quizId && session.phase !== 'end' && session.phase !== 'lobby';
+      if (other && !force) return cb({ conflict: session.quizTitle });
+      // quiz deste diapositivo já terminou: voltar atrás numa pergunta ou no pódio não abre outra sessão (só a entrada recomeça)
+      if (session && session.quizId === quizId && session.phase === 'end' && role !== 'join') return cb({ ok: true });
+      if (!session || session.quizId !== quizId || session.phase === 'end' || other) {
+        if (role === 'final') return cb({ ok: true });
+        doStart({ quizId, studentIds: [], settings: { mode: mode === 'timed' ? 'timed' : 'manual', openJoin: true, rankEach: true, finalPodium: true, showPoll: true, speedPoints: true, revealMode: 'each' } });
+      }
+      if (role === 'question') {
+        const k = session.questions.findIndex(q => q.id === qid);
+        if (k < 0) return cb({ error: 'Esta pergunta já não existe no questionário.' });
+        // voltar a um diapositivo de uma pergunta já feita não a repete
+        if (k === session.qIndex || session.asked.includes(k) || session.phase === 'exam') return cb({ ok: true });
+        if (session.phase === 'question') closeQuestion();
+        startQuestion(k);
+      }
+      if (role === 'final' && session.phase !== 'end') {
+        if (session.phase === 'question') closeQuestion();
+        clearTimeout(timer); clearTimeout(autoTimer);
+        session.endedAt = Date.now(); setPhase('end');
+      }
+      cb({ ok: true });
     }));
 
     socket.on('host:settings', guard(s => {
