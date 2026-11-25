@@ -558,6 +558,10 @@ const CSP = ["default-src 'self'", "script-src 'self' 'unsafe-eval'", "worker-sr
 app.use((req, res, next) => {
   res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Content-Security-Policy': CSP, 'Referrer-Policy': 'no-referrer',
     'Permissions-Policy': 'camera=(self), microphone=(), geolocation=()', 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Resource-Policy': 'same-origin' });
+  // atrás da Cloudflare: nada da API (dados do formador, resultados, palavras-passe) pode ficar em cache,
+  // nem as páginas (para uma versão nova chegar logo a todos)
+  if (req.path.startsWith('/api/')) res.set('Cache-Control', 'no-store, private');
+  else if (/\.html$|^\/$/.test(req.path)) res.set('Cache-Control', 'no-cache');
   next();
 });
 // Limite de pedidos por origem (computador): chega para uma turma inteira atrás do mesmo router,
