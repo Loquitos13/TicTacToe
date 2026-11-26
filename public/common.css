@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap');
 /* o atributo hidden esconde sempre, mesmo em elementos com display próprio */
 [hidden] { display: none !important; }
+/* telemóveis: tocar depressa duas vezes (ex.: ⌫ para apagar várias letras) não faz zoom; o zoom com dois dedos continua */
+html { touch-action: manipulation; }
+button, .kb-k, .ans, .scr-t, .scr-slot, .wchip, .slot, .match-b, .rank-item { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
 /* jogo da forca */
 .hm { width: 100%; height: auto; overflow: visible; }
 .hm-g { stroke: #c08a4d; stroke-width: 5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
