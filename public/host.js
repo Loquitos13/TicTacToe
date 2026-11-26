@@ -94,7 +94,7 @@ function onState(prev) {
   lastPhaseKey = key;
   if (changed) phaseSound(prev);
   if (!S || S.phase !== 'end') showAnswersList = false;
-  if (tab === 'game') renderGame(changed);
+  if (tab === 'game') renderGame(changed || !!(prev && S && (prev.settings.teams || 0) !== (S.settings.teams || 0)));
   runAutoInfo();
 }
 
@@ -691,6 +691,7 @@ function controlsHtml() {
     <label class="switch" id="sndAll" title="Sons nos telemóveis de todos os formandos"><input type="checkbox" id="setPhSnd" ${S.settings.phoneSound !== false ? 'checked' : ''}> 📱 Som</label>
     ${isExamMode() ? '' : `<label class="switch" id="qrSw" title="QR code pequeno no canto, durante as perguntas (para quem saiu ou chegou atrasado)"><input type="checkbox" id="setMiniQr" ${S.settings.miniQr !== false ? 'checked' : ''}> QR</label>`}
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
+    ${S.settings.anonymous || isExamMode() ? '' : `<button class="btn small ghost" id="btnTeams" title="Formar, refazer ou desfazer equipas a qualquer momento">${S.settings.teams ? '🧩 ' + S.settings.teams + ' equipas' : '🧩 Equipas'}</button>`}
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
     ${ph !== 'end' && ph !== 'exam' ? `<button class="btn small danger" id="btnEnd">Terminar</button>` : ''}
     ${ph === 'end' ? `<button class="btn primary" id="btnGrid">📊 Ver grelha de resultados</button><button class="btn small ghost" id="btnClose">Fechar sessão</button>` : `<button class="btn primary ${allIn ? 'pulse' : ''}" id="btnNext">${label}</button>`}
@@ -719,6 +720,7 @@ function bindGame() {
   on('btnGrid', () => { showTab('results'); openResult(S.id); });
   on('btnFs', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
   on('btnPlayers', playersDialog);
+  on('btnTeams', teamsDialog);
   on('btnAnswers', () => { showAnswersList = !showAnswersList; if (showAnswersList) Sound.play('revealCorrect'); renderGame(true); });
   const ss = $('#setSee'); if (ss) ss.onchange = e => { seeAnswers = e.target.checked; try { localStorage.setItem('aq_see_answers', seeAnswers ? '1' : '0'); } catch {} renderGame(true); };
   const ms = $('#setMySnd'); if (ms) ms.onchange = e => { Sound.init(); Sound.setMuted(!e.target.checked); };
@@ -817,6 +819,28 @@ function updateLive() {
   }
 }
 
+// equipas a meio da sessão (sem confirm(): no PowerPoint as caixas do browser não aparecem)
+function teamsDialog() {
+  const d = document.createElement('div'), n = S.settings.teams || 0, ligados = connectedN();
+  d.className = 'dlg'; d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:grid;place-items:center;padding:16px';
+  const per = k => ligados >= k ? ` <small>(${Math.floor(ligados / k)}${ligados % k ? '–' + Math.ceil(ligados / k) : ''} cada)</small>` : '';
+  d.innerHTML = `<div class="card" style="width:min(560px,100%)"><h2>🧩 Equipas</h2>
+    <p class="muted">Podes mudar a qualquer momento: os formandos ficam na sessão com os seus pontos e o telemóvel avisa-os da equipa nova. A pontuação de cada equipa é a média dos pontos dos membros.</p>
+    <div class="teams-pick">
+      <button class="btn ${n ? '' : 'primary'}" data-nt="0">🙋 Individual</button>
+      ${[2, 3, 4, 5, 6].map(k => `<button class="btn ${n === k ? 'primary' : ''}" data-nt="${k}">${k} equipas${per(k)}</button>`).join('')}
+    </div>
+    <p class="muted" style="margin-top:12px">${n ? `Agora: <b>${n} equipas</b>. Carregar outra vez em ${n} equipas volta a baralhar.` : 'Agora: cada um responde por si.'}</p>
+    <p style="text-align:right"><button class="btn primary" id="closeDlg">Fechar</button></p></div>`;
+  document.body.appendChild(d);
+  const close = () => d.parentNode && d.parentNode.removeChild(d);
+  d.onclick = e => { if (e.target === d || e.target.id === 'closeDlg') close(); };
+  $$('[data-nt]', d).forEach(b => b.onclick = () => socket.emit('host:teams', +b.dataset.nt, res => {
+    if (!res || res.error) return toast((res && res.error) || 'Erro', 4500);
+    Sound.play('whoosh'); close();
+    toast(+b.dataset.nt ? `🧩 ${b.dataset.nt} equipas formadas` : '🙋 Equipas desfeitas: agora é individual');
+  }));
+}
 function playersDialog() {
   const d = document.createElement('div');
   d.className = 'dlg'; d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:grid;place-items:center;padding:16px';

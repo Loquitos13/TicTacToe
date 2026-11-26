@@ -1236,6 +1236,22 @@ io.on('connection', socket => {
       ps.forEach((p, k) => p.team = (k + off) % session.settings.teams);
       persistSession(); broadcast();
     }));
+    // equipas a meio da sessão: formar N equipas (2 a 6, ao acaso e equilibradas), refazer com outro número ou desfazer (0 = individual)
+    socket.on('host:teams', guard((n, cb) => {
+      const reply = typeof cb === 'function' ? cb : () => {};
+      if (!session || session.settings.anonymous) return reply({ error: 'Numa sessão anónima não há equipas.' });
+      n = parseInt(n, 10) || 0; if (n !== 0 && (n < 2 || n > 6)) return reply({ error: 'Escolhe de 2 a 6 equipas.' });
+      const q = session.questions[session.qIndex];
+      if (q && q.type === 'potato' && session.phase === 'question') return reply({ error: 'Espera que a batata quente acabe para mudar as equipas.' });
+      session.settings.teams = n;
+      // quem está ligado primeiro, para as equipas ficarem equilibradas com quem está mesmo na sala
+      const ps = Object.values(session.players);
+      for (let i = ps.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [ps[i], ps[j]] = [ps[j], ps[i]]; }
+      ps.sort((a, b) => (b.socketId ? 1 : 0) - (a.socketId ? 1 : 0));
+      const off = n ? crypto.randomInt(n) : 0;
+      ps.forEach((p, k) => p.team = n ? (k + off) % n : null);
+      persistSession(); broadcast(); reply({ ok: true });
+    }));
     // mudar uma pessoa de equipa (toque no cartão, na sala de espera)
     socket.on('host:moveTeam', guard((studentId) => {
       if (!session || !session.settings.teams || session.phase !== 'lobby') return;

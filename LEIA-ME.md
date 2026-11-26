@@ -213,6 +213,7 @@ E escolhes o **ranking**:
 - Cada um responde no seu telemóvel. A pontuação da equipa é a **média** dos pontos dos membros, por isso é justo mesmo com equipas de tamanhos diferentes.
 - O ranking entre perguntas e o pódio final passam a ser **por equipas** (mascotes com as cores da equipa a dançar e os membros por baixo). O telemóvel mostra o lugar da equipa e o seu.
 - Nos resultados aparece o resumo das equipas, a equipa de cada formando na grelha e no Excel.
+- **Equipas a meio da sessão (🧩 Equipas, na barra de baixo e no PowerPoint):** os formandos entram uma vez e começam individuais. A qualquer momento, mesmo com uma pergunta aberta, escolhes **2 a 6 equipas** (ao acaso e equilibradas, primeiro quem está ligado), **refazes** com outro número (ou o mesmo, para baralhar) ou voltas a **🙋 Individual**. Ninguém tem de entrar outra vez: os pontos de cada um mantêm-se e o telemóvel avisa "Agora estás na Equipa Azul com…" ou "Agora respondes individualmente". Quem chega depois entra na equipa com menos gente. Durante a batata quente as equipas não mudam (espera que acabe).
 - Não existe com "Sem ranking" nem no questionário anónimo.
 
 Depois de uma pergunta de **opinião** (escala, nuvem ou ranking sem ordem certa) não aparece o Top 5, porque ninguém ganha pontos: segue logo para a próxima pergunta.

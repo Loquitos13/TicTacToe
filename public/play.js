@@ -23,7 +23,18 @@ socket.on('roster', r => {
   if (r.session && me && me.sessionId === r.session.id && !state) return reclaim(me);
   if (!state) render();
 });
-socket.on('state', s => { Sound.setForcedOff(!!(s.session && s.session.settings && s.session.settings.phoneSound === false)); if (!s.session) { state = null; roster = { session: null }; stopCamera(); render(); return; } state = s; render(); });
+socket.on('state', s => { Sound.setForcedOff(!!(s.session && s.session.settings && s.session.settings.phoneSound === false)); if (!s.session) { state = null; roster = { session: null }; stopCamera(); render(); return; } teamNotice(state, s); state = s; render(); });
+// o formador formou, refez ou desfez as equipas a meio da sessão
+function teamNotice(old, s) {
+  if (!old || !old.me || !s.me || old.me.studentId !== s.me.studentId) return;
+  const a = old.me.team ? old.me.team.id : null, b = s.me.team ? s.me.team.id : null;
+  if (a === b) return;
+  document.querySelectorAll('.toast.team-note').forEach(t => t.parentNode.removeChild(t));   // o aviso novo substitui o anterior
+  if (b == null) toast('🙋 Agora respondes individualmente', 4500);
+  else toast(`${s.me.team.emoji} Agora estás na Equipa ${s.me.team.name}` + ((s.me.teammates || []).length ? ' com ' + s.me.teammates.slice(0, 4).join(', ') + (s.me.teammates.length > 4 ? '…' : '') : ''), 5500);
+  const ts = document.querySelectorAll('.toast'); if (ts.length) ts[ts.length - 1].classList.add('team-note');
+  Sound.play('whoosh'); navigator.vibrate && navigator.vibrate([60, 40, 60]);
+}
 socket.on('reload', () => { state = null; joinStep = { kind: 'form' }; store(null); });
 socket.on('released', why => { state = null; store(null); joinStep = { kind: 'form' }; toast(why === 'moved' ? 'Entraste com o teu nome noutro separador ou telemóvel: continua lá.' : 'O formador libertou o teu lugar. Para voltar, usa o código de reentrada que ele te der.', 6000); render(); });
 // o servidor pergunta se este telemóvel ainda está cá (alguém está a tentar entrar com o mesmo nome)
