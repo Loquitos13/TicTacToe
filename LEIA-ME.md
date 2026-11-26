@@ -154,6 +154,12 @@ Durante a avaliação os telemóveis não mostram certo/errado. A nota é a méd
 **🎮 Jogo**: escolhe o curso, o questionário e os alunos e clica em **Abrir sala**. Aparece o QR code.
 Cada sala aberta tem um **código único** (ex.: `K7P4QX`), que vai dentro do QR code e aparece por baixo dele. Sem o código certo não se entra, e o código de uma sessão anterior deixa de funcionar.
 
+**📺 Dois separadores: projeção + formador.** Na barra de baixo, **📺 Ecrã de projeção** abre um separador só com o que se projeta. Arrasta-o para o projetor e faz **duplo clique** nele: fica em ecrã inteiro e passa a ter som.
+- **No ecrã de projeção** não aparecem a barra de botões, a solução antes da hora, os botões da batata quente (▶ Começar, ✔ Aceitar, ⏭ Outra pergunta), as palavras recusadas nem os avisos. As teclas também não mexem no quiz.
+- **No teu separador** controlas tudo: avanças, pausas, formas equipas, repetes atividades.
+- **O painel 🔎 Respostas em direto** abre sozinho no teu separador e mostra quem respondeu o quê, ✓/✗, a resposta certa e quem ainda não respondeu. Na batata quente mostra as últimas tentativas (aceites e recusadas), com **✔ Aceitar** para uma palavra boa que não estava na lista. Também o podes abrir sem projeção, com **🔎 Respostas**, mas aí não projetes esse separador.
+- **O som** passa a sair só no ecrã de projeção, para não se ouvir a dobrar. Quando fechas a projeção, volta ao teu separador.
+
 Os alunos leem o QR e **escrevem o nome completo** (sem precisar de acentos nem maiúsculas). Quem é quem decide-o sempre o sistema, a partir da lista que tu registaste; o formando nunca escolhe.
 
 Regra de identificação (nomes comparados sem maiúsculas nem acentos):

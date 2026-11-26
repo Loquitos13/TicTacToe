@@ -387,7 +387,7 @@ function potatoView(forHost, p) {
     groups: gs.map(g => ({ ...info(g), size: g.members.length, score: P.gscore[g.id] || 0, ...(forHost ? { members: g.members.map(m => m.short || m.name) } : {}) })).sort((a, b) => b.score - a.score),
     log: P.log.filter(l => l.round === P.round).slice(-16).map(l => ({ group: name(l.group), word: l.word || null, pts: l.pts, boom: !!l.boom })),
   };
-  if (forHost) { v.reject = P.reject && P.reject.group === P.holder ? P.reject : null; v.all = P.log.filter(l => l.word).map(l => ({ round: l.round, group: name(l.group), word: l.word, pts: l.pts })); }
+  if (forHost) { v.attempts = (P.attempts || []).slice(-15).reverse().map(a => ({ word: a.w, group: name(a.g), ok: a.ok, reason: a.reason, by: a.by })); v.reject = P.reject && P.reject.group === P.holder ? P.reject : null; v.all = P.log.filter(l => l.word).map(l => ({ round: l.round, group: name(l.group), word: l.word, pts: l.pts })); }
   if (p) { const mine = gs.find(g => g.members.includes(p)); v.mine = !!(holder && mine === holder); v.isRep = potatoCanAnswer(P, p); v.myGroup = info(mine); }
   return v;
 }
@@ -466,6 +466,9 @@ function hostView() {
       teamList: session.settings.teams ? TEAMS.slice(0, session.settings.teams) : null,
       reps: session.settings.teams ? (session.reps || {}) : null,
       roster: session.roster,
+      live: q && ['question', 'closed', 'reveal', 'leaderboard'].includes(session.phase) && Q.typeOf(q) !== 'potato'
+        ? Object.entries(ans).map(([sid, a]) => { const p = session.players[sid]; return { sid, name: p ? p.name : '?', text: Q.answerText(q, a), correct: a.correct ?? null, points: a.points || 0, at: a.at || 0, rep: !!a.byRep }; }).sort((x, y) => x.at - y.at)
+        : null,
       asked: session.asked, allQs: session.questions.map((qq, k) => ({ type: Q.typeOf(qq), poll: !!qq.poll, text: qq.text, n: Object.keys(session.answers[k] || {}).length })),
       ranking: ranking(),
       lastPoints: q ? Object.fromEntries(Object.entries(ans).map(([sid, a]) => [sid, a.points])) : {},
@@ -1341,6 +1344,7 @@ io.on('connection', socket => {
     socket.on('host:potatoAccept', guard(() => {
       const P = session && session.potato;
       if (!P || P.status !== 'running' || session.phase !== 'question' || !P.reject || P.reject.group !== P.holder || P.reject.reason === 'used') return;
+      const at = (P.attempts || []).slice().reverse().find(a => a.w === P.reject.word && !a.ok); if (at) { at.ok = true; at.reason = 'manual'; }
       potatoAccept(P.reject.word, Q.norm(P.reject.word), P.reject.by);
     }));
     // 📋 atividades: ir para qualquer uma, ou 🔁 repetir (os pontos dessa atividade são anulados)
@@ -1773,6 +1777,7 @@ io.on('connection', socket => {
     const w = String(typeof word === 'string' ? word : '').trim().replace(/\s+/g, ' ').slice(0, 60);
     if (!w) return cb({ error: 'Escreve uma palavra.' });
     const r = Q.potatoCheck(q, P.round, w, (q.rounds[P.round] || {}).questions ? [P.qi] : P.used);
+    (P.attempts ||= []).push({ w, g: P.holder, ok: !!r.ok, reason: r.ok ? null : r.reason, by: me.short || me.name }); if (P.attempts.length > 40) P.attempts.shift();
     if (!r.ok) { P.reject = { word: w, group: P.holder, reason: r.reason, by: me.studentId }; broadcast(); return cb({ ok: false, reason: r.reason }); }
     cb({ ok: true, pts: potatoAccept(w, r.key, me.studentId) });
   });

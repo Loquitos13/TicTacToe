@@ -55,6 +55,26 @@
   .act-t { display: flex; flex-direction: column; font-weight: 700; min-width: 0; }
   .act-t small { font-weight: 400; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .act-s { font-size: .85em; color: #555; white-space: nowrap; }
+  /* ecrã de projeção: só o palco */
+  body.proj nav, body.proj .controls, body.proj .toast, body.proj .pot-rej, body.proj .private-note, body.proj .lobby details,
+  body.proj .lobby .switch, body.proj .lobby .row.noprint, body.proj #slideGo, body.proj .dlg { display: none !important; }
+  #projHint { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 60; background: rgba(0,0,0,.55); color: #fff; padding: 6px 14px; border-radius: 999px; font-size: .9em; }
+  body.proj .tl-p { cursor: default; pointer-events: none; }
+  /* separador do formador: painel com as respostas em direto */
+  #livePanel { position: fixed; top: 64px; right: 10px; bottom: 84px; width: 340px; overflow: auto; z-index: 40; background: rgba(255,255,255,.97); color: #222; border-radius: 16px; padding: 10px 12px; box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+  body.live-on #tab-game #stage { margin-right: 350px; }
+  .lv-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .lv-x { border: 0; background: #eee; border-radius: 8px; cursor: pointer; padding: 2px 8px; }
+  .lv-note { margin: 2px 0 8px; font-size: .78em; color: #777; }
+  .lv-sol { background: #e7f8ee; border-radius: 10px; padding: 6px 8px; margin-bottom: 8px; font-size: .92em; }
+  .lv-row { display: flex; gap: 8px; align-items: flex-start; padding: 5px 4px; border-bottom: 1px solid #eee; }
+  .lv-row > b { width: 18px; text-align: center; color: #999; }
+  .lv-row.ok > b { color: #16a34a; } .lv-row.no > b { color: #dc2626; }
+  .lv-txt { display: flex; flex-direction: column; word-break: break-word; }
+  .lv-txt small { color: #777; }
+  .lv-miss { font-size: .85em; color: #8a6d00; margin-top: 8px; }
+  .lv-rej { background: #fff1f2; border-radius: 10px; padding: 6px 8px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #livePanel h4 { margin: 4px 0; }
   .ta-box { margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: #f4f2fb; color: #222; }
   .ta-box .muted { margin: 6px 0 0; }
   .ta-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }

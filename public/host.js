@@ -3,6 +3,18 @@ const SLIDE = document.body.classList.contains('slide');
 // no PowerPoint cada diapositivo com o suplemento é uma página à parte: a chave fica partilhada entre eles
 // (o resto do modo diapositivo está no slide.js)
 const TOK = SLIDE ? localStorage : sessionStorage;
+// ecrã de projeção (separador à parte, para o projetor): só o palco, sem botões nem respostas antes do tempo.
+// Abre-se no separador do formador (📺); a chave vem no endereço (#t=…) e sai logo de lá.
+const PROJ = !SLIDE && new URLSearchParams(location.search).has('ecra');
+if (PROJ) {
+  document.body.classList.add('proj');
+  const m = location.hash.match(/t=([^&]+)/);
+  if (m) { sessionStorage.setItem('aq_tok', decodeURIComponent(m[1])); history.replaceState(null, '', location.pathname + location.search); }
+  document.addEventListener('dblclick', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {}));
+  // o browser só deixa tocar sons depois de um clique neste separador: aviso pequeno até lá
+  const hint = document.createElement('div'); hint.id = 'projHint'; hint.textContent = '🖱 Duplo clique aqui: ecrã inteiro e som'; document.body.appendChild(hint);
+  document.addEventListener('pointerdown', () => { Sound.init(); if (hint.parentNode) hint.parentNode.removeChild(hint); }, { once: true });
+}
 let slideSetup = false;   // no diapositivo, o formulário de abrir a sala só aparece se o formador pedir
 // encolhe o palco (1280 de largura) para caber inteiro no diapositivo, centrado
 function fitSlide() {
@@ -69,7 +81,7 @@ async function start() {
   socket.on('tunnel', u => { joinUrl = u; window._joinSuggestions = [u, ...window._joinSuggestions.filter(x => x !== u)]; toast('🌍 Online: o QR code já usa ' + u, 5000); if (S && S.phase === 'lobby') renderGame(true); });
   $$('nav button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
   document.addEventListener('keydown', e => {
-    if (SLIDE || tab !== 'game' || !S || e.repeat || S.phase === 'exam' || document.querySelector('.dlg') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+    if (SLIDE || PROJ || tab !== 'game' || !S || e.repeat || S.phase === 'exam' || document.querySelector('.dlg') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
     if (e.key === ' ' || e.key === 'ArrowRight' || e.key === 'Enter') { e.preventDefault(); next(); }
   });
 }
@@ -98,6 +110,7 @@ const isPaused = () => S && (S.phase === 'question' ? !!S.qPaused : isAuto() && 
 const hiddenReveal = () => S && (S.settings.revealMode || 'each') !== 'each';
 // neste dispositivo, mostrar as respostas corretas? (o projetor fica sem elas; o portátil/telemóvel do formador com elas)
 let seeAnswers = false; try { seeAnswers = localStorage.getItem('aq_see_answers') === '1'; } catch {}
+if (PROJ) seeAnswers = false;   // no ecrã de projeção nunca se vê a solução antes do tempo
 const showCorrectHere = () => !hiddenReveal() || seeAnswers;
 const connectedN = () => S.players.filter(p => p.connected).length;
 
@@ -113,6 +126,7 @@ function onState(prev) {
     if (S.qPaused) Sound.stopMusic(0.4);
     else { Sound.music('think'); if (timed() && !isPotatoQ()) { const end = Date.now() + S.remainingMs; tickTimer = setInterval(() => { const r = Math.ceil((end - Date.now()) / 1000); if (r <= 5 && r > 0) Sound.play(r <= 3 ? 'tock' : 'tick'); }, 1000); } }
   }
+  setTimeout(renderLivePanel);
   if (tab === 'game') renderGame(changed || pauseFlip || !!(prev && S && (prev.settings.teams || 0) !== (S.settings.teams || 0)));
   runAutoInfo();
 }
@@ -160,7 +174,7 @@ function runAutoInfo() {
 
 function renderGame(full) {
   const el = $('#tab-game');
-  if (!S) return full ? (SLIDE && !slideSetup ? renderSlideIdle(el) : renderSetup(el)) : undefined;
+  if (!S) return full ? (PROJ ? renderProjIdle(el) : SLIDE && !slideSetup ? renderSlideIdle(el) : renderSetup(el)) : undefined;
   if (!full) return updateLive();
   const ph = S.phase;
   let html = `<div id="stage"><div class="stage-top"><span>${S.courseName ? '🎓 ' + esc(S.courseName) + ' · ' : ''}📝 ${esc(S.quizTitle)}</span>
@@ -409,7 +423,7 @@ function potatoRun() {
   };
   potRaf = requestAnimationFrame(tick);
 }
-document.addEventListener('click', e => { if (e.target && e.target.id === 'potAcc') socket.emit('host:potatoAccept'); if (e.target && e.target.id === 'potSkip') socket.emit('host:potatoSkip'); if (e.target && e.target.id === 'potPause') socket.emit('host:pause', !(S && S.potato && S.potato.status === 'paused')); });
+document.addEventListener('click', e => { if (e.target && (e.target.id === 'potAcc' || e.target.id === 'potAcc2')) socket.emit('host:potatoAccept'); if (e.target && e.target.id === 'potSkip') socket.emit('host:potatoSkip'); if (e.target && e.target.id === 'potPause') socket.emit('host:pause', !(S && S.potato && S.potato.status === 'paused')); });
 // correspondência no projetor: itens numerados à esquerda, opções baralhadas (com letra) à direita
 function matchStageHtml(q, showSol) {
   const order = S.matchOrder || q.pairs.map((_, i) => i), st = S.matchStats || [], total = S.answeredIds.length;
@@ -724,6 +738,8 @@ function controlsHtml() {
     ${isExamMode() ? '' : `<label class="switch" id="qrSw" title="QR code pequeno no canto, durante as perguntas (para quem saiu ou chegou atrasado)"><input type="checkbox" id="setMiniQr" ${S.settings.miniQr !== false ? 'checked' : ''}> QR</label>`}
     ${!isExamMode() && ph !== 'lobby' && S.question && ph !== 'end' ? `<button class="btn small ghost" id="btnRedo" title="Volta a fazer esta atividade: os pontos que deu são anulados">🔁 Repetir</button>` : ''}
     ${isExamMode() ? '' : `<button class="btn small ghost" id="btnActs" title="Ir para qualquer atividade do questionário">📋 Atividades</button>`}
+    ${SLIDE || PROJ ? '' : `<button class="btn small ${projOpen ? 'primary' : 'ghost'}" id="btnProj" title="Abre um separador só com o que se projeta (sem botões nem respostas antes do tempo). Arrasta-o para o projetor e faz duplo clique para ecrã inteiro.">${projOpen ? '📺 Projeção aberta' : '📺 Ecrã de projeção'}</button>`}
+    ${SLIDE || PROJ || !['question', 'closed', 'reveal', 'leaderboard'].includes(ph) ? '' : `<button class="btn small ${liveShown() ? 'primary' : 'ghost'}" id="btnLive" title="Quem respondeu o quê, em direto (só neste separador)">🔎 Respostas</button>`}
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
     ${S.settings.anonymous || isExamMode() ? '' : `<button class="btn small ghost" id="btnTeams" title="Formar, refazer ou desfazer equipas a qualquer momento">${S.settings.teams ? '🧩 ' + S.settings.teams + ' equipas' + (S.settings.teamAnswer === 'rep' ? ' · 🎤' : '') : '🧩 Equipas'}</button>`}
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
@@ -756,11 +772,13 @@ function bindGame() {
   on('btnPlayers', playersDialog);
   on('btnTeams', teamsDialog);
   on('btnActs', actsDialog);
+  on('btnProj', openProj);
+  on('btnLive', () => { liveOpen = !liveShown(); try { sessionStorage.setItem('aq_live', liveOpen ? '1' : '0'); } catch {} renderLivePanel(); renderGame(false); });
   on('btnRedo', () => sure('btnRedo', 'Repetir esta atividade? Os pontos que deu são anulados e toda a gente volta a responder.', () => socket.emit('host:goto', { k: S.qIndex, redo: true }, res => {
     if (!res || res.error) return toast((res && res.error) || 'Erro', 4500);
     toast('🔁 A repetir a atividade: os pontos dela foram anulados');
   })));
-  on('btnAnswers', () => { showAnswersList = !showAnswersList; if (showAnswersList) Sound.play('revealCorrect'); renderGame(true); });
+  on('btnAnswers', () => { showAnswersList = !showAnswersList; if (showAnswersList) Sound.play('revealCorrect'); if (projChan) projChan.postMessage({ t: 'view', showAnswersList }); renderGame(true); });
   const ss = $('#setSee'); if (ss) ss.onchange = e => { seeAnswers = e.target.checked; try { localStorage.setItem('aq_see_answers', seeAnswers ? '1' : '0'); } catch {} renderGame(true); };
   const ms = $('#setMySnd'); if (ms) ms.onchange = e => { Sound.init(); Sound.setMuted(!e.target.checked); };
   const ps = $('#setPhSnd'); if (ps) ps.onchange = e => socket.emit('host:settings', { phoneSound: e.target.checked });
@@ -860,6 +878,63 @@ function updateLive() {
 }
 
 const qLabel = q => q.poll ? '📊 Votação' : (QTYPE_LABEL[q.type] || q.type);
+// ---------- dois separadores: formador + ecrã de projeção (no mesmo browser) ----------
+const projChan = !SLIDE && 'BroadcastChannel' in window ? new BroadcastChannel('aq_proj') : null;
+let projOpen = false, projSeenAt = 0, liveOpen = null;
+try { const v = sessionStorage.getItem('aq_live'); if (v) liveOpen = v === '1'; } catch {}
+if (projChan && PROJ) {
+  // o ecrã de projeção avisa que está aberto; segue o que o formador escolhe mostrar (ex.: lista de respostas no fim)
+  const hi = () => projChan.postMessage({ t: 'alive' });
+  hi(); setInterval(hi, 2000); addEventListener('pagehide', () => projChan.postMessage({ t: 'bye' }));
+  projChan.onmessage = e => { const m = e.data || {}; if (m.t === 'view' && showAnswersList !== !!m.showAnswersList) { showAnswersList = !!m.showAnswersList; if (S) renderGame(true); } };
+} else if (projChan) {
+  projChan.onmessage = e => {
+    const m = e.data || {};
+    if (m.t === 'alive') { projSeenAt = Date.now(); if (!projOpen) projSet(true); projChan.postMessage({ t: 'view', showAnswersList }); }
+    if (m.t === 'bye') projSet(false);
+  };
+  setInterval(() => { if (projOpen && Date.now() - projSeenAt > 6000) projSet(false); }, 2000);
+}
+function projSet(on) {
+  projOpen = on;
+  Sound.setForcedOff(on);   // com o ecrã de projeção aberto o som sai lá (aqui ouvia-se a dobrar)
+  if (on) toast('📺 Ecrã de projeção aberto: o som sai lá. Aqui vês as respostas em direto (🔎 Respostas).', 5500);
+  if (S && tab === 'game') renderGame(false);
+  renderLivePanel();
+}
+function openProj() {
+  const w = window.open('/host.html?ecra=1#t=' + encodeURIComponent(PW), 'aq_proj');
+  if (!w) return toast('O browser bloqueou a janela: permite janelas (pop-ups) para este endereço e tenta outra vez.', 6000);
+  w.focus();
+}
+function renderProjIdle(el) {
+  el.innerHTML = `<div id="stage" class="slide-idle"><div class="big-emoji wiggle">🎯</div><h1>Ecrã de projeção</h1><p>À espera que o formador abra a sala…</p><p class="muted">Duplo clique para ecrã inteiro.</p></div>`;
+}
+// painel "🔎 Respostas em direto" (só no separador do formador; abre sozinho quando há ecrã de projeção)
+const liveShown = () => !SLIDE && !PROJ && !!S && tab === 'game' && ['question', 'closed', 'reveal', 'leaderboard'].includes(S.phase) && !!S.question && (liveOpen ?? projOpen);
+function renderLivePanel() {
+  let el = document.getElementById('livePanel');
+  if (!liveShown()) { if (el) el.parentNode.removeChild(el); document.body.classList.remove('live-on'); return; }
+  if (!el) { el = document.createElement('aside'); el.id = 'livePanel'; document.body.appendChild(el); el.onclick = e => { if (e.target.id === 'liveX') { liveOpen = false; try { sessionStorage.setItem('aq_live', '0'); } catch {} renderLivePanel(); renderGame(false); } }; }
+  document.body.classList.add('live-on');
+  const ctl = document.querySelector('.controls'); el.style.bottom = ((ctl ? ctl.offsetHeight : 70) + 14) + 'px';   // acaba por cima da barra de botões
+  const q = S.question, t = qType(q), graded = qGraded(q);
+  let body = '';
+  if (t === 'potato') {
+    const P = S.potato || {};
+    body = `${P.reject && P.reject.reason !== 'used' ? `<div class="lv-rej">✗ «${esc(P.reject.word)}» não foi aceite <button class="btn small go" id="potAcc2">✔ Aceitar</button></div>` : ''}
+      <h4>🥔 Últimas tentativas</h4>${(P.attempts || []).map(a => `<div class="lv-row ${a.ok ? 'ok' : 'no'}"><b>${a.ok ? (a.reason === 'manual' ? '✔' : '✓') : '✗'}</b><span class="lv-txt">«${esc(a.word)}»<small>${esc(a.by || '')}${a.group && a.group !== a.by ? ' · ' + esc(a.group) : ''}${a.ok ? '' : a.reason === 'used' ? ' · já dita' : ' · não aceite'}</small></span></div>`).join('') || '<p class="muted">Ainda ninguém tentou.</p>'}`;
+  } else {
+    const L = S.live || [], done = new Set(L.map(x => x.sid));
+    const missing = S.players.filter(p => p.connected && !done.has(p.studentId)).map(p => p.name.split(' ')[0]);
+    body = `${graded && !q.poll ? `<div class="lv-sol">✅ <b>Certa:</b> ${esc(solutionText(q))}</div>` : ''}
+      ${L.map(x => `<div class="lv-row ${x.correct === true ? 'ok' : x.correct === false ? 'no' : ''}"><b>${x.correct === true ? '✓' : x.correct === false ? '✗' : '•'}</b><span class="lv-txt">${esc(x.text || '—')}<small>${esc(x.name)}${x.rep ? ' · 🎤 pela equipa' : ''}${x.points ? ` · +${x.points}` : ''}</small></span></div>`).join('') || '<p class="muted">Ainda ninguém respondeu.</p>'}
+      ${missing.length ? `<p class="lv-miss">⏳ Ainda não responderam: ${missing.map(esc).join(', ')}</p>` : ''}`;
+  }
+  const n = t === 'potato' ? '' : ` · ${(S.live || []).length} de ${connectedN()}`;
+  const html = `<div class="lv-head"><b>🔎 Respostas em direto${n}</b><button class="lv-x" id="liveX" title="Fechar">✕</button></div><p class="lv-note">Só neste separador${projOpen ? ' · 📺 o ecrã de projeção não mostra isto' : ''}.</p>${body}`;
+  if (el.dataset.h !== html) { el.dataset.h = html; el.innerHTML = html; }
+}
 // lista de todas as atividades do questionário: ir para uma, ou repetir (anula os pontos dessa atividade)
 function actsDialog() {
   const d = document.createElement('div');
