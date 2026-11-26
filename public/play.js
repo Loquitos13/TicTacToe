@@ -23,7 +23,16 @@ socket.on('roster', r => {
   if (r.session && me && me.sessionId === r.session.id && !state) return reclaim(me);
   if (!state) render();
 });
-socket.on('state', s => { Sound.setForcedOff(!!(s.session && s.session.settings && s.session.settings.phoneSound === false)); if (!s.session) { state = null; roster = { session: null }; stopCamera(); render(); return; } teamNotice(state, s); state = s; render(); });
+socket.on('state', s => { Sound.setForcedOff(!!(s.session && s.session.settings && s.session.settings.phoneSound === false)); if (!s.session) { state = null; roster = { session: null }; stopCamera(); render(); return; } teamNotice(state, s); if (state && state.session && !s.qNotStarted && !state.qNotStarted && !!s.qPaused !== !!state.qPaused && s.session.phase === 'question' && state.session.phase === 'question' && s.session.qIndex === state.session.qIndex) toast(s.qPaused ? '⏸ O formador parou o tempo' : '▶ O tempo voltou a contar', 2500); state = s; render(); pauseVeil(); });
+// tempo parado (a pergunta abre parada até o formador carregar em ▶ Começar): véu por cima da pergunta
+function pauseVeil() {
+  const on = !!(state && state.qPaused && state.session && state.session.phase === 'question' && state.question && state.question.type !== 'potato' && !state.answered);
+  let v = document.getElementById('pauseVeil');
+  if (!on) { if (v) v.parentNode.removeChild(v); return; }
+  const html = state.qNotStarted ? '<div>⏳</div><b>Lê a pergunta…</b><span>O formador ainda não pôs o tempo a contar.</span>' : '<div>⏸</div><b>Tempo parado</b><span>Espera pelo formador…</span>';
+  if (!v) { v = document.createElement('div'); v.id = 'pauseVeil'; document.body.appendChild(v); }
+  if (v.innerHTML !== html) v.innerHTML = html;
+}
 // o formador formou, refez ou desfez as equipas a meio da sessão
 function teamNotice(old, s) {
   if (!old || !old.me || !s.me || old.me.studentId !== s.me.studentId) return;
@@ -222,6 +231,7 @@ function renderGameInner() {
       });
     });
     if (!timedMode) return;
+    if (state.qPaused) { const tb = $('#tb'); if (tb) tb.style.transform = `scaleX(${state.remainingMs / (q.time * 1000)})`; return; }
     const end = performance.now() + state.remainingMs, total = q.time * 1000;
     const tick = () => { const tb = $('#tb'); if (!tb) return; const r = Math.max(0, end - performance.now()); tb.style.transform = `scaleX(${r / total})`; if (r > 0) timerRaf = requestAnimationFrame(tick); };
     tick();
@@ -888,16 +898,18 @@ let potLast = null, potEnd = 0, potTot = 1, potRaf = 0;
 function renderPotato(s) {
   const P = state.potato;
   if (!P) return set('potwait' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji wiggle">🥔</div><h1>A preparar a batata…</h1></div>`);
-  const sig = JSON.stringify([P.status, P.round, P.holder && P.holder.id, P.rep, P.isRep, P.mine, P.log.length, P.groups.map(g => g.score), P.question && P.question.n]);
+  const sig = JSON.stringify([P.status, P.round, P.holder && P.holder.id, P.rep, P.isRep, P.mine, P.myGroup && P.myGroup.id, P.log.length, P.groups.map(g => g.score), P.question && P.question.n]);
   // sons e vibração quando a batata chega ao grupo, quando é a minha vez e quando rebenta
-  if (potLast && potLast !== sig) {
+  if (potLast && potLast !== sig && P.status !== 'paused') {
     if (P.status === 'boom') { Sound.play('wrong'); navigator.vibrate && navigator.vibrate(400); }
     else if (P.isRep) { Sound.play('pop'); navigator.vibrate && navigator.vibrate([60, 40, 60]); }
     else if (P.mine) { navigator.vibrate && navigator.vibrate(40); }
   }
   potLast = sig;
   let body;
-  if (P.status === 'between') body = `<div class="big-emoji pop-in">✅</div><h1>Secção concluída!</h1><p>Vem aí a próxima…</p>`;
+  if (P.status === 'paused' && P.pausedFrom === 'start') body = `<div class="big-emoji wiggle">🥔</div><h1>A batata vai começar!</h1><p>${P.myGroup ? `Estás na <b style="color:${P.myGroup.color}">${P.myGroup.emoji} ${esc(P.myGroup.name)}</b>. ` : ''}Espera pelo formador…</p>`;
+  else if (P.status === 'paused') body = `<div class="big-emoji">⏸</div><h1>Pausa</h1><p>O rastilho parou. Espera pelo formador…</p>`;
+  else if (P.status === 'between') body = `<div class="big-emoji pop-in">✅</div><h1>Secção concluída!</h1><p>Vem aí a próxima…</p>`;
   else if (P.status === 'boom') body = `<div class="big-emoji wiggle">💥</div><h1>Rebentou com ${esc(P.boom.name)}!</h1>
     <p>${P.myGroup && P.boom.id === P.myGroup.id ? `O teu grupo perde ${P.boom.penalty} pontos 😬` : 'Vem aí a próxima ronda…'}</p>`;
   else if (P.isRep) body = `<div class="pot-me pop-in">🥔 É a TUA vez!</div><p style="margin:4px 0 10px">${P.question ? 'Responde à pergunta e passa a batata — depressa!' : 'Escreve uma palavra sobre o tema e passa a batata — depressa!'}</p>

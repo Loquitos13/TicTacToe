@@ -82,6 +82,9 @@ const timed = () => S && S.settings.mode !== 'manual'; // por tempo ou automáti
 const isAuto = () => S && S.settings.mode === 'auto';
 const isExamMode = () => S && S.settings.mode === 'exam';
 const pollOn = () => S && S.settings.showPoll !== false;
+const isPotatoQ = () => S && S.phase === 'question' && S.question && qType(S.question) === 'potato';
+const canPause = () => S && ((S.phase === 'question' && (timed() || isPotatoQ())) || (isAuto() && !['end', 'lobby', 'exam'].includes(S.phase)));
+const isPaused = () => S && (S.phase === 'question' ? !!S.qPaused : isAuto() && !!S.settings.paused);
 const hiddenReveal = () => S && (S.settings.revealMode || 'each') !== 'each';
 // neste dispositivo, mostrar as respostas corretas? (o projetor fica sem elas; o portátil/telemóvel do formador com elas)
 let seeAnswers = false; try { seeAnswers = localStorage.getItem('aq_see_answers') === '1'; } catch {}
@@ -94,7 +97,13 @@ function onState(prev) {
   lastPhaseKey = key;
   if (changed) phaseSound(prev);
   if (!S || S.phase !== 'end') showAnswersList = false;
-  if (tab === 'game') renderGame(changed || !!(prev && S && (prev.settings.teams || 0) !== (S.settings.teams || 0)));
+  const pauseFlip = !changed && prev && S && S.phase === 'question' && !!prev.qPaused !== !!S.qPaused;
+  if (pauseFlip) {
+    clearInterval(tickTimer);
+    if (S.qPaused) Sound.stopMusic(0.4);
+    else { Sound.music('think'); if (timed() && !isPotatoQ()) { const end = Date.now() + S.remainingMs; tickTimer = setInterval(() => { const r = Math.ceil((end - Date.now()) / 1000); if (r <= 5 && r > 0) Sound.play(r <= 3 ? 'tock' : 'tick'); }, 1000); } }
+  }
+  if (tab === 'game') renderGame(changed || pauseFlip || !!(prev && S && (prev.settings.teams || 0) !== (S.settings.teams || 0)));
   runAutoInfo();
 }
 
@@ -106,8 +115,8 @@ function phaseSound(prev) {
   if (ph === 'exam') { Sound.play('whoosh'); Sound.music('think'); }
   if (ph === 'ready') { Sound.stopMusic(); [0, 1000, 2000].forEach(t => setTimeout(() => S && S.phase === 'ready' && Sound.play('tock'), t)); }
   if (ph === 'question') {
-    Sound.play('whoosh'); Sound.music('think');
-    if (timed()) {
+    Sound.play('whoosh'); if (!S.qPaused) Sound.music('think');
+    if (timed() && !S.qPaused) {
       const end = Date.now() + S.remainingMs;
       tickTimer = setInterval(() => { const r = Math.ceil((end - Date.now()) / 1000); if (r <= 5 && r > 0) Sound.play(r <= 3 ? 'tock' : 'tick'); }, 1000);
     }
@@ -346,6 +355,13 @@ function potatoBoxHtml() {
   const last = P.last ? `<div class="pot-last">✅ <b>${esc(P.last.group)}</b>: «${esc(P.last.word)}»${P.last.a ? `<br><span>R: ${esc(P.last.a)}</span>` : ''}</div>` : '';
   if (P.status === 'boom') return `<div class="pot-boom pop-in"><div>💥</div><h1>Rebentou com <span style="color:${P.boom.color}">${P.boom.emoji} ${esc(P.boom.name)}</span>!</h1>
     <p>−${P.boom.penalty} pontos · ${P.question ? 'a pergunta passa ao grupo seguinte…' : P.round < P.rounds ? 'próxima ronda daqui a pouco…' : 'fim do jogo'}</p></div>${potatoGroupsHtml(P)}`;
+  const pauseBtn = `<div class="pot-rej"><button class="btn small ${P.status === 'paused' ? 'go' : 'ghost'}" id="potPause">${P.status === 'paused' ? '▶ Continuar' : '⏸ Pausar'}</button></div>`;
+  if (P.status === 'paused' && P.pausedFrom === 'start') return `<div class="pot-boom pop-in"><div>🥔</div><h1>Batata quente: pronta para começar</h1>
+    <p>${P.groups.length > 1 ? 'Confere as equipas (podes mudá-las em 🧩 Equipas) e começa quando quiseres.' : 'Forma as equipas em 🧩 Equipas (ou joga cada um por si) e começa quando quiseres.'}</p></div>
+    <div class="pot-rej"><button class="btn go" id="potPause">▶ Começar o jogo</button></div>
+    <div class="pot-start">${P.groups.map(g => `<div style="--tc:${g.color}"><b>${g.emoji} ${esc(g.name)}</b><span>${(g.members || []).map(esc).join(' · ')}</span></div>`).join('')}</div>`;
+  if (P.status === 'paused') return `<div class="pot-boom pop-in"><div>⏸</div><h1>Batata quente em pausa</h1>
+    <p>O rastilho está parado. Podes mudar as equipas (🧩 Equipas) e depois continuar.</p></div>${pauseBtn}${potatoGroupsHtml(P)}`;
   if (P.status === 'between') return `<div class="pot-boom pop-in"><div>✅</div><h1>Secção «${esc(P.theme)}» concluída!</h1>
     <p>${P.round < P.rounds ? 'Vem aí a próxima secção…' : 'Fim do jogo'}</p></div>${last}${potatoGroupsHtml(P)}`;
   return `<div class="pot-head"><span>Ronda ${P.round} de ${P.rounds}${P.question ? ` · ${esc(P.theme)} · pergunta ${P.question.n} de ${P.question.total}` : ''}</span>
@@ -364,7 +380,7 @@ let potRaf = 0, potEndT = 0, potTotT = 1, potSig = '';
 function potatoRun() {
   const P = S && S.potato; if (!P) return;
   const sig = JSON.stringify([P.status, P.round, P.holder && P.holder.id, P.log.length, P.question && P.question.n]);
-  if (potSig && sig !== potSig) Sound.play(P.status === 'boom' ? 'wrong' : P.status === 'between' ? 'correct' : 'pop');
+  if (potSig && sig !== potSig && P.status !== 'paused') Sound.play(P.status === 'boom' ? 'wrong' : P.status === 'between' ? 'correct' : 'pop');
   potSig = sig;
   potEndT = performance.now() + (P.remainingMs || 0); potTotT = P.totalMs || 1;
   if (P.status !== 'running' || potRaf) return;
@@ -377,7 +393,7 @@ function potatoRun() {
   };
   potRaf = requestAnimationFrame(tick);
 }
-document.addEventListener('click', e => { if (e.target && e.target.id === 'potAcc') socket.emit('host:potatoAccept'); if (e.target && e.target.id === 'potSkip') socket.emit('host:potatoSkip'); });
+document.addEventListener('click', e => { if (e.target && e.target.id === 'potAcc') socket.emit('host:potatoAccept'); if (e.target && e.target.id === 'potSkip') socket.emit('host:potatoSkip'); if (e.target && e.target.id === 'potPause') socket.emit('host:pause', !(S && S.potato && S.potato.status === 'paused')); });
 // correspondência no projetor: itens numerados à esquerda, opções baralhadas (com letra) à direita
 function matchStageHtml(q, showSol) {
   const order = S.matchOrder || q.pairs.map((_, i) => i), st = S.matchStats || [], total = S.answeredIds.length;
@@ -680,7 +696,7 @@ function controlsHtml() {
   const allIn = ph === 'question' && connectedN() && S.answeredIds.length >= connectedN();
   return `<div class="controls noprint">
     ${ph === 'exam' ? `<button class="btn small ghost" id="btnExtend">＋1 min</button>` : ''}
-    ${isAuto() && ph !== 'end' && ph !== 'lobby' ? `<button class="btn small ghost" id="btnPause">${S.settings.paused ? '▶ Retomar' : '⏸ Pausar'}</button>` : ''}
+    ${canPause() ? `<button class="btn small ${isPaused() ? 'go pulse' : 'ghost'}" id="btnPause" title="Parar o tempo (e voltar a pô-lo a contar)">${isPaused() ? (S.potato && S.potato.pausedFrom === 'start' && isPotatoQ() ? '▶ Começar o jogo' : S.qNotStarted ? '▶ Começar' : '▶ Continuar') : '⏸ Pausar'}</button>` : ''}
     <div class="info"><b id="autoInfo" style="color:#ffd93d"></b> <span id="ctlInfo">${ph === 'end' ? 'Sessão terminada — as respostas estão guardadas.' : `${connectedN()} ligados · espaço/→ avança`}</span></div>
     ${hiddenReveal() && !isExamMode() ? `<label class="switch" title="Só neste dispositivo. Deixa desligado no ecrã projetado."><input type="checkbox" id="setSee" ${seeAnswers ? 'checked' : ''}> 👁 Ver respostas corretas</label>` : ''}
     ${ph === 'end' && S.settings.revealEnd ? `<button class="btn small ${showAnswersList ? 'primary' : 'ghost'}" id="btnAnswers">${showAnswersList ? '🏆 Voltar ao pódio' : '📋 Mostrar respostas corretas'}</button>` : ''}
@@ -690,6 +706,8 @@ function controlsHtml() {
     <label class="switch" id="sndMe" title="Música e efeitos neste computador / projetor"><input type="checkbox" id="setMySnd" ${Sound.isMuted() ? '' : 'checked'}> 🔊 Aqui</label>
     <label class="switch" id="sndAll" title="Sons nos telemóveis de todos os formandos"><input type="checkbox" id="setPhSnd" ${S.settings.phoneSound !== false ? 'checked' : ''}> 📱 Som</label>
     ${isExamMode() ? '' : `<label class="switch" id="qrSw" title="QR code pequeno no canto, durante as perguntas (para quem saiu ou chegou atrasado)"><input type="checkbox" id="setMiniQr" ${S.settings.miniQr !== false ? 'checked' : ''}> QR</label>`}
+    ${!isExamMode() && ph !== 'lobby' && S.question && ph !== 'end' ? `<button class="btn small ghost" id="btnRedo" title="Volta a fazer esta atividade: os pontos que deu são anulados">🔁 Repetir</button>` : ''}
+    ${isExamMode() ? '' : `<button class="btn small ghost" id="btnActs" title="Ir para qualquer atividade do questionário">📋 Atividades</button>`}
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
     ${S.settings.anonymous || isExamMode() ? '' : `<button class="btn small ghost" id="btnTeams" title="Formar, refazer ou desfazer equipas a qualquer momento">${S.settings.teams ? '🧩 ' + S.settings.teams + ' equipas' : '🧩 Equipas'}</button>`}
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
@@ -721,6 +739,11 @@ function bindGame() {
   on('btnFs', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
   on('btnPlayers', playersDialog);
   on('btnTeams', teamsDialog);
+  on('btnActs', actsDialog);
+  on('btnRedo', () => sure('btnRedo', 'Repetir esta atividade? Os pontos que deu são anulados e toda a gente volta a responder.', () => socket.emit('host:goto', { k: S.qIndex, redo: true }, res => {
+    if (!res || res.error) return toast((res && res.error) || 'Erro', 4500);
+    toast('🔁 A repetir a atividade: os pontos dela foram anulados');
+  })));
   on('btnAnswers', () => { showAnswersList = !showAnswersList; if (showAnswersList) Sound.play('revealCorrect'); renderGame(true); });
   const ss = $('#setSee'); if (ss) ss.onchange = e => { seeAnswers = e.target.checked; try { localStorage.setItem('aq_see_answers', seeAnswers ? '1' : '0'); } catch {} renderGame(true); };
   const ms = $('#setMySnd'); if (ms) ms.onchange = e => { Sound.init(); Sound.setMuted(!e.target.checked); };
@@ -730,7 +753,7 @@ function bindGame() {
   const sw = $('#setWho'); if (sw) sw.onchange = e => socket.emit('host:settings', { showWho: e.target.checked });
   const sp = $('#setPoll'); if (sp) sp.onchange = e => socket.emit('host:settings', { showPoll: e.target.checked });
   const sr = $('#setRank'); if (sr) sr.onchange = e => socket.emit('host:settings', { rankEach: e.target.checked });
-  on('btnPause', () => socket.emit('host:settings', { paused: !S.settings.paused }));
+  on('btnPause', () => socket.emit('host:pause', !isPaused()));
   const sel = $('#urlSel');
   if (sel) {
     sel.onchange = () => { if (sel.value) $('#urlIn').value = sel.value; else $('#urlIn').focus(); };
@@ -741,9 +764,10 @@ function bindGame() {
 let ringRaf;
 function runRing() {
   cancelAnimationFrame(ringRaf);
-  const end = performance.now() + S.remainingMs, total = S.question.time * 1000;
+  const paused = !!S.qPaused, end = performance.now() + S.remainingMs, total = S.question.time * 1000;
   const f = () => {
     const c = $('#ringC'), n = $('#ringN'); if (!c) return;
+    if (paused) { c.style.strokeDashoffset = 276.5 * (1 - S.remainingMs / total); n.textContent = '⏸'; return; }
     const r = Math.max(0, end - performance.now());
     c.style.strokeDashoffset = 276.5 * (1 - r / total);
     n.textContent = Math.ceil(r / 1000);
@@ -819,26 +843,58 @@ function updateLive() {
   }
 }
 
+const qLabel = q => q.poll ? '📊 Votação' : (QTYPE_LABEL[q.type] || q.type);
+// lista de todas as atividades do questionário: ir para uma, ou repetir (anula os pontos dessa atividade)
+function actsDialog() {
+  const d = document.createElement('div');
+  d.className = 'dlg'; d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:grid;place-items:center;padding:16px';
+  const qs = S.allQs || [], asked = new Set(S.asked || []);
+  d.innerHTML = `<div class="card" style="width:min(720px,100%);max-height:88vh;overflow:auto"><h2>📋 Atividades</h2>
+    <p class="muted">Escolhe para onde ir. <b>🔁 Repetir</b> anula os pontos que essa atividade deu e toda a gente volta a responder (carrega duas vezes para confirmar).</p>
+    <div class="acts">${qs.map((q, k) => { const cur = k === S.qIndex && !['lobby', 'end'].includes(S.phase), done = asked.has(k) && !cur;
+      return `<div class="act ${cur ? 'cur' : ''} ${done ? 'done' : ''}"><span class="act-n">${k + 1}</span><span class="act-t">${esc(qLabel(q))}<small>${esc(String(q.text || '').slice(0, 90))}</small></span>
+        <span class="act-s">${cur ? '▶ agora' : done ? `✓ feita · ${q.n} resp.` : ''}</span>
+        ${cur || done ? `<button class="btn small" data-go="${k}" data-redo="1">🔁 Repetir</button>` : `<button class="btn small primary" data-go="${k}">Ir</button>`}</div>`; }).join('')}</div>
+    <p style="text-align:right"><button class="btn primary" id="closeDlg">Fechar</button></p></div>`;
+  document.body.appendChild(d);
+  const close = () => d.parentNode && d.parentNode.removeChild(d);
+  d.onclick = e => { if (e.target === d || e.target.id === 'closeDlg') close(); };
+  $$('[data-go]', d).forEach(b => b.onclick = () => {
+    if (b.dataset.redo && !b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Carrega outra vez: anula os pontos'; b.classList.add('danger'); return; }
+    socket.emit('host:goto', { k: +b.dataset.go, redo: !!b.dataset.redo }, res => {
+      if (!res || res.error) return toast((res && res.error) || 'Erro', 4500);
+      close(); Sound.play('whoosh'); if (b.dataset.redo) toast('🔁 A repetir: os pontos dessa atividade foram anulados');
+    });
+  });
+}
 // equipas a meio da sessão (sem confirm(): no PowerPoint as caixas do browser não aparecem)
 function teamsDialog() {
   const d = document.createElement('div'), n = S.settings.teams || 0, ligados = connectedN();
   d.className = 'dlg'; d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:grid;place-items:center;padding:16px';
   const per = k => ligados >= k ? ` <small>(${Math.floor(ligados / k)}${ligados % k ? '–' + Math.ceil(ligados / k) : ''} cada)</small>` : '';
-  d.innerHTML = `<div class="card" style="width:min(560px,100%)"><h2>🧩 Equipas</h2>
+  d.innerHTML = `<div class="card" style="width:min(620px,100%);max-height:88vh;overflow:auto"><h2>🧩 Equipas</h2>
     <p class="muted">Podes mudar a qualquer momento: os formandos ficam na sessão com os seus pontos e o telemóvel avisa-os da equipa nova. A pontuação de cada equipa é a média dos pontos dos membros.</p>
     <div class="teams-pick">
       <button class="btn ${n ? '' : 'primary'}" data-nt="0">🙋 Individual</button>
       ${[2, 3, 4, 5, 6].map(k => `<button class="btn ${n === k ? 'primary' : ''}" data-nt="${k}">${k} equipas${per(k)}</button>`).join('')}
     </div>
-    <p class="muted" style="margin-top:12px">${n ? `Agora: <b>${n} equipas</b>. Carregar outra vez em ${n} equipas volta a baralhar.` : 'Agora: cada um responde por si.'}</p>
+    <p class="muted" style="margin-top:12px">${n ? `Agora: <b>${n} equipas</b>. Carregar outra vez em ${n} equipas volta a baralhar. Para pôr alguém noutra equipa, toca na cor ao lado do nome:` : 'Agora: cada um responde por si. Forma as equipas (ao acaso) e depois podes acertar à mão quem fica em cada uma.'}</p>
+    ${n ? `<div class="tm-list">${S.players.slice().sort((a, b) => (a.team ?? 9) - (b.team ?? 9) || a.name.localeCompare(b.name)).map(p => `<div class="tm-row ${p.connected ? '' : 'off'}">
+      <span class="tm-name">${avatar(S.roster.find(r => r.id === p.studentId) || p, 'sm')} ${esc(p.name)}</span>
+      <span class="tm-pick">${(S.teamList || []).map(t => `<button class="tm-dot ${p.team === t.id ? 'on' : ''}" style="--tc:${t.color}" data-st="${esc(p.studentId)}" data-tt="${t.id}" title="Equipa ${esc(t.name)}">${p.team === t.id ? t.emoji : ''}</button>`).join('')}</span></div>`).join('') || '<p class="muted">Ainda não entrou ninguém.</p>'}</div>` : ''}
     <p style="text-align:right"><button class="btn primary" id="closeDlg">Fechar</button></p></div>`;
   document.body.appendChild(d);
   const close = () => d.parentNode && d.parentNode.removeChild(d);
   d.onclick = e => { if (e.target === d || e.target.id === 'closeDlg') close(); };
+  $$('[data-st]', d).forEach(b => b.onclick = () => socket.emit('host:setTeam', b.dataset.st, +b.dataset.tt, res => {
+    if (!res || res.error) return toast((res && res.error) || 'Erro', 4500);
+    Sound.play('pop'); const y = d.querySelector('.card').scrollTop; close(); teamsDialog(); const c = document.querySelector('.dlg .card'); if (c) c.scrollTop = y;
+  }));
   $$('[data-nt]', d).forEach(b => b.onclick = () => socket.emit('host:teams', +b.dataset.nt, res => {
     if (!res || res.error) return toast((res && res.error) || 'Erro', 4500);
     Sound.play('whoosh'); close();
     toast(+b.dataset.nt ? `🧩 ${b.dataset.nt} equipas formadas` : '🙋 Equipas desfeitas: agora é individual');
+    if (+b.dataset.nt) teamsDialog();
   }));
 }
 function playersDialog() {

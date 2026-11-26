@@ -254,6 +254,30 @@ function potatoBoom() {
   const qmode = potatoQs().length > 0;
   potatoTimer = setTimeout(() => { if (!session || session.potato !== P || session.phase !== 'question') return; if (qmode) potatoFuse(P, P.startNext); else potatoRound(P.round + 1); }, qmode ? 4000 : 5000);
 }
+// pausa: o rastilho congela (ou o passo seguinte fica à espera); ao continuar, retoma com o tempo que faltava.
+// Em pausa podem mudar-se as equipas: ao continuar, se o grupo que tinha a batata deixou de existir, ela passa a outro.
+function potatoPause(P) {
+  if (!P || P.status === 'paused' || P.status === 'done') return;
+  clearTimeout(potatoTimer);
+  P.paused = { from: P.status, left: Math.max(1000, (P.fuseEnd || 0) - Date.now()), at: Date.now() };
+  P.status = 'paused';
+  persistSession(); broadcast();
+}
+function potatoResume(P) {
+  if (!P || P.status !== 'paused') return;
+  const { from, left, at } = P.paused || {}; P.paused = null;
+  const qmode = potatoQs().length > 0;
+  if (from === 'boom') return qmode ? potatoFuse(P, P.startNext) : potatoRound(P.round + 1);
+  if (from === 'between') return potatoRound(P.round + 1);
+  if (from === 'start') { P.startNext = null; return potatoRound(0); }
+  const gs = potatoGroups(), g = gs.find(x => x.id === P.holder);
+  if (!gs.length) { P.status = 'running'; return closeQuestion(); }
+  if (!g || !g.members.some(m => m.studentId === P.rep)) potatoGive(P, g ? g.id : gs[crypto.randomInt(gs.length)].id);
+  P.status = 'running'; P.reject = null;
+  P.fuseStart += Date.now() - (at || Date.now()); P.fuseEnd = Date.now() + (left || 10000);
+  potatoTimer = setTimeout(potatoBoom, P.fuseEnd - Date.now());
+  persistSession(); broadcast();
+}
 function potatoAccept(word, key) {
   const P = session.potato, q = currentQ(), g = potatoGroups().find(x => x.id === P.holder);
   if (!g) return 0;
@@ -282,9 +306,10 @@ function potatoView(forHost, p) {
     // modo de perguntas: a pergunta em curso (nunca a resposta) e a última respondida (com a explicação)
     question: (() => { const qs = (q.rounds[P.round] || {}).questions || []; return qs.length && P.qi < qs.length ? { text: qs[P.qi].q, n: P.qi + 1, total: qs.length } : null; })(),
     last: P.last ? { q: P.last.q, a: P.last.a, word: P.last.word, group: name(P.last.group) } : null,
-    remainingMs: P.status === 'running' ? Math.max(0, P.fuseEnd - Date.now()) : 0, totalMs: P.fuseEnd - P.fuseStart,
+    remainingMs: P.status === 'running' ? Math.max(0, P.fuseEnd - Date.now()) : P.status === 'paused' && P.paused ? P.paused.left : 0, totalMs: P.fuseEnd - P.fuseStart,
+    pausedFrom: P.status === 'paused' && P.paused ? P.paused.from : null,
     holder: info(holder), rep: rep ? (rep.short || rep.name) : null, boom: P.status === 'boom' ? { ...info(boomG), penalty: q.penalty } : null,
-    groups: gs.map(g => ({ ...info(g), size: g.members.length, score: P.gscore[g.id] || 0 })).sort((a, b) => b.score - a.score),
+    groups: gs.map(g => ({ ...info(g), size: g.members.length, score: P.gscore[g.id] || 0, ...(forHost ? { members: g.members.map(m => m.short || m.name) } : {}) })).sort((a, b) => b.score - a.score),
     log: P.log.filter(l => l.round === P.round).slice(-16).map(l => ({ group: name(l.group), word: l.word || null, pts: l.pts, boom: !!l.boom })),
   };
   if (forHost) { v.reject = P.reject && P.reject.group === P.holder ? P.reject : null; v.all = P.log.filter(l => l.word).map(l => ({ round: l.round, group: name(l.group), word: l.word, pts: l.pts })); }
@@ -357,7 +382,7 @@ function hostView() {
       examProgress,
       id: session.id, code: session.code, quizTitle: session.quizTitle, courseName: session.courseName, phase: session.phase, qIndex: session.qIndex,
       total: session.questions.length, settings: session.settings,
-      question: q, remainingMs: session.deadline ? Math.max(0, session.deadline - Date.now()) : 0,
+      question: q, remainingMs: session.deadline ? Math.max(0, session.deadline - Date.now()) : session.qPausedLeft || 0, qNotStarted: !!session.qNotStarted, qPaused: !!session.qPausedLeft || !!(session.potato && session.potato.qIndex === session.qIndex && session.potato.status === 'paused'),
       autoMs: session.autoAt ? Math.max(0, session.autoAt - Date.now()) : 0,
       allQuestions: session.phase === 'end' ? session.asked.slice().sort((x, y) => x - y).map(i => session.questions[i]) : null,
       counts, whoByOption, answeredIds: Object.keys(ans), ...extra,
@@ -365,6 +390,7 @@ function hostView() {
       teams: session.settings.teams ? teamStats(p => p.score, q ? Object.fromEntries(Object.entries(ans).map(([sid, a]) => [sid, a.points])) : null) : null,
       teamList: session.settings.teams ? TEAMS.slice(0, session.settings.teams) : null,
       roster: session.roster,
+      asked: session.asked, allQs: session.questions.map((qq, k) => ({ type: Q.typeOf(qq), poll: !!qq.poll, text: qq.text, n: Object.keys(session.answers[k] || {}).length })),
       ranking: ranking(),
       lastPoints: q ? Object.fromEntries(Object.entries(ans).map(([sid, a]) => [sid, a.points])) : {},
     },
@@ -435,7 +461,8 @@ function playerView(p) {
   if (q && ['ready', 'question', 'closed', 'reveal', 'leaderboard'].includes(session.phase)) {
     // "esconder as perguntas nos telemóveis": só vão as letras; o texto está no ecrã do formador
     v.question = Q.publicQuestion(q, !!session.settings.hideOnPhones);
-    v.remainingMs = session.deadline ? Math.max(0, session.deadline - Date.now()) : 0;
+    v.remainingMs = session.deadline ? Math.max(0, session.deadline - Date.now()) : session.qPausedLeft || 0;
+    v.qPaused = !!session.qPausedLeft; v.qNotStarted = !!session.qNotStarted;
   }
   // no fim (modo "só no fim"): todas as perguntas, a resposta correta e a resposta do formando
   if (isEnd) v.answeredCount = session.asked.filter(i => (session.answers[i] || {})[p.studentId]).length;
@@ -566,7 +593,7 @@ function finalizeGuesses(i) {
 }
 function closeQuestion() {
   if (!session || session.phase !== 'question') return;
-  clearTimeout(timer); timer = null;
+  clearTimeout(timer); timer = null; session.qPausedLeft = null; session.qNotStarted = false;
   if (session.potato && session.potato.qIndex === session.qIndex) {
     clearTimeout(potatoTimer); session.potato.status = 'done';
     // toda a gente fica com registo nesta pergunta (mesmo quem não chegou a ter a batata)
@@ -647,8 +674,28 @@ function advance() {
   }
 }
 
+// repetir uma atividade: anula os pontos ganhos (ou perdidos) nela e apaga as respostas, para toda a gente voltar a responder
+function resetQuestion(i) {
+  const ans = session.answers[i] || {};
+  for (const [sid, a] of Object.entries(ans)) { const p = session.players[sid]; if (p) p.score = Math.max(0, p.score - (a.points || 0)); }
+  delete session.answers[i];
+  if (session.guesses) delete session.guesses[i];
+  if (session.hangs) delete session.hangs[i];
+  if (session.potato && session.potato.qIndex === i) { clearTimeout(potatoTimer); session.potato = null; }
+  session.asked = session.asked.filter(k => k !== i);
+}
+// ir para qualquer atividade do questionário (redo = repetir, anulando os pontos dessa atividade)
+function gotoQuestion(k, redo) {
+  if (!session || session.phase === 'exam' || !(k >= 0 && k < session.questions.length)) return { error: 'Atividade inválida.' };
+  if (session.phase === 'question' || session.phase === 'ready') { if (session.phase === 'ready') session.phase = 'question'; closeQuestion(); }
+  clearTimeout(timer); clearTimeout(autoTimer); session.autoAt = null;
+  if (session.phase === 'end') session.endedAt = null;
+  if (redo || session.asked.includes(k)) resetQuestion(k);
+  startQuestion(k);
+  return { ok: true };
+}
 function startQuestion(i) {
-  session.qIndex = i;
+  session.qIndex = i; session.qPausedLeft = null; session.qNotStarted = false;
   session.phase = 'ready';
   session.deadline = Date.now() + READY_MS;
   if (!session.asked.includes(i)) session.asked.push(i);
@@ -668,14 +715,15 @@ function openQuestion() {
   if (Q.typeOf(q) === 'potato') {
     // batata quente: o jogo acaba quando acabam as rondas (ou quando o formador o termina)
     session.deadline = null;
-    session.potato = { qIndex: session.qIndex, round: 0, log: [], repCount: {}, used: [], gscore: {}, status: 'running' };
-    potatoRound(0);
+    // começa parada: o formador confere/acerta as equipas e carrega em ▶ Começar o jogo
+    const now = Date.now();
+    session.potato = { qIndex: session.qIndex, round: 0, log: [], repCount: {}, used: [], gscore: {}, status: 'paused', paused: { from: 'start', left: 0, at: now }, fuseStart: now, fuseEnd: now, holder: null, rep: null };
+    persistSession(); broadcast();
     return;
   }
   if (timedMode()) {
-    // por tempo: quando chega a 0 deixa de aceitar respostas e passa sozinho para a sondagem
-    session.deadline = Date.now() + q.time * 1000;
-    timer = setTimeout(closeQuestion, q.time * 1000 + 300);
+    // por tempo: abre PARADA (o formador carrega em ▶ Começar); quando chega a 0 deixa de aceitar respostas e passa sozinho para a sondagem
+    session.deadline = null; session.qPausedLeft = q.time * 1000; session.qPausedAt = Date.now(); session.qNotStarted = true;
   } else {
     // manual: fica aberta até o formador fechar
     session.deadline = null;
@@ -1202,6 +1250,46 @@ io.on('connection', socket => {
       if (!P || P.status !== 'running' || session.phase !== 'question' || !P.reject || P.reject.group !== P.holder || P.reject.reason === 'used') return;
       potatoAccept(P.reject.word, Q.norm(P.reject.word));
     }));
+    // 📋 atividades: ir para qualquer uma, ou 🔁 repetir (os pontos dessa atividade são anulados)
+    socket.on('host:goto', guard((d, cb) => {
+      const reply = typeof cb === 'function' ? cb : () => {};
+      if (!session) return reply({ error: 'Não há sessão.' });
+      const k = parseInt(d && d.k, 10);
+      reply(gotoQuestion(k, !!(d && d.redo)));
+    }));
+    // ⏸ pausar / ▶ continuar o tempo (pergunta com tempo, batata quente e, no modo automático, os ecrãs entre perguntas)
+    socket.on('host:pause', guard(on => {
+      if (!session) return;
+      on = !!on;
+      const q = currentQ(), P = session.potato;
+      if (session.phase === 'question' && q && Q.typeOf(q) === 'potato' && P && P.qIndex === session.qIndex) { if (on) potatoPause(P); else potatoResume(P); }
+      else if (session.phase === 'question' && timedMode()) {
+        if (on && session.deadline) { clearTimeout(timer); timer = null; session.qPausedLeft = Math.max(1000, session.deadline - Date.now()); session.qPausedAt = Date.now(); session.deadline = null; }
+        else if (!on && session.qPausedLeft) {
+          const left = session.qPausedLeft; session.qPausedLeft = null; session.qNotStarted = false;
+          session.questionStartedAt += Date.now() - (session.qPausedAt || Date.now());   // a rapidez conta só o tempo a correr
+          session.deadline = Date.now() + left; clearTimeout(timer); timer = setTimeout(closeQuestion, left + 300);
+        }
+      }
+      if (session.settings.mode === 'auto') { session.settings.paused = on; scheduleAuto(); }
+      persistSession(); broadcast();
+    }));
+    // pôr uma pessoa numa equipa escolhida pelo formador (em qualquer altura, exceto com a batata quente a correr)
+    socket.on('host:setTeam', guard((studentId, team, cb) => {
+      const reply = typeof cb === 'function' ? cb : () => {};
+      if (!session || !session.settings.teams) return reply({ error: 'Forma primeiro as equipas.' });
+      const q = session.questions[session.qIndex];
+      if (q && q.type === 'potato' && session.phase === 'question' && !(session.potato && session.potato.status === 'paused')) return reply({ error: 'Pausa primeiro a batata quente (⏸).' });
+      const p = session.players[String(studentId)]; const t = parseInt(team, 10);
+      if (!p || !(t >= 0 && t < session.settings.teams)) return reply({ error: 'Equipa inválida.' });
+      p.team = t; persistSession(); broadcast(); reply({ ok: true });
+    }));
+    // pausar / continuar a batata quente (por exemplo, para mudar as equipas)
+    socket.on('host:potatoPause', guard(on => {
+      const P = session && session.potato;
+      if (!P || session.phase !== 'question' || P.qIndex !== session.qIndex) return;
+      if (on) potatoPause(P); else potatoResume(P);
+    }));
     // modo de perguntas: ninguém sabe → outra pergunta (a batata fica com o mesmo grupo)
     socket.on('host:potatoSkip', guard(() => {
       const P = session && session.potato;
@@ -1242,7 +1330,7 @@ io.on('connection', socket => {
       if (!session || session.settings.anonymous) return reply({ error: 'Numa sessão anónima não há equipas.' });
       n = parseInt(n, 10) || 0; if (n !== 0 && (n < 2 || n > 6)) return reply({ error: 'Escolhe de 2 a 6 equipas.' });
       const q = session.questions[session.qIndex];
-      if (q && q.type === 'potato' && session.phase === 'question') return reply({ error: 'Espera que a batata quente acabe para mudar as equipas.' });
+      if (q && q.type === 'potato' && session.phase === 'question' && !(session.potato && session.potato.status === 'paused')) return reply({ error: 'Pausa primeiro a batata quente (⏸) para mudar as equipas.' });
       session.settings.teams = n;
       // quem está ligado primeiro, para as equipas ficarem equilibradas com quem está mesmo na sala
       const ps = Object.values(session.players);
@@ -1475,6 +1563,7 @@ io.on('connection', socket => {
     const i = exam ? parseInt(data && data.q, 10) : session.qIndex, q = session.questions[i];
     if (!q || Q.typeOf(q) !== 'guess') return cb({ error: 'Pedido inválido.' });
     if (exam ? (Date.now() > session.deadline || (session.submitted || {})[me.studentId]) : session.phase !== 'question') return cb({ error: 'Tempo esgotado' });
+    if (!exam && session.qPausedLeft) return cb({ error: '⏸ Espera: o formador ainda não pôs o tempo a contar.' });
     const ans = answersFor(i);
     if (ans[me.studentId]) return cb({ error: 'Já terminaste esta palavra.' });
     const secret = Q.cwNorm(q.answer), word = Q.cwNorm(data && data.word);
@@ -1503,6 +1592,7 @@ io.on('connection', socket => {
     const i = exam ? parseInt(data && data.q, 10) : session.qIndex, q = session.questions[i];
     if (!q || Q.typeOf(q) !== 'hangman') return cb({ error: 'Pedido inválido.' });
     if (exam ? (Date.now() > session.deadline || (session.submitted || {})[me.studentId]) : session.phase !== 'question') return cb({ error: 'Tempo esgotado' });
+    if (!exam && session.qPausedLeft) return cb({ error: '⏸ Espera: o formador ainda não pôs o tempo a contar.' });
     const ans = answersFor(i);
     if (ans[me.studentId]) return cb({ error: 'Já terminaste esta palavra.' });
     const L = Q.cwNorm(data && data.letter);
@@ -1567,6 +1657,7 @@ io.on('connection', socket => {
     if (typeof cb !== 'function') cb = () => {};
     if (!session || !me || session.players[me.studentId] !== me || me.socketId !== socket.id) return cb && cb({ error: 'Não identificado' });
     if (session.phase !== 'question') return cb && cb({ error: 'Tempo esgotado' });
+    if (session.qPausedLeft) return cb && cb({ error: '⏸ Espera: o formador ainda não pôs o tempo a contar.' });
     const q = currentQ();
     const ans = answersFor(session.qIndex);
     if (ans[me.studentId]) return cb && cb({ error: 'Já respondeste' });
