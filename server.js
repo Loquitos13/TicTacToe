@@ -131,7 +131,7 @@ function persistSession() {
   if (!session) return;
   const out = {
     id: session.id, quizId: session.quizId, quizTitle: session.quizTitle, courseId: session.courseId, courseName: session.courseName,
-    startedAt: session.startedAt, endedAt: session.endedAt || null,
+    startedAt: session.startedAt, endedAt: session.endedAt || null, closedAt: session.closedAt || null,
     settings: session.settings,
     questions: session.questions,
     roster: session.roster,
@@ -1364,7 +1364,7 @@ io.on('connection', socket => {
       persistSession(); broadcast();
     }));
     socket.on('host:close', guard(() => {
-      if (session) persistSession();
+      if (session) { session.closedAt = Date.now(); persistSession(); }
       clearTimeout(timer); clearTimeout(autoTimer); session = null;
       io.to('players').emit('state', { session: null });
       io.in('players').socketsJoin('lobby'); io.in('players').socketsLeave('players');
@@ -1687,7 +1687,7 @@ try {
   const files = fs.readdirSync(RESULTS).filter(n => n.endsWith('.json')).map(n => path.join(RESULTS, n));
   const f = files.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs)[0];
   const r = f && Date.now() - fs.statSync(f).mtimeMs < 12 * 3600e3 && JSON.parse(fs.readFileSync(f, 'utf8'));
-  if (r && !r.endedAt && r.code && r.phase) {
+  if (r && !r.closedAt && (!r.endedAt || r.phase === 'end') && r.code && r.phase) {
     session = { ...r, rejoinFails: 0, autoAt: null, players: Object.fromEntries(r.players.map(p => [p.studentId, { ...p, socketId: null }])) };
     if (session.phase === 'ready' || session.phase === 'question') { finalizeGuesses(session.qIndex); session.phase = 'closed'; session.deadline = null; }
     if (session.phase === 'exam') timer = setTimeout(endExam, Math.max(0, session.deadline - Date.now()) + 300);
