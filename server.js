@@ -145,6 +145,7 @@ function persistSession() {
     hangs: session.hangs || null,
     answers: session.answers,
     asked: session.asked,
+    reps: session.reps || null,
   };
   fs.writeFileSync(resultFile(session.id) + '.tmp', JSON.stringify(out, null, 2));
   fs.renameSync(resultFile(session.id) + '.tmp', resultFile(session.id));
@@ -188,6 +189,77 @@ function teamStats(scoreOf = p => p.score, lastPts = null, players = Object.valu
   return list.filter(t => t.size).sort((a, b) => b.score - a.score || a.id - b.id);
 }
 
+// ---------- Quem responde nas equipas ----------
+// 'all': toda a gente responde (cada um ganha os seus pontos). 'rep': só o representante de cada equipa responde,
+// a resposta conta para a equipa toda (todos ficam com os mesmos pontos) e o representante vai rodando.
+const repMode = () => !!(session && session.settings.teams && session.settings.teamAnswer === 'rep' && session.settings.mode !== 'exam');
+const repRotates = () => session.settings.repRotate !== false;   // 🔄 vai rodando (por omissão) ou 📌 fica sempre o mesmo
+const potatoAll = () => !!(session && session.settings.teams && session.settings.teamAnswer !== 'rep');
+const teamMembers = t => Object.values(session.players).filter(p => p.team === t).sort((a, b) => a.joinedAt - b.joinedAt);
+// cada equipa com um representante que ainda está nela (de preferência alguém ligado)
+function ensureReps() {
+  if (!session) return;
+  const n = session.settings.teams || 0, R = session.reps || (session.reps = {});
+  for (const k of Object.keys(R)) if (!(+k < n)) delete R[k];
+  for (let t = 0; t < n; t++) {
+    const ms = teamMembers(t);
+    if (!ms.length) { delete R[t]; continue; }
+    if (!ms.some(m => m.studentId === R[t])) R[t] = (ms.find(m => m.socketId) || ms[0]).studentId;
+  }
+}
+// o colega seguinte da equipa (de preferência alguém ligado)
+function nextRep(ms, cur) {
+  const i = ms.findIndex(m => m.studentId === cur);
+  for (let k = 1; k <= ms.length; k++) { const c = ms[(i + k) % ms.length]; if (c.socketId) return c.studentId; }
+  return ms[(i + 1) % ms.length].studentId;
+}
+// no fim de cada atividade o representante passa ao colega seguinte (só nas equipas em que respondeu)
+function rotateReps(i) {
+  ensureReps();
+  const n = session.settings.teams || 0, R = session.reps, ans = session.answers[i] || {};
+  const pot = Q.typeOf(session.questions[i] || {}) === 'potato';
+  for (let t = 0; t < n; t++) {
+    const ms = teamMembers(t);
+    if (ms.length < 2 || !R[t]) continue;
+    if (!pot && !(ans[R[t]] && !ans[R[t]].byRep)) continue;
+    R[t] = nextRep(ms, R[t]);
+  }
+}
+// no início de cada atividade: se o representante da vez saiu, passa ao seguinte que está ligado
+function repsOnline() {
+  if (!repMode()) return;
+  if (!repRotates()) return ensureReps();
+  ensureReps();
+  for (const [t, sid] of Object.entries(session.reps)) {
+    const p = session.players[sid];
+    if (p && !p.socketId) { const ms = teamMembers(+t); if (ms.some(m => m.socketId)) session.reps[t] = nextRep(ms, sid); }
+  }
+}
+// no modo do representante, os colegas não respondem (a mensagem diz quem responde)
+function repBlock(p) {
+  if (!repMode() || p.team == null) return null;
+  const r = (session.reps || {})[p.team];
+  if (!r || r === p.studentId) return null;
+  const rp = session.players[r];
+  return `🎤 Nesta atividade responde o representante da tua equipa${rp ? ` (${rp.short || rp.name})` : ''}.`;
+}
+// a resposta do representante passa para os colegas de equipa: a equipa fica toda com os mesmos pontos
+function shareTeamAnswer(i, rp) {
+  if (!repMode() || rp.team == null || (session.reps || {})[rp.team] !== rp.studentId) return false;
+  const ans = answersFor(i), a = ans[rp.studentId]; if (!a) return false;
+  for (const m of teamMembers(rp.team)) {
+    if (m === rp || ans[m.studentId]) continue;
+    ans[m.studentId] = { ...a, byRep: rp.studentId };
+    m.score += a.points || 0;
+  }
+  return true;
+}
+// batata quente: com "toda a gente", qualquer membro do grupo que tem a batata responde; senão só o da vez
+function potatoCanAnswer(P, p) {
+  if (potatoAll()) { const g = potatoGroups().find(x => x.id === P.holder); return !!(g && g.members.includes(p)); }
+  return P.rep === p.studentId;
+}
+
 // ---------- Batata quente ----------
 // Grupos: as equipas (jogos em grupo) ou, sem equipas, cada formando sozinho. A batata está sempre com um grupo; só o
 // representante da vez escreve (roda pelos membros: primeiro quem está ligado, depois quem respondeu menos vezes).
@@ -201,7 +273,10 @@ function potatoGroups() {
 function potatoGive(P, gid) {
   const gs = potatoGroups(); if (!gs.length) { P.holder = null; P.rep = null; return; }
   const g = gs.find(x => x.id === gid) || gs[0], cnt = id => P.repCount[id] || 0;
-  const r = g.members.slice().sort((a, b) => (!!b.socketId - !!a.socketId) || cnt(a.studentId) - cnt(b.studentId))[0];
+  const pref = repMode() && g.id[0] === 't' ? (session.reps || {})[+g.id.slice(1)] : null;   // o representante escolhido começa
+  const fixed = pref && !repRotates() && g.members.find(m => m.studentId === pref && m.socketId);
+  if (fixed) { P.repCount[pref] = cnt(pref) + 1; P.holder = g.id; P.rep = pref; P.reject = null; return; }
+  const r = g.members.slice().sort((a, b) => (!!b.socketId - !!a.socketId) || cnt(a.studentId) - cnt(b.studentId) || (b.studentId === pref) - (a.studentId === pref))[0];
   P.repCount[r.studentId] = cnt(r.studentId) + 1;
   P.holder = g.id; P.rep = r.studentId; P.reject = null;
 }
@@ -278,14 +353,14 @@ function potatoResume(P) {
   potatoTimer = setTimeout(potatoBoom, P.fuseEnd - Date.now());
   persistSession(); broadcast();
 }
-function potatoAccept(word, key) {
+function potatoAccept(word, key, by) {
   const P = session.potato, q = currentQ(), g = potatoGroups().find(x => x.id === P.holder);
   if (!g) return 0;
   // mais pontos quanto mais tempo faltar para a batata rebentar
   const frac = Math.max(0, (P.fuseEnd - Date.now()) / (P.fuseEnd - P.fuseStart));
   const pts = Math.max(10, Math.round(q.pts * frac));
   P.used.push(key); P.gscore[g.id] = (P.gscore[g.id] || 0) + pts;
-  const rep = P.rep;
+  const rep = by || P.rep;
   g.members.forEach(m => potatoScore(m, pts, m.studentId === rep ? word : null));
   P.log.push({ round: P.round, group: g.id, word, pts, rep });
   const item = potatoQs()[P.qi];
@@ -308,12 +383,12 @@ function potatoView(forHost, p) {
     last: P.last ? { q: P.last.q, a: P.last.a, word: P.last.word, group: name(P.last.group) } : null,
     remainingMs: P.status === 'running' ? Math.max(0, P.fuseEnd - Date.now()) : P.status === 'paused' && P.paused ? P.paused.left : 0, totalMs: P.fuseEnd - P.fuseStart,
     pausedFrom: P.status === 'paused' && P.paused ? P.paused.from : null,
-    holder: info(holder), rep: rep ? (rep.short || rep.name) : null, boom: P.status === 'boom' ? { ...info(boomG), penalty: q.penalty } : null,
+    holder: info(holder), rep: rep && !potatoAll() ? (rep.short || rep.name) : null, allMode: potatoAll(), boom: P.status === 'boom' ? { ...info(boomG), penalty: q.penalty } : null,
     groups: gs.map(g => ({ ...info(g), size: g.members.length, score: P.gscore[g.id] || 0, ...(forHost ? { members: g.members.map(m => m.short || m.name) } : {}) })).sort((a, b) => b.score - a.score),
     log: P.log.filter(l => l.round === P.round).slice(-16).map(l => ({ group: name(l.group), word: l.word || null, pts: l.pts, boom: !!l.boom })),
   };
   if (forHost) { v.reject = P.reject && P.reject.group === P.holder ? P.reject : null; v.all = P.log.filter(l => l.word).map(l => ({ round: l.round, group: name(l.group), word: l.word, pts: l.pts })); }
-  if (p) { const mine = gs.find(g => g.members.includes(p)); v.mine = !!(holder && mine === holder); v.isRep = P.rep === p.studentId; v.myGroup = info(mine); }
+  if (p) { const mine = gs.find(g => g.members.includes(p)); v.mine = !!(holder && mine === holder); v.isRep = potatoCanAnswer(P, p); v.myGroup = info(mine); }
   return v;
 }
 
@@ -389,6 +464,7 @@ function hostView() {
       players: Object.values(session.players).map(p => ({ studentId: p.studentId, name: p.name, photo: p.photo, score: p.score, connected: !!p.socketId, team: p.team ?? null })),
       teams: session.settings.teams ? teamStats(p => p.score, q ? Object.fromEntries(Object.entries(ans).map(([sid, a]) => [sid, a.points])) : null) : null,
       teamList: session.settings.teams ? TEAMS.slice(0, session.settings.teams) : null,
+      reps: session.settings.teams ? (session.reps || {}) : null,
       roster: session.roster,
       asked: session.asked, allQs: session.questions.map((qq, k) => ({ type: Q.typeOf(qq), poll: !!qq.poll, text: qq.text, n: Object.keys(session.answers[k] || {}).length })),
       ranking: ranking(),
@@ -441,12 +517,15 @@ function playerView(p) {
       if (showScore) v.me.teamScore = (ts.find(t => t.id === p.team) || {}).score;
     }
   }
-  const myGuess = i => { const tries = ((session.guesses || {})[i] || {})[p.studentId] || [], a = (session.answers[i] || {})[p.studentId];
+  // modo do representante: os colegas acompanham o jogo do representante (forca, adivinha)
+  const repOf = p.team != null && session.reps ? session.reps[p.team] : null;
+  const viewSid = (mine && mine.byRep) || (repMode() && repOf && repOf !== p.studentId ? repOf : p.studentId);
+  const myGuess = (i, sid = p.studentId) => { const tries = ((session.guesses || {})[i] || {})[sid] || [], a = (session.answers[i] || {})[p.studentId];
     return { tries: tries.map(t => ({ word: t.word, colors: t.colors })), done: !!a, solved: !!(a && a.correct) }; };
-  if (q && Q.typeOf(q) === 'guess') v.guess = myGuess(session.qIndex);
-  const myHang = i => { const qq = session.questions[i], st = ((session.hangs || {})[i] || {})[p.studentId] || { letters: [], wrong: 0 }, a = (session.answers[i] || {})[p.studentId];
+  if (q && Q.typeOf(q) === 'guess') v.guess = myGuess(session.qIndex, viewSid);
+  const myHang = (i, sid = p.studentId) => { const qq = session.questions[i], st = ((session.hangs || {})[i] || {})[sid] || { letters: [], wrong: 0 }, a = (session.answers[i] || {})[p.studentId];
     return { letters: st.letters, wrong: st.wrong, mask: Q.hangMask(qq, st.letters), done: !!a, solved: !!(a && a.correct) }; };
-  if (q && Q.typeOf(q) === 'hangman') v.hang = myHang(session.qIndex);
+  if (q && Q.typeOf(q) === 'hangman') v.hang = myHang(session.qIndex, viewSid);
   if (q && Q.typeOf(q) === 'potato') v.potato = potatoView(false, p);
   if (session.phase === 'exam') {
     v.exam = {
@@ -463,6 +542,13 @@ function playerView(p) {
     v.question = Q.publicQuestion(q, !!session.settings.hideOnPhones);
     v.remainingMs = session.deadline ? Math.max(0, session.deadline - Date.now()) : session.qPausedLeft || 0;
     v.qPaused = !!session.qPausedLeft; v.qNotStarted = !!session.qNotStarted;
+  }
+  // modo do representante: quem responde pela minha equipa nesta atividade
+  if (repMode() && p.team != null) {
+    const r = session.players[repOf];
+    v.me.isRep = !!r && r === p;
+    if (r && q && ['ready', 'question'].includes(session.phase)) v.rep = { name: r.short || r.name, me: r === p };
+    if (mine && mine.byRep) { const b = session.players[mine.byRep]; v.byRep = b ? (b.short || b.name) : '?'; }
   }
   // no fim (modo "só no fim"): todas as perguntas, a resposta correta e a resposta do formando
   if (isEnd) v.answeredCount = session.asked.filter(i => (session.answers[i] || {})[p.studentId]).length;
@@ -601,6 +687,7 @@ function closeQuestion() {
     Object.values(session.players).forEach(p => { if (!ans[p.studentId]) ans[p.studentId] = { value: [], points: 0, correct: false, frac: 0, booms: 0, timeMs: 0, at: Date.now() }; });
   }
   finalizeGuesses(session.qIndex);
+  if (repMode() && repRotates()) rotateReps(session.qIndex);   // o representante passa ao colega seguinte
   // tempo esgotado / fechado pelo formador → já não aceita respostas e mostra a sondagem
   session.phase = 'closed';
   session.deadline = null;
@@ -696,6 +783,7 @@ function gotoQuestion(k, redo) {
 }
 function startQuestion(i) {
   session.qIndex = i; session.qPausedLeft = null; session.qNotStarted = false;
+  repsOnline();
   session.phase = 'ready';
   session.deadline = Date.now() + READY_MS;
   if (!session.asked.includes(i)) session.asked.push(i);
@@ -1248,7 +1336,7 @@ io.on('connection', socket => {
     socket.on('host:potatoAccept', guard(() => {
       const P = session && session.potato;
       if (!P || P.status !== 'running' || session.phase !== 'question' || !P.reject || P.reject.group !== P.holder || P.reject.reason === 'used') return;
-      potatoAccept(P.reject.word, Q.norm(P.reject.word));
+      potatoAccept(P.reject.word, Q.norm(P.reject.word), P.reject.by);
     }));
     // 📋 atividades: ir para qualquer uma, ou 🔁 repetir (os pontos dessa atividade são anulados)
     socket.on('host:goto', guard((d, cb) => {
@@ -1282,7 +1370,28 @@ io.on('connection', socket => {
       if (q && q.type === 'potato' && session.phase === 'question' && !(session.potato && session.potato.status === 'paused')) return reply({ error: 'Pausa primeiro a batata quente (⏸).' });
       const p = session.players[String(studentId)]; const t = parseInt(team, 10);
       if (!p || !(t >= 0 && t < session.settings.teams)) return reply({ error: 'Equipa inválida.' });
-      p.team = t; persistSession(); broadcast(); reply({ ok: true });
+      p.team = t; ensureReps(); persistSession(); broadcast(); reply({ ok: true });
+    }));
+    // quem responde nas equipas: 'all' (toda a gente) ou 'rep' (só o representante, que vai rodando)
+    socket.on('host:teamAnswer', guard((mode, cb) => {
+      const reply = typeof cb === 'function' ? cb : () => {};
+      if (!session || !session.settings.teams) return reply({ error: 'Forma primeiro as equipas.' });
+      session.settings.teamAnswer = mode === 'rep' ? 'rep' : 'all';
+      ensureReps(); persistSession(); broadcast(); reply({ ok: true });
+    }));
+    socket.on('host:repRotate', guard((on, cb) => {
+      const reply = typeof cb === 'function' ? cb : () => {};
+      if (!session || !session.settings.teams) return reply({ error: 'Forma primeiro as equipas.' });
+      session.settings.repRotate = !!on;
+      persistSession(); broadcast(); reply({ ok: true });
+    }));
+    // escolher o representante de uma equipa (toque no 🎤): é quem responde a seguir
+    socket.on('host:setRep', guard((studentId, cb) => {
+      const reply = typeof cb === 'function' ? cb : () => {};
+      const p = session && session.players[String(studentId)];
+      if (!p || p.team == null || !session.settings.teams) return reply({ error: 'Esta pessoa não está numa equipa.' });
+      ensureReps(); session.reps[p.team] = p.studentId;
+      persistSession(); broadcast(); reply({ ok: true });
     }));
     // pausar / continuar a batata quente (por exemplo, para mudar as equipas)
     socket.on('host:potatoPause', guard(on => {
@@ -1322,6 +1431,7 @@ io.on('connection', socket => {
       for (let i = ps.length - 1; i > 0; i--) { const j = crypto.randomInt(i + 1); [ps[i], ps[j]] = [ps[j], ps[i]]; }
       const off = crypto.randomInt(session.settings.teams);
       ps.forEach((p, k) => p.team = (k + off) % session.settings.teams);
+      session.reps = {}; ensureReps();
       persistSession(); broadcast();
     }));
     // equipas a meio da sessão: formar N equipas (2 a 6, ao acaso e equilibradas), refazer com outro número ou desfazer (0 = individual)
@@ -1338,6 +1448,7 @@ io.on('connection', socket => {
       ps.sort((a, b) => (b.socketId ? 1 : 0) - (a.socketId ? 1 : 0));
       const off = n ? crypto.randomInt(n) : 0;
       ps.forEach((p, k) => p.team = n ? (k + off) % n : null);
+      session.reps = {}; ensureReps();
       persistSession(); broadcast(); reply({ ok: true });
     }));
     // mudar uma pessoa de equipa (toque no cartão, na sala de espera)
@@ -1345,7 +1456,7 @@ io.on('connection', socket => {
       if (!session || !session.settings.teams || session.phase !== 'lobby') return;
       const p = session.players[String(studentId)]; if (!p) return;
       p.team = ((p.team ?? -1) + 1) % session.settings.teams;
-      persistSession(); broadcast();
+      ensureReps(); persistSession(); broadcast();
     }));
     socket.on('host:extend', guard(min => {
       if (!session || session.phase !== 'exam') return;
@@ -1414,6 +1525,7 @@ io.on('connection', socket => {
     if (p.socketId && p.socketId !== socket.id) { const old = io.sockets.sockets.get(p.socketId); if (old) old.emit('released', back ? 'moved' : ''); }
     p.socketId = socket.id;
     session.players[p.studentId] = p;
+    if (session.settings.teams) ensureReps();
     me = p;
     socket.leave('lobby'); socket.join('players');
     persistSession();
@@ -1566,6 +1678,7 @@ io.on('connection', socket => {
     if (!exam && session.qPausedLeft) return cb({ error: '⏸ Espera: o formador ainda não pôs o tempo a contar.' });
     const ans = answersFor(i);
     if (ans[me.studentId]) return cb({ error: 'Já terminaste esta palavra.' });
+    if (!exam) { const rb = repBlock(me); if (rb) return cb({ error: rb }); }
     const secret = Q.cwNorm(q.answer), word = Q.cwNorm(data && data.word);
     if (word.length !== secret.length) return cb({ error: `A palavra tem ${secret.length} letras.` });
     const tries = ((session.guesses ||= {})[i] ||= {})[me.studentId] ||= [];
@@ -1578,11 +1691,11 @@ io.on('connection', socket => {
       const entry = { value: tries.map(t => t.word), colors: tries.map(t => t.colors), tries: tries.length, correct: solved, frac: solved ? Q.guessFrac(q, tries.length) : 0 };
       points = pointsFor(q, entry, exam ? 0 : ms, exam ? false : session.settings.speedPoints);
       ans[me.studentId] = { ...entry, timeMs: ms, points, at: Date.now() };
-      if (exam) examRecompute(me); else me.score += points;
+      if (exam) examRecompute(me); else { me.score += points; shareTeamAnswer(i, me); }
     }
     persistSession();
     cb({ ok: true, colors, solved, done: !!ans[me.studentId] });
-    if (!exam && timedMode() && allAnswered()) closeQuestion(); else notifyAnswer(me);
+    if (!exam && timedMode() && allAnswered()) closeQuestion(); else if (!exam && repMode()) broadcast(); else notifyAnswer(me);
   });
 
   socket.on('player:hangman', (data, cb) => {
@@ -1595,6 +1708,7 @@ io.on('connection', socket => {
     if (!exam && session.qPausedLeft) return cb({ error: '⏸ Espera: o formador ainda não pôs o tempo a contar.' });
     const ans = answersFor(i);
     if (ans[me.studentId]) return cb({ error: 'Já terminaste esta palavra.' });
+    if (!exam) { const rb = repBlock(me); if (rb) return cb({ error: rb }); }
     const L = Q.cwNorm(data && data.letter);
     if (L.length !== 1) return cb({ error: 'Escolhe uma letra.' });
     const st = ((session.hangs ||= {})[i] ||= {})[me.studentId] ||= { letters: [], wrong: 0 };
@@ -1608,11 +1722,11 @@ io.on('connection', socket => {
       const entry = { value: st.letters.slice(), wrong: st.wrong, correct: solved, frac: solved ? Q.hangFrac(q, st.wrong) : 0 };
       points = pointsFor(q, entry, exam ? 0 : st.ms, exam ? false : session.settings.speedPoints);
       ans[me.studentId] = { ...entry, timeMs: st.ms, points, at: Date.now() };
-      if (exam) examRecompute(me); else me.score += points;
+      if (exam) examRecompute(me); else { me.score += points; shareTeamAnswer(i, me); }
     }
     persistSession();
     cb({ ok: true, hit, mask, wrong: st.wrong, letters: st.letters, solved, done: solved || lost, answer: lost ? String(q.answer) : undefined });
-    if (!exam && timedMode() && allAnswered()) closeQuestion(); else notifyAnswer(me);
+    if (!exam && timedMode() && allAnswered()) closeQuestion(); else if (!exam && repMode()) broadcast(); else notifyAnswer(me);
   });
 
   socket.on('player:examAnswer', (data, cb) => {
@@ -1645,12 +1759,12 @@ io.on('connection', socket => {
     const P = session && session.potato, q = session && currentQ();
     if (!P || session.phase !== 'question' || !q || Q.typeOf(q) !== 'potato' || P.qIndex !== session.qIndex) return cb({ error: 'Agora não dá.' });
     if (P.status !== 'running') return cb({ error: 'Espera pela próxima ronda.' });
-    if (!me || me.socketId !== socket.id || P.rep !== me.studentId) return cb({ error: 'Não é a tua vez.' });
+    if (!me || me.socketId !== socket.id || !potatoCanAnswer(P, me)) return cb({ error: 'Não é a tua vez.' });
     const w = String(typeof word === 'string' ? word : '').trim().replace(/\s+/g, ' ').slice(0, 60);
     if (!w) return cb({ error: 'Escreve uma palavra.' });
     const r = Q.potatoCheck(q, P.round, w, (q.rounds[P.round] || {}).questions ? [P.qi] : P.used);
-    if (!r.ok) { P.reject = { word: w, group: P.holder, reason: r.reason }; broadcast(); return cb({ ok: false, reason: r.reason }); }
-    cb({ ok: true, pts: potatoAccept(w, r.key) });
+    if (!r.ok) { P.reject = { word: w, group: P.holder, reason: r.reason, by: me.studentId }; broadcast(); return cb({ ok: false, reason: r.reason }); }
+    cb({ ok: true, pts: potatoAccept(w, r.key, me.studentId) });
   });
 
   socket.on('player:answer', (option, cb) => {
@@ -1661,6 +1775,7 @@ io.on('connection', socket => {
     const q = currentQ();
     const ans = answersFor(session.qIndex);
     if (ans[me.studentId]) return cb && cb({ error: 'Já respondeste' });
+    const rb = repBlock(me); if (rb) return cb({ error: rb });
     // resposta: número (escolha múltipla, V/F, escala), lista de palavras (completar) ou texto (livre)
     const raw = option && typeof option === 'object' && !Array.isArray(option) ? option.value : option;
     const g = Q.grade(q, raw);
@@ -1670,10 +1785,11 @@ io.on('connection', socket => {
     ans[me.studentId] = { ...g.entry, timeMs, points, at: Date.now() };
     if (Q.typeOf(q) === 'open') { const mm = cleanMeta(option && option.meta) || {}; mm.invisible = invisibleCount(raw); ans[me.studentId].meta = mm; }
     me.score += points;
+    const shared = shareTeamAnswer(session.qIndex, me);   // modo do representante: a equipa toda fica com esta resposta
     persistSession();
     cb && cb({ ok: true });
     // no modo por tempo fecha logo quando todos responderem; no manual é o formador que decide
-    if (timedMode() && allAnswered()) closeQuestion(); else notifyAnswer(me);
+    if (timedMode() && allAnswered()) closeQuestion(); else if (shared) broadcast(); else notifyAnswer(me);
   });
 
   socket.on('disconnect', () => {

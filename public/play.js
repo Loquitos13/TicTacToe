@@ -23,15 +23,28 @@ socket.on('roster', r => {
   if (r.session && me && me.sessionId === r.session.id && !state) return reclaim(me);
   if (!state) render();
 });
-socket.on('state', s => { Sound.setForcedOff(!!(s.session && s.session.settings && s.session.settings.phoneSound === false)); if (!s.session) { state = null; roster = { session: null }; stopCamera(); render(); return; } teamNotice(state, s); if (state && state.session && !s.qNotStarted && !state.qNotStarted && !!s.qPaused !== !!state.qPaused && s.session.phase === 'question' && state.session.phase === 'question' && s.session.qIndex === state.session.qIndex) toast(s.qPaused ? '⏸ O formador parou o tempo' : '▶ O tempo voltou a contar', 2500); state = s; render(); pauseVeil(); });
+socket.on('state', s => { Sound.setForcedOff(!!(s.session && s.session.settings && s.session.settings.phoneSound === false)); if (!s.session) { state = null; roster = { session: null }; stopCamera(); render(); return; } teamNotice(state, s); repNotice(state, s); if (state && state.session && !s.qNotStarted && !state.qNotStarted && !!s.qPaused !== !!state.qPaused && s.session.phase === 'question' && state.session.phase === 'question' && s.session.qIndex === state.session.qIndex) toast(s.qPaused ? '⏸ O formador parou o tempo' : '▶ O tempo voltou a contar', 2500); state = s; render(); pauseVeil(); });
 // tempo parado (a pergunta abre parada até o formador carregar em ▶ Começar): véu por cima da pergunta
 function pauseVeil() {
-  const on = !!(state && state.qPaused && state.session && state.session.phase === 'question' && state.question && state.question.type !== 'potato' && !state.answered);
+  const inQ = !!(state && state.session && state.session.phase === 'question' && state.question && state.question.type !== 'potato' && !state.answered);
+  const html = !inQ ? '' : state.qPaused ? (state.qNotStarted ? '<div>⏳</div><b>Lê a pergunta…</b><span>O formador ainda não pôs o tempo a contar.</span>' : '<div>⏸</div><b>Tempo parado</b><span>Espera pelo formador…</span>')
+    : state.rep && !state.rep.me ? `<div>🎤</div><b>Responde ${esc(state.rep.name)}</b><span>É quem responde pela tua equipa nesta atividade. Discutam e ajudem a escolher!</span>` : '';
   let v = document.getElementById('pauseVeil');
-  if (!on) { if (v) v.parentNode.removeChild(v); return; }
-  const html = state.qNotStarted ? '<div>⏳</div><b>Lê a pergunta…</b><span>O formador ainda não pôs o tempo a contar.</span>' : '<div>⏸</div><b>Tempo parado</b><span>Espera pelo formador…</span>';
-  if (!v) { v = document.createElement('div'); v.id = 'pauseVeil'; document.body.appendChild(v); }
-  if (v.innerHTML !== html) v.innerHTML = html;
+  if (!html) { if (v) v.parentNode.removeChild(v); }
+  else { if (!v) { v = document.createElement('div'); v.id = 'pauseVeil'; document.body.appendChild(v); } if (v.dataset.h !== html) { v.dataset.h = html; v.innerHTML = html; } }
+  // representante: faixa a lembrar que a resposta conta para a equipa toda
+  const bOn = inQ && state.rep && state.rep.me && !state.qPaused;
+  let b = document.getElementById('repBanner');
+  if (!bOn) { if (b) b.parentNode.removeChild(b); return; }
+  if (!b) { b = document.createElement('div'); b.id = 'repBanner'; b.textContent = '🎤 Respondes pela tua equipa: a tua resposta conta para todos!'; document.body.appendChild(b); }
+}
+// modo do representante: avisa quem responde e quando a equipa já respondeu
+function repNotice(old, s) {
+  if (!s.session) return;
+  const same = !!(old && old.session && old.session.qIndex === s.session.qIndex);
+  if (same && !old.answered && s.answered && s.byRep) toast(`🎤 ${s.byRep} respondeu pela equipa`, 3500);
+  const ph = s.session.phase;
+  if (s.rep && s.rep.me && (ph === 'ready' || ph === 'question') && !(same && old.rep && old.rep.me)) { toast('🎤 É a tua vez: respondes pela tua equipa!', 4000); navigator.vibrate && navigator.vibrate([80, 50, 80]); }
 }
 // o formador formou, refez ou desfez as equipas a meio da sessão
 function teamNotice(old, s) {
@@ -155,7 +168,7 @@ function teamCard(big, lobby) {
   const m = state.me, t = m.team; if (!t) return '';
   const pos = m.teamPosition && !lobby ? `<div style="font-size:${big ? 1.5 : 1.2}em;margin-top:4px">${m.teamPosition <= 3 ? ['🥇', '🥈', '🥉'][m.teamPosition - 1] : '🏅'} <b>${m.teamPosition}º</b> lugar de ${m.teamOf}${m.teamScore != null ? ` · ${m.teamScore} pts` : ''}</div>` : '';
   return `<div class="team-card pop-in" style="--tc:${t.color}"><div class="team-name">${t.emoji} Equipa ${esc(t.name)}</div>
-    ${lobby ? `<div class="team-mates">${m.teammates && m.teammates.length ? 'com ' + m.teammates.map(esc).join(', ') : 'Por agora estás sozinho(a) nesta equipa'}</div>` : ''}${pos}</div>`;
+    ${lobby ? `<div class="team-mates">${m.teammates && m.teammates.length ? 'com ' + m.teammates.map(esc).join(', ') : 'Por agora estás sozinho(a) nesta equipa'}</div>` : ''}${lobby && m.isRep ? `<div class="team-mates">🎤 És o representante: ${state.session.settings.repRotate === false ? 'respondes tu pela equipa' : 'começas tu a responder pela equipa'}</div>` : ''}${pos}</div>`;
 }
 
 let prevPhase = '';
@@ -174,7 +187,7 @@ function renderGameInner() {
   if (ph === 'lobby') {
     if (s.settings.anonymous) return set('lobby-anon', header() + `<div class="middle"><div class="big-emoji bounce">🕶️</div><h1>Estás dentro! 🎉</h1>
       <p>Participas de forma <b>anónima</b>.<br>Olha para o ecrã do formador — o questionário vai começar<span class="dots"></span></p></div>`);
-    return set('lobby' + state.me.studentId + (state.me.photo || '') + JSON.stringify([state.me.team, state.me.teammates]), header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1>${teamCard(true, true)}<p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
+    return set('lobby' + state.me.studentId + (state.me.photo || '') + JSON.stringify([state.me.team, state.me.teammates, state.me.isRep]), header() + `<div class="middle">${avatar(state.me, 'xl bounce')}<h1>Olá, ${esc(state.me.name.split(' ')[0])}! 🎉</h1>${teamCard(true, true)}<p>Estás dentro. Olha para o ecrã do formador.<br>O jogo vai começar<span class="dots"></span></p>
       <button class="btn ghost" id="notMe" style="margin-top:10px">Não sou ${esc(state.me.name)}</button></div>`, () => {
       $('#notMe').onclick = () => send('player:leave', res => {
         if (res && res.error) return toast(res.error, 4500);
@@ -912,7 +925,7 @@ function renderPotato(s) {
   else if (P.status === 'between') body = `<div class="big-emoji pop-in">✅</div><h1>Secção concluída!</h1><p>Vem aí a próxima…</p>`;
   else if (P.status === 'boom') body = `<div class="big-emoji wiggle">💥</div><h1>Rebentou com ${esc(P.boom.name)}!</h1>
     <p>${P.myGroup && P.boom.id === P.myGroup.id ? `O teu grupo perde ${P.boom.penalty} pontos 😬` : 'Vem aí a próxima ronda…'}</p>`;
-  else if (P.isRep) body = `<div class="pot-me pop-in">🥔 É a TUA vez!</div><p style="margin:4px 0 10px">${P.question ? 'Responde à pergunta e passa a batata — depressa!' : 'Escreve uma palavra sobre o tema e passa a batata — depressa!'}</p>
+  else if (P.isRep) body = `<div class="pot-me pop-in">${P.allMode ? '🥔 A batata está com a tua equipa!' : '🥔 É a TUA vez!'}</div><p style="margin:4px 0 10px">${P.allMode ? 'Qualquer um da equipa pode responder: a primeira resposta certa passa a batata! ' : ''}${P.question ? 'Responde à pergunta e passa a batata — depressa!' : 'Escreve uma palavra sobre o tema e passa a batata — depressa!'}</p>
     <form id="potForm" class="pot-form"><input id="potIn" class="search" maxlength="60" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="send" placeholder="${P.question ? 'A tua resposta' : 'A tua palavra'}">
     <button class="btn primary">🔥 Passar</button></form><p id="potMsg" class="pot-msg"></p>`;
   else if (P.mine) body = `<div class="pot-me pop-in">🥔 A batata está com o teu grupo!</div><p>É a vez de <b>${esc(P.rep || '')}</b> — ajuda a pensar ${P.question ? 'na resposta' : 'numa palavra'}!</p>`;

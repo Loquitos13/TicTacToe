@@ -194,6 +194,12 @@ function renderSlideIdle(el) {
 }
 // o QR code leva o código único desta sessão
 const sessionUrl = () => joinUrl.replace(/\/$/, '') + '/?c=' + encodeURIComponent(S.code);
+// modo do representante: quem responde por cada equipa nesta atividade
+const repsLine = () => {
+  if (!S.settings.teams || S.settings.teamAnswer !== 'rep' || !S.reps || !S.teamList) return '';
+  const items = S.teamList.map(t => { const p = S.players.find(x => x.studentId === S.reps[t.id]); return p ? `<span style="--tc:${t.color}">${t.emoji} ${esc(p.name.split(' ')[0])}</span>` : ''; }).filter(Boolean);
+  return items.length ? `<div class="reps-line">🎤 Respondem: ${items.join('')}</div>` : '';
+};
 const phonesNote = () => S.settings.hideOnPhones ? `<div class="phones-note">📱 As perguntas só aparecem <b>neste ecrã</b> — mantém-no projetado. Os formandos respondem no telemóvel com A, B, C, D.</div>` : '';
 function lobbyHtml() {
   return phonesNote() + `<div class="lobby">
@@ -222,7 +228,7 @@ function teamsLobbyHtml() {
   const cols = (S.teamList || []).map(t => {
     const ps = S.players.filter(p => p.team === t.id);
     return `<div class="tl-col" style="--tc:${t.color}"><div class="tl-head">${t.emoji} ${esc(t.name)} <small>${ps.length}</small></div>
-      ${ps.map(p => { const st = S.roster.find(r => r.id === p.studentId) || p; return `<button class="tl-p ${p.connected ? '' : 'off'}" data-move="${esc(p.studentId)}" title="Mudar de equipa">${avatar(st, 'sm')}<span>${esc(st.short || st.name)}</span></button>`; }).join('') || '<div class="tl-empty">—</div>'}</div>`;
+      ${ps.map(p => { const st = S.roster.find(r => r.id === p.studentId) || p; return `<button class="tl-p ${p.connected ? '' : 'off'}" data-move="${esc(p.studentId)}" title="Mudar de equipa">${avatar(st, 'sm')}<span>${esc(st.short || st.name)}${S.settings.teamAnswer === 'rep' && S.reps && S.reps[t.id] === p.studentId ? ' 🎤' : ''}</span></button>`; }).join('') || '<div class="tl-empty">—</div>'}</div>`;
   }).join('');
   const missing = S.roster.filter(r => !S.players.some(p => p.studentId === r.id));
   return `<div class="tl-cols">${cols}</div>${missing.length ? `<p class="tl-missing">Ainda não entraram: ${missing.map(r => esc(r.short || r.name)).join(', ')}</p>` : ''}`;
@@ -300,7 +306,7 @@ function questionHtml() {
        <circle id="ringC" cx="50" cy="50" r="44" stroke="#ffd93d" stroke-width="10" fill="none" stroke-linecap="round" stroke-dasharray="276.5" stroke-dashoffset="0"/></svg>
        <div class="n" id="ringN">${Math.ceil(S.remainingMs / 1000)}</div></div>`
     : `<div class="live-pill"><span class="dot"></span> Pergunta aberta</div>`;
-  return phonesNote() + `<div class="question-title slide-up ${qType(q) === 'fill' ? '' : lenCls(q.text)}">${qType(q) === 'fill' ? '✏️ Completa os espaços' : esc(q.text)}</div>
+  return phonesNote() + repsLine() + `<div class="question-title slide-up ${qType(q) === 'fill' ? '' : lenCls(q.text)}">${qType(q) === 'fill' ? '✏️ Completa os espaços' : esc(q.text)}</div>
     ${q.image && qType(q) !== 'spot' ? `<img class="qimage" src="${esc(q.image)}">` : ''}
     <div class="qmid">${left}
       <div class="progress-wrap"><div class="progress"><div id="ansBar" style="width:${of ? n / of * 100 : 0}%"></div></div>
@@ -367,7 +373,7 @@ function potatoBoxHtml() {
   return `<div class="pot-head"><span>Ronda ${P.round} de ${P.rounds}${P.question ? ` · ${esc(P.theme)} · pergunta ${P.question.n} de ${P.question.total}` : ''}</span>
       ${P.question ? `<div class="pot-q">${esc(P.question.text)}</div>` : `<div class="pot-theme">${esc(P.theme)}</div>`}</div>
     <div class="pot-mid"><div class="pot-potato" id="potPotato">🥔</div>
-      <div class="pot-holder" style="background:${P.holder ? P.holder.color : '#555'}">${P.holder ? `${P.holder.emoji} ${esc(P.holder.name)}` : '—'}${P.rep ? `<small>vez de ${esc(P.rep)}</small>` : ''}</div></div>
+      <div class="pot-holder" style="background:${P.holder ? P.holder.color : '#555'}">${P.holder ? `${P.holder.emoji} ${esc(P.holder.name)}` : '—'}${P.rep ? `<small>vez de ${esc(P.rep)}</small>` : P.allMode && P.holder ? '<small>toda a equipa pode responder</small>' : ''}</div></div>
     <div class="pot-fuse"><i id="potFuse"></i></div>
     ${P.reject ? `<div class="pot-rej">${P.reject.reason === 'used' ? '🔁 Já dita' : '✗ Não aceite'}: «${esc(P.reject.word)}» ${P.reject.reason === 'used' ? '' : '<button class="btn small go" id="potAcc">✔ Aceitar</button>'}</div>` : ''}
     ${P.question ? `<div class="pot-rej"><button class="btn small ghost" id="potSkip">⏭ Outra pergunta</button></div>` : ''}
@@ -709,7 +715,7 @@ function controlsHtml() {
     ${!isExamMode() && ph !== 'lobby' && S.question && ph !== 'end' ? `<button class="btn small ghost" id="btnRedo" title="Volta a fazer esta atividade: os pontos que deu são anulados">🔁 Repetir</button>` : ''}
     ${isExamMode() ? '' : `<button class="btn small ghost" id="btnActs" title="Ir para qualquer atividade do questionário">📋 Atividades</button>`}
     <button class="btn small ghost" id="btnPlayers">👥 Alunos</button>
-    ${S.settings.anonymous || isExamMode() ? '' : `<button class="btn small ghost" id="btnTeams" title="Formar, refazer ou desfazer equipas a qualquer momento">${S.settings.teams ? '🧩 ' + S.settings.teams + ' equipas' : '🧩 Equipas'}</button>`}
+    ${S.settings.anonymous || isExamMode() ? '' : `<button class="btn small ghost" id="btnTeams" title="Formar, refazer ou desfazer equipas a qualquer momento">${S.settings.teams ? '🧩 ' + S.settings.teams + ' equipas' + (S.settings.teamAnswer === 'rep' ? ' · 🎤' : '') : '🧩 Equipas'}</button>`}
     <button class="btn small ghost" id="btnFs">⛶ Ecrã inteiro</button>
     ${ph !== 'end' && ph !== 'exam' ? `<button class="btn small danger" id="btnEnd">Terminar</button>` : ''}
     ${ph === 'end' ? `<button class="btn primary" id="btnGrid">📊 Ver grelha de resultados</button><button class="btn small ghost" id="btnClose">Fechar sessão</button>` : `<button class="btn primary ${allIn ? 'pulse' : ''}" id="btnNext">${label}</button>`}
@@ -869,27 +875,36 @@ function actsDialog() {
 }
 // equipas a meio da sessão (sem confirm(): no PowerPoint as caixas do browser não aparecem)
 function teamsDialog() {
-  const d = document.createElement('div'), n = S.settings.teams || 0, ligados = connectedN();
+  const d = document.createElement('div'), n = S.settings.teams || 0, ligados = connectedN(), rep = S.settings.teamAnswer === 'rep', R = S.reps || {}, rot = S.settings.repRotate !== false;
   d.className = 'dlg'; d.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:grid;place-items:center;padding:16px';
   const per = k => ligados >= k ? ` <small>(${Math.floor(ligados / k)}${ligados % k ? '–' + Math.ceil(ligados / k) : ''} cada)</small>` : '';
-  d.innerHTML = `<div class="card" style="width:min(620px,100%);max-height:88vh;overflow:auto"><h2>🧩 Equipas</h2>
-    <p class="muted">Podes mudar a qualquer momento: os formandos ficam na sessão com os seus pontos e o telemóvel avisa-os da equipa nova. A pontuação de cada equipa é a média dos pontos dos membros.</p>
+  const row = p => { const isRep = rep && p.team != null && R[p.team] === p.studentId;
+    return `<div class="tm-row ${p.connected ? '' : 'off'} ${isRep ? 'rep' : ''}">
+      <span class="tm-name">${avatar(S.roster.find(r => r.id === p.studentId) || p, 'sm')} ${esc(p.name)}${isRep ? ' <small class="tm-badge">🎤 representante</small>' : ''}</span>
+      <span class="tm-pick">${rep && p.team != null ? `<button class="tm-rep ${isRep ? 'on' : ''}" data-rep="${esc(p.studentId)}" title="${isRep ? 'É o representante da equipa' : 'Escolher como representante da equipa'}">🎤</button>` : ''}
+        ${(S.teamList || []).map(t => `<button class="tm-dot ${p.team === t.id ? 'on' : ''}" style="--tc:${t.color}" data-st="${esc(p.studentId)}" data-tt="${t.id}" title="Equipa ${esc(t.name)}">${p.team === t.id ? t.emoji : ''}</button>`).join('')}</span></div>`; };
+  d.innerHTML = `<div class="card" style="width:min(660px,100%);max-height:88vh;overflow:auto"><h2>🧩 Equipas</h2>
+    <p class="muted">Podes mudar a qualquer momento: os formandos ficam na sessão com os seus pontos e o telemóvel avisa-os da equipa nova.</p>
     <div class="teams-pick">
       <button class="btn ${n ? '' : 'primary'}" data-nt="0">🙋 Individual</button>
       ${[2, 3, 4, 5, 6].map(k => `<button class="btn ${n === k ? 'primary' : ''}" data-nt="${k}">${k} equipas${per(k)}</button>`).join('')}
     </div>
+    ${n ? `<div class="ta-box"><b>Quem responde nas atividades?</b>
+      <div class="ta-pick"><button class="btn ${rep ? '' : 'primary'}" data-ta="all">👥 Toda a gente</button><button class="btn ${rep ? 'primary' : ''}" data-ta="rep">🎤 Só o representante</button></div>
+      ${rep ? `<div class="ta-pick"><button class="btn ${rot ? 'primary' : ''}" data-rr="1">🔄 Vai rodando</button><button class="btn ${rot ? '' : 'primary'}" data-rr="0">📌 Fica sempre o mesmo</button></div>` : ''}
+      <p class="muted">${rep ? `Em cada atividade só responde o <b>representante</b> de cada equipa, e essa resposta conta para a equipa toda (todos ficam com os mesmos pontos). ${rot ? 'Depois de cada atividade, passa ao colega seguinte da equipa.' : 'Fica sempre o mesmo, até o mudares aqui.'} Toca no 🎤 ao lado de um nome para escolher o representante de cada equipa.` : 'Cada formando responde no seu telemóvel e ganha os seus pontos. A pontuação da equipa é a média dos membros.'}</p></div>` : ''}
     <p class="muted" style="margin-top:12px">${n ? `Agora: <b>${n} equipas</b>. Carregar outra vez em ${n} equipas volta a baralhar. Para pôr alguém noutra equipa, toca na cor ao lado do nome:` : 'Agora: cada um responde por si. Forma as equipas (ao acaso) e depois podes acertar à mão quem fica em cada uma.'}</p>
-    ${n ? `<div class="tm-list">${S.players.slice().sort((a, b) => (a.team ?? 9) - (b.team ?? 9) || a.name.localeCompare(b.name)).map(p => `<div class="tm-row ${p.connected ? '' : 'off'}">
-      <span class="tm-name">${avatar(S.roster.find(r => r.id === p.studentId) || p, 'sm')} ${esc(p.name)}</span>
-      <span class="tm-pick">${(S.teamList || []).map(t => `<button class="tm-dot ${p.team === t.id ? 'on' : ''}" style="--tc:${t.color}" data-st="${esc(p.studentId)}" data-tt="${t.id}" title="Equipa ${esc(t.name)}">${p.team === t.id ? t.emoji : ''}</button>`).join('')}</span></div>`).join('') || '<p class="muted">Ainda não entrou ninguém.</p>'}</div>` : ''}
+    ${n ? `<div class="tm-list">${S.players.slice().sort((a, b) => (a.team ?? 9) - (b.team ?? 9) || a.name.localeCompare(b.name)).map(row).join('') || '<p class="muted">Ainda não entrou ninguém.</p>'}</div>` : ''}
     <p style="text-align:right"><button class="btn primary" id="closeDlg">Fechar</button></p></div>`;
   document.body.appendChild(d);
   const close = () => d.parentNode && d.parentNode.removeChild(d);
+  const reopen = () => { const y = d.querySelector('.card').scrollTop; close(); teamsDialog(); const c = document.querySelector('.dlg .card'); if (c) c.scrollTop = y; };
+  const done = res => { if (!res || res.error) { toast((res && res.error) || 'Erro', 4500); return false; } Sound.play('pop'); reopen(); return true; };
   d.onclick = e => { if (e.target === d || e.target.id === 'closeDlg') close(); };
-  $$('[data-st]', d).forEach(b => b.onclick = () => socket.emit('host:setTeam', b.dataset.st, +b.dataset.tt, res => {
-    if (!res || res.error) return toast((res && res.error) || 'Erro', 4500);
-    Sound.play('pop'); const y = d.querySelector('.card').scrollTop; close(); teamsDialog(); const c = document.querySelector('.dlg .card'); if (c) c.scrollTop = y;
-  }));
+  $$('[data-st]', d).forEach(b => b.onclick = () => socket.emit('host:setTeam', b.dataset.st, +b.dataset.tt, done));
+  $$('[data-rep]', d).forEach(b => b.onclick = () => socket.emit('host:setRep', b.dataset.rep, done));
+  $$('[data-rr]', d).forEach(b => b.onclick = () => socket.emit('host:repRotate', b.dataset.rr === '1', res => { if (done(res)) toast(b.dataset.rr === '1' ? '🔄 O representante vai rodando' : '📌 O representante fica sempre o mesmo'); }));
+  $$('[data-ta]', d).forEach(b => b.onclick = () => socket.emit('host:teamAnswer', b.dataset.ta, res => { if (done(res)) toast(b.dataset.ta === 'rep' ? '🎤 Agora responde só o representante de cada equipa' : '👥 Agora responde toda a gente'); }));
   $$('[data-nt]', d).forEach(b => b.onclick = () => socket.emit('host:teams', +b.dataset.nt, res => {
     if (!res || res.error) return toast((res && res.error) || 'Erro', 4500);
     Sound.play('whoosh'); close();
