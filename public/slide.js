@@ -42,13 +42,32 @@ const slideInst = Math.random().toString(36).slice(2);   // esta cópia do suple
 async function slideBoot() {
   slideCfg = window.slideCfg = slideStore.get();
   slideView = await slideGetView();
-  // passou de editar para apresentar (ou ao contrário): recomeça no modo certo
-  if (officeOk) try { Office.context.document.addHandlerAsync(Office.EventType.ActiveViewChanged, () => location.reload()); } catch {}
   // a editar só se mostra a pré-visualização. O id do diapositivo só muda no "Guardar": o PowerPoint carrega os
   // diapositivos todos ao mesmo tempo e só quando o formador carrega em Guardar se sabe ao certo qual é este.
-  if (slideView === 'edit') return slidePreview();
+  if (slideView === 'edit') {
+    // Ao começar a apresentação, o PowerPoint abre outra cópia de cada diapositivo na janela da apresentação. Esta cópia
+    // (a da janela de edição, que fica por trás) NÃO liga ao quiz: antes recarregava como se estivesse a apresentar,
+    // gastava ligações e pedidos a cada entrada na apresentação e podia arrancar a pergunta do diapositivo que estava
+    // selecionado a editar. Só se for mesmo ela a aparecer na apresentação (fica maior) é que passa a apresentar.
+    if (officeOk) try { Office.context.document.addHandlerAsync(Office.EventType.ActiveViewChanged, slideViewChanged); } catch {}
+    return slidePreview();
+  }
+  // a apresentar: ao voltar a editar, recomeça como pré-visualização
+  if (officeOk) try { Office.context.document.addHandlerAsync(Office.EventType.ActiveViewChanged, () => location.reload()); } catch {}
   if (!PW) return slideLogin('Para apresentar o quiz, autoriza este computador. Só é preciso uma vez.');
   start();
+}
+let slidePassT = null;
+async function slideViewChanged(ev) {
+  const v = (ev && ev.activeView) || await slideGetView();
+  clearTimeout(slidePassT);
+  if (v !== 'read') return slidePreview();
+  slidePreview();
+  const pv = $('#slidePrev');
+  if (pv) pv.insertAdjacentHTML('beforeend', `<p class="sp-where">▶ A apresentação está aberta na janela da apresentação. <button class="btn small" id="spLive">Mostrar o quiz aqui</button></p>`);
+  const b = $('#spLive'); if (b) b.onclick = () => location.reload();
+  const w0 = innerWidth, h0 = innerHeight;
+  slidePassT = setTimeout(() => { if (innerWidth > w0 * 1.25 || innerHeight > h0 * 1.25) location.reload(); }, 1500);
 }
 function slideAfterLogin() { $('#login').classList.add('hidden'); if (slideView === 'edit') return slideConfigure(); start(); }
 function slideLogin(msg) {
@@ -114,10 +133,25 @@ async function slideConfigure() {
 }
 
 // ---------- a apresentar ----------
-let slideT = null, slideMine = null, slideKnown = false, slideFired = false;
+let slideT = null, slideMine = null, slideKnown = false, slideFired = false, slideAsleep = false, slideSleepT = null, slideAudible = null, slideQuiet = null;
 const slideT0 = Date.now();
+const slideTimeout = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r(undefined), ms))]);
 function slideOnSocket(sock) {
-  if (!slideCfg) return;
+  if (!slideCfg) { sock.connect(); return; }
+  // A apresentação pode ter dezenas de diapositivos com o suplemento, todos carregados ao mesmo tempo. Só liga ao quiz
+  // o diapositivo que está à vista e o seguinte (já ligado mas calado, para arrancar logo quando lá se chegar).
+  // Fora de vista fica calado (não recebe o estado a cada resposta dos formandos) e ao fim de 2 min desliga.
+  const quiet = q => {
+    if (q === slideQuiet) return;
+    slideQuiet = q; document.body.classList.add('slide-wait');   // até chegar o estado fresco, não mostra o ecrã antigo
+    if (sock.connected) sock.emit('host:quiet', q);
+  };
+  const wake = () => { clearTimeout(slideSleepT); slideSleepT = null; if (!sock.connected && !sock.active) { document.body.classList.add('slide-wait'); sock.connect(); } };
+  const sleep = () => {
+    if (slideSleepT || (!sock.connected && !sock.active)) return;
+    slideSleepT = setTimeout(() => { slideSleepT = null; if (slideMine === false) { slideAsleep = true; sock.disconnect(); } }, 120000);
+  };
+  sock.on('disconnect', () => { if (slideAsleep) document.body.classList.remove('offline'); });
   // o PowerPoint carrega os diapositivos com o suplemento todos ao mesmo tempo: só o que está à vista pode mandar.
   // Sabe-se qual é pelo id do diapositivo (guardado ao configurar). Sem esse id, as perguntas não arrancam sozinhas
   // (aparece o botão "Começar a pergunta"), para nunca começarem fora do sítio.
@@ -127,28 +161,50 @@ function slideOnSocket(sock) {
     clearTimeout(slideT);
     slideT = setTimeout(() => sock.emit('host:slide', { ...slideCfg, force: !!force, manual: !!manual }, r => {
       if (r && r.conflict) slideConflict(r.conflict); else if (r && r.error) toast(r.error, 6000);
+      else if (r && r.ignored) setTimeout(() => { if (slideMine === true) slideFired = false; }, 3000);   // outro diapositivo pediu há instantes: tenta outra vez
     }), 400);
   };
-  window.slideFire = force => fire(force, true);
-  sock.on('connect', () => { slideFired = false; });
+  window.slideFire = force => { wake(); quiet(false); fire(force, true); };
   document.addEventListener('visibilitychange', () => { slideFired = false; });
-  // de 0,7 em 0,7 s: este diapositivo passou a estar à vista?
+  // este diapositivo está à vista? (de 0,7 em 0,7 s quando está ou pode estar; de 1 em 1 s quando não está).
+  // Um pedido de cada vez ao PowerPoint, com limite de 3 s: muitos pedidos acumulados deixavam o PowerPoint lento.
+  let busy = false;
   const check = async () => {
-    slideBeat();
-    const id = await slideGetId();
-    const now = id == null || slideCfg.slideId == null ? null : id === slideCfg.slideId;
-    const first = !slideKnown; slideKnown = true;
-    if (now !== slideMine || first) {
-      slideMine = now; slideFired = false;
-      Sound.setForcedOff(now !== true && !(now === null && slideCfg.role === 'join'));   // os diapositivos que não estão à vista ficam calados
-      slideCheck();
-    }
-    // arranca uma vez por "visita" ao diapositivo, e só depois de 2 s: dá tempo a todas as cópias carregadas de se
-    // anunciarem, para se apanhar diapositivos repetidos antes de alguém arrancar
-    if (!slideFired && sock.connected && Date.now() - slideT0 > 2000 && auto()) { slideFired = true; fire(); }
+    if (busy) return; busy = true;
+    try {
+      slideBeat();
+      const sel = await slideTimeout(slideGetSel(), 3000);
+      if (sel === undefined) return;   // o PowerPoint não respondeu a tempo: tenta na próxima volta
+      const id = sel ? sel.id : null;
+      const now = id == null || slideCfg.slideId == null ? null : id === slideCfg.slideId;
+      const first = !slideKnown; slideKnown = true;
+      if (now !== slideMine || first) { slideMine = now; slideFired = false; slideCheck(); }
+      // o seguinte na apresentação liga já (calado), para arrancar sem esperar pela ligação
+      const near = !!(sel && slideCfg.slideIdx && sel.index + 1 === slideCfg.slideIdx);
+      if (slideMine !== false || near) { wake(); quiet(slideMine === false); } else { quiet(true); sleep(); }
+      // só um diapositivo toca os sons (no modo de orador o mesmo diapositivo aparece em duas janelas)
+      const audible = (now === true || (now === null && slideCfg.role === 'join')) && slideSoundLeader();
+      if (audible !== slideAudible) { slideAudible = audible; Sound.setForcedOff(!audible); }
+      // arranca uma vez por "visita" ao diapositivo, e só depois de 2 s: dá tempo a todas as cópias carregadas de se
+      // anunciarem, para se apanhar diapositivos repetidos antes de alguém arrancar
+      if (!slideFired && sock.connected && Date.now() - slideT0 > 2000 && auto()) { slideFired = true; fire(); }
+    } finally { busy = false; }
   };
-  check(); setInterval(check, 700);
-  sock.on('state', () => setTimeout(slideCheck, 50));
+  sock.on('connect', () => { slideAsleep = false; slideFired = false; if (slideQuiet) sock.emit('host:quiet', true); check().catch(() => {}); });
+  const loop = async () => { try { await check(); } catch {} setTimeout(loop, slideMine === false ? 1000 : 700); };
+  loop();
+  if (officeOk) try { Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, () => check().catch(() => {})); } catch {}
+  sock.on('state', () => { if (!slideQuiet) document.body.classList.remove('slide-wait'); setTimeout(slideCheck, 50); });
+}
+// o mesmo diapositivo em duas janelas (modo de orador): só uma cópia toca os sons
+function slideSoundLeader() {
+  if (!slideCfg || slideCfg.slideId == null) return true;
+  const k = 'aq_snd_' + slideCfg.slideId;
+  try {
+    const o = JSON.parse(localStorage.getItem(k) || 'null');
+    if (!o || o.i === slideInst || Date.now() - o.t > 2500) { localStorage.setItem(k, JSON.stringify({ i: slideInst, t: Date.now() })); return true; }
+    return false;
+  } catch { return true; }
 }
 // botões do diapositivo: a entrada não começa o quiz; numa pergunta, o botão amarelo só faz os passos dessa pergunta
 // (pergunta → fechar → sondagem → resposta certa → ranking); a seguinte começa no diapositivo dela

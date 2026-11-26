@@ -39,16 +39,26 @@ $('#loginForm').onsubmit = async e => {
 };
 if (PW && !SLIDE) start();   // no diapositivo quem arranca é o slide.js
 
+// endereço do QR code, partilhado pelos diapositivos durante 5 min (com novas tentativas se a ligação falhar)
+async function slideJoinInfo() {
+  try { const c = JSON.parse(localStorage.getItem('aq_joininfo') || 'null'); if (c && Date.now() - c.t < 300000) return c.v; } catch {}
+  for (let i = 0; ; i++) {
+    try { const v = await api('GET', '/api/joininfo'); try { localStorage.setItem('aq_joininfo', JSON.stringify({ t: Date.now(), v })); } catch {} return v; }
+    catch (e) { if (i >= 5) throw e; await new Promise(r => setTimeout(r, 1500 * (i + 1))); }
+  }
+}
 async function start() {
   $('#login').classList.add('hidden'); $('#main').classList.remove('hidden');
   muteButton();
-  [students, quizzes, courses] = await Promise.all([api('GET', '/api/students'), api('GET', '/api/quizzes'), api('GET', '/api/courses')]);
-  const info = await api('GET', '/api/joininfo');
+  // no PowerPoint cada diapositivo é uma página: só se pede o endereço do QR code (guardado 5 min, para não o pedirem
+  // todas ao mesmo tempo); as listas de alunos e questionários só vêm se o formador abrir a sala no diapositivo
+  if (!SLIDE) [students, quizzes, courses] = await Promise.all([api('GET', '/api/students'), api('GET', '/api/quizzes'), api('GET', '/api/courses')]);
+  const info = SLIDE ? await slideJoinInfo() : await api('GET', '/api/joininfo');
   // o túnel da Cloudflare (npm run online) ganha sempre; um endereço trycloudflare antigo guardado já não serve
   const saved = localStorage.getItem('aq_joinurl') || '';
   joinUrl = info.tunnel || (/trycloudflare\.com/.test(saved) ? '' : saved) || info.suggestions[0];
   window._joinSuggestions = info.suggestions;
-  socket = io({ auth: { role: 'host', token: PW } });
+  socket = io({ auth: { role: 'host', token: PW }, autoConnect: !SLIDE });   // no diapositivo, liga só quando está à vista (slide.js)
   socket.on('auth_error', () => { TOK.removeItem('aq_tok'); location.reload(); });
   socket.on('disconnect', () => document.body.classList.add('offline'));
   socket.on('connect', () => document.body.classList.remove('offline'));
@@ -190,7 +200,7 @@ function renderSlideIdle(el) {
   el.innerHTML = `<div id="stage" class="slide-idle"><div class="big-emoji">🎯</div><h1>Quiz ao vivo</h1>
     <p>Quando abrires a sala (aqui ou no painel do formador), este diapositivo mostra o QR code, as perguntas e os resultados em direto.</p>
     <button class="btn primary" id="slideOpen">▶ Abrir a sala aqui</button></div>`;
-  $('#slideOpen').onclick = () => { slideSetup = true; renderGame(true); };
+  $('#slideOpen').onclick = async () => { if (!quizzes.length) try { [students, quizzes, courses] = await Promise.all([api('GET', '/api/students'), api('GET', '/api/quizzes'), api('GET', '/api/courses')]); } catch (e) { return toast(e.message, 5000); } slideSetup = true; renderGame(true); };
 }
 // o QR code leva o código único desta sessão
 const sessionUrl = () => joinUrl.replace(/\/$/, '') + '/?c=' + encodeURIComponent(S.code);

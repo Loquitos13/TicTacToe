@@ -577,11 +577,11 @@ function playerView(p) {
 let io;
 // depois de uma resposta: só o formador e quem respondeu precisam de um estado novo
 function notifyAnswer(p) {
-  io.to('hosts').emit('state', hostView());
+  io.to('hostsLive').emit('state', hostView());
   if (p.socketId) io.to(p.socketId).emit('state', playerView(p));
 }
 function broadcast() {
-  io.to('hosts').emit('state', hostView());
+  io.to('hostsLive').emit('state', hostView());
   if (!session) { io.to('players').emit('state', { session: null }); return; }
   for (const p of Object.values(session.players)) if (p.socketId) io.to(p.socketId).emit('state', playerView(p));
   // quem ainda não entrou recebe só a informação da sessão (e só com o código certo)
@@ -853,7 +853,7 @@ function allow(key, perSec, burst) {
   if (b.n < 1) return false;
   b.n--; return true;
 }
-app.use('/api', (req, res, next) => allow('http:' + originOf(req.ip, req.get('cf-connecting-ip')), 40, 200) ? next()
+app.use('/api', (req, res, next) => tokenOk(req.get('x-host-token')) || allow('http:' + originOf(req.ip, req.get('cf-connecting-ip')), 40, 200) ? next()
   : res.status(429).json({ error: 'Demasiados pedidos. Espera um pouco.' }));
 // Corpo dos pedidos: pequeno para todos; grande (fotografias) só depois de confirmar que é o formador
 const bigJson = express.json({ limit: '15mb' }), smallJson = express.json({ limit: '100kb' });
@@ -1203,9 +1203,13 @@ io = new Server(server, { maxHttpBufferSize: 1e6 });
 const sockCount = new Map();
 io.use((socket, next) => {
   const k = originOf(socket.handshake.address, socket.handshake.headers['cf-connecting-ip']), n = (sockCount.get(k) || 0) + 1;
-  if (n > 250 || io.engine.clientsCount > 3000) return next(new Error('Demasiadas ligações'));
-  sockCount.set(k, n);
-  socket.on('disconnect', () => { const m = (sockCount.get(k) || 1) - 1; m ? sockCount.set(k, m) : sockCount.delete(k); });
+  // o formador (chave válida) não conta: no PowerPoint cada diapositivo abre a sua ligação e a turma pode estar no mesmo router
+  const trusted = socket.handshake.auth && socket.handshake.auth.role === 'host' && tokenOk(socket.handshake.auth.token);
+  if ((!trusted && n > 250) || io.engine.clientsCount > 3000) return next(new Error('Demasiadas ligações'));
+  if (!trusted) {
+    sockCount.set(k, n);
+    socket.on('disconnect', () => { const m = (sockCount.get(k) || 1) - 1; m ? sockCount.set(k, m) : sockCount.delete(k); });
+  }
   // mensagens por ligação: um telemóvel real manda poucas por segundo; inundações são ignoradas
   let ignored = 0;
   socket.use((packet, nextPacket) => {
@@ -1228,7 +1232,7 @@ io.on('connection', socket => {
   const hostAuth = (pw, done) => tokenOk(socket.handshake.auth.token) ? done(true) : pwCheck(originOf(socket.handshake.address, socket.handshake.headers['cf-connecting-ip']), pw, done);
   if (role === 'host') return hostAuth(socket.handshake.auth.password, ok => {
     if (!ok) { socket.emit('auth_error'); socket.disconnect(); return; }
-    socket.join('hosts');
+    socket.join('hosts'); socket.join('hostsLive');
     socket.emit('state', hostView());
 
 
@@ -1301,7 +1305,6 @@ io.on('connection', socket => {
       // travão: dois diapositivos diferentes a pedir perguntas em menos de 2,5 s não é o formador a avançar
       const key = role + ':' + (qid || ''), now = Date.now();
       if (!manual && role !== 'join' && lastSlide && lastSlide.key !== key && now - lastSlide.t < 2500) return cb({ ok: true, ignored: true });
-      if (role !== 'join') lastSlide = { key, t: now };
       const quiz = db.quizzes.find(q => q.id === quizId);
       if (!quiz) return cb({ error: 'O questionário deste diapositivo já não existe.' });
       // outra sessão a decorrer (com respostas): não se estraga sem o formador confirmar
@@ -1321,10 +1324,12 @@ io.on('connection', socket => {
         if (k < 0) return cb({ error: 'Esta pergunta já não existe no questionário.' });
         // voltar a um diapositivo de uma pergunta já feita não a repete
         if (k === session.qIndex || session.asked.includes(k) || session.phase === 'exam') return cb({ ok: true });
+        lastSlide = { key, t: now };
         if (session.phase === 'question') closeQuestion();
         startQuestion(k);
       }
       if (role === 'final' && session.phase !== 'end') {
+        lastSlide = { key, t: now };
         if (session.phase === 'question') closeQuestion();
         clearTimeout(timer); clearTimeout(autoTimer);
         session.endedAt = Date.now(); setPhase('end');
@@ -1344,6 +1349,11 @@ io.on('connection', socket => {
       if (!session) return reply({ error: 'Não há sessão.' });
       const k = parseInt(d && d.k, 10);
       reply(gotoQuestion(k, !!(d && d.redo)));
+    }));
+    // diapositivo do PowerPoint fora de vista: fica ligado mas calado (não recebe o estado a cada resposta)
+    socket.on('host:quiet', guard(q => {
+      if (q) socket.leave('hostsLive');
+      else { socket.join('hostsLive'); socket.emit('state', hostView()); }
     }));
     // ⏸ pausar / ▶ continuar o tempo (pergunta com tempo, batata quente e, no modo automático, os ecrãs entre perguntas)
     socket.on('host:pause', guard(on => {

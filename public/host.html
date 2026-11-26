@@ -38,6 +38,8 @@
   body.slide #main { width: 1280px; transform-origin: 0 0; position: absolute; top: 0; left: 0; }
   body.slide #main.hidden { display: none; }
   body.slide #stage { min-height: 720px; padding: 14px 22px 74px; box-sizing: border-box; }
+  body.slide.slide-wait #main, body.slide.slide-wait .controls, body.slide.slide-wait #slideGo { visibility: hidden; }
+  body.slide.slide-wait::after { content: 'A ligar ao quiz…'; position: fixed; inset: 0; display: grid; place-items: center; color: #fff; font-size: 2.2em; font-weight: 700; opacity: .8; }
   body.slide .controls { padding: 6px 10px; gap: 6px; background: rgba(20,10,40,.55); }
   body.slide .controls > :not(#btnNext):not(#btnClose):not(#btnEnd):not(.info):not(#sndMe):not(#sndAll):not(#slideNote):not(#slideRestart):not(#btnPlayers):not(#btnTeams):not(#btnPause):not(#btnActs):not(#btnRedo):not(#qrSw) { display: none; }
   #slideNote { font-weight: 800; color: #ffd93d; font-size: 1.05em; }

@@ -363,6 +363,8 @@ A editar a apresentação, o diapositivo mostra só uma pré-visualização (o t
 - **Se uma pergunta não começar sozinha**, aparece no topo o botão **▶ Começar a pergunta N**.
 - **Se estiver aberto outro quiz com respostas**, o diapositivo pergunta antes de o terminar.
 - **O PowerPoint guarda o papel de cada diapositivo dentro do ficheiro .pptx.** Num computador ainda não autorizado, só pede a palavra-passe ao começar a apresentar.
+- **Entrar e sair da apresentação muitas vezes (para editar) já não bloqueia.** Só ficam ligados ao quiz o diapositivo à vista e o seguinte (este calado, para arrancar logo); os outros não recebem nada e, ao fim de 2 minutos fora de vista, desligam. As cópias que ficam na janela de edição durante a apresentação não se ligam nem arrancam perguntas (antes podiam arrancar a pergunta do diapositivo que estava selecionado a editar). Cada diapositivo arranca com um só pedido ao quiz, e o computador autorizado não conta para os limites de pedidos e de ligações da turma. Se o mesmo diapositivo aparecer em duas janelas (modo de orador), só uma toca os sons.
+- **Se mesmo assim um diapositivo ficar preso**, carrega em **📋 Atividades** e escolhe a atividade, ou usa o painel no navegador.
 
 ## Som
 Há dois interruptores de som, nas opções ao abrir a sala e na barra de baixo durante o quiz (também dentro do diapositivo do PowerPoint):
