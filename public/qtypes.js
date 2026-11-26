@@ -1,6 +1,6 @@
 // Ajudas partilhadas (formador e formandos) para os tipos de pergunta.
-const QTYPE_LABEL = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala (1–5 ou 1–10)', cloud: '☁️ Nuvem de palavras', rank: '🔢 Ranking de opções', scramble: '🔤 Letras baralhadas', cross: '✏️ Palavras cruzadas', guess: '🟩 Adivinha a palavra', potato: '🥔 Batata quente (jogo em grupo)', number: '🔢 Adivinhar um número', match: '🔗 Correspondência', spot: '🎯 Encontrar na imagem' };
-const qType = q => (q && ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot', 'potato'].includes(q.type)) ? q.type : 'mc';
+const QTYPE_LABEL = { mc: 'Escolha múltipla', tf: 'Verdadeiro / Falso', fill: 'Completar espaços', open: 'Resposta livre', scale: 'Escala (1–5 ou 1–10)', cloud: '☁️ Nuvem de palavras', rank: '🔢 Ranking de opções', scramble: '🔤 Letras baralhadas', cross: '✏️ Palavras cruzadas', guess: '🟩 Adivinha a palavra', hangman: '🪢 Jogo da forca', potato: '🥔 Batata quente (jogo em grupo)', number: '🔢 Adivinhar um número', match: '🔗 Correspondência', spot: '🎯 Encontrar na imagem' };
+const qType = q => (q && ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot', 'potato', 'hangman'].includes(q.type)) ? q.type : 'mc';
 // tem resposta certa? (ranking só quando tem ordem certa)
 const qGraded = q => { const t = qType(q); return t === 'rank' ? !!q.ordered : t === 'mc' && q && q.poll ? false : !['scale', 'open', 'cloud'].includes(t); };
 // encontrar na imagem: uma ou várias zonas certas (as perguntas antigas tinham só "zone")
@@ -42,6 +42,7 @@ const qTitle = q => qType(q) === 'fill' ? String(q.text).replace(BLANK_RX, '____
 // resposta certa em texto curto, para listas
 function solutionText(q) {
   const t = qType(q);
+  if (t === 'hangman') return String(q.answer || '').toUpperCase();
   if (t === 'potato') return (q.rounds || []).map(r => `${r.theme}: ${(Array.isArray(r.words) ? r.words : []).join(', ')}`).join(' | ');
   if (t === 'mc' && q.poll) return 'Votação (sem resposta certa)';
   if (t === 'mc' || t === 'tf') return (q.correct || []).map(k => `${LETTERS[k]}) ${q.options[k]}`).join(' | ');
@@ -61,6 +62,7 @@ function solutionText(q) {
 const fillSentenceOf = (q, words) => { let k = 0; return String(q.text).replace(BLANK_RX, () => words[k++] || '_____'); };
 function plainCorrectOf(q) {
   const t = qType(q);
+  if (t === 'hangman') return String(q.answer || '').toUpperCase();
   if (t === 'potato') return (q.rounds || []).map(r => `${r.theme}: ${(Array.isArray(r.words) ? r.words : []).join(', ')}`).join(' | ');
   if (t === 'mc' && q.poll) return 'Votação (sem resposta certa)';
   if (t === 'mc' || t === 'tf') return q.correct.map(i => q.options[i]).join(' / ');
@@ -77,6 +79,7 @@ function plainCorrectOf(q) {
 function plainAnswerOf(q, a) {
   if (!a) return '';
   const t = qType(q);
+  if (t === 'hangman') return `${a.correct ? 'Acertou' : 'Não acertou'} com ${a.wrong || 0} erro(s) · letras: ${(a.value || []).join(' ') || '—'}`;
   if (t === 'potato') return `Palavras: ${(a.value || []).join(', ') || '—'} · ${a.points || 0} pontos${a.booms ? ` · rebentou ${a.booms}×` : ''}`;
   if (t === 'mc' || t === 'tf') return q.options[a.option];
   if (t === 'fill') return fillSentenceOf(q, a.value || []);
@@ -110,3 +113,40 @@ function crossLetters(cw, values) {
   return out;
 }
 const crossCellsOf = (w) => Array.from({ length: w.len }, (_, i) => (w.r + (w.dir === 'd' ? i : 0)) + ',' + (w.c + (w.dir === 'a' ? i : 0)));
+
+// ---------- Jogo da forca: desenho (divertido, sem nada gráfico) ----------
+// O boneco está de pé debaixo da forca. A cada erro cai-lhe uma peça (chapéu, braços, pernas, corpo e, no fim, a cabeça),
+// que fica no chão; a cara vai mudando. Se acertar, salta de alegria com os braços no ar.
+// wrong = erros, max = erros permitidos, solved = acertou, fresh = nº do erro que acabou de acontecer (para animar a queda)
+function hangmanSvg(wrong, max, solved, fresh) {
+  max = max || 7;
+  const stage = Math.min(7, Math.round(wrong * 7 / max));                 // 0..7 peças perdidas (proporcional aos erros permitidos)
+  const lost = stage >= 7 && !solved, k = i => !solved && stage >= i;      // a peça i já caiu? (quem acerta recupera tudo)
+  const fall = i => fresh != null && Math.min(7, Math.round(fresh * 7 / max)) === i ? ' hm-fall' : '';
+  const mood = solved ? 'M73 51 Q80 59 87 51' : stage <= 1 ? 'M74 52 Q80 57 86 52' : stage <= 3 ? 'M74 54 L86 54' : 'M74 56 Q80 51 86 56';
+  const eyes = lost ? '<path d="M73 43 l5 5 m0 -5 l-5 5 M82 43 l5 5 m0 -5 l-5 5" class="hm-l"/>' : '<circle cx="76" cy="46" r="1.8" class="hm-f"/><circle cx="84" cy="46" r="1.8" class="hm-f"/>';
+  const up = solved;   // braços no ar
+  // peças de pé (as que ainda não caíram)
+  const parts = [
+    !k(1) && '<path d="M68 36 h24 M72 36 v-9 h16 v9" class="hm-hat"/>',
+    !k(2) && `<path d="M80 66 L${up ? '66 50' : '67 80'}" class="hm-l"/>`,
+    !k(3) && `<path d="M80 66 L${up ? '94 50' : '93 80'}" class="hm-l"/>`,
+    !k(4) && '<path d="M80 92 L71 118" class="hm-l"/>',
+    !k(5) && '<path d="M80 92 L89 118" class="hm-l"/>',
+    !k(6) && '<path d="M80 58 L80 92" class="hm-l"/>',
+    !k(7) && `<g><circle cx="80" cy="48" r="10" class="hm-head"/>${eyes}<path d="${mood}" class="hm-l" fill="none"/></g>`,
+  ].filter(Boolean).join('');
+  // peças caídas no chão (com uma animação de queda para a última)
+  const floor = [
+    k(1) && `<path d="M98 128 h18 M101 128 v-7 h12 v7" class="hm-hat${fall(1)}"/>`,
+    k(2) && `<path d="M58 126 l12 -3" class="hm-l${fall(2)}"/>`,
+    k(3) && `<path d="M100 120 l12 4" class="hm-l${fall(3)}"/>`,
+    k(4) && `<path d="M40 128 l14 -2" class="hm-l${fall(4)}"/>`,
+    k(5) && `<path d="M92 131 l14 -1" class="hm-l${fall(5)}"/>`,
+    k(6) && `<path d="M62 131 l22 -1" class="hm-l${fall(6)}"/>`,
+    k(7) && `<g class="${fall(7)}"><circle cx="80" cy="122" r="10" class="hm-head"/><path d="M73 117 l5 5 m0 -5 l-5 5 M82 117 l5 5 m0 -5 l-5 5 M75 128 Q80 124 85 128" class="hm-l" fill="none"/><text x="93" y="112" class="hm-star">✦ ✧</text></g>`,
+  ].filter(Boolean).join('');
+  return `<svg class="hm ${solved ? 'hm-win' : ''} ${lost ? 'hm-lost' : ''}" viewBox="0 0 130 140" role="img" aria-label="Forca: ${wrong} de ${max} erros">
+    <path d="M8 134 H122" class="hm-g"/><path d="M24 134 V10 H80 V28 M24 26 L40 10" class="hm-g"/><circle cx="80" cy="31" r="3" class="hm-rope"/>
+    <g class="${solved ? 'hm-jump' : ''}">${parts}</g>${floor}</svg>`;
+}

@@ -1,0 +1,222 @@
+{
+  "title": "Excel S9 · Jogo da forca",
+  "questions": [
+    {
+      "type": "hangman",
+      "text": "O ficheiro da folha de cálculo, com várias folhas (Secção 1)",
+      "answer": "Livro",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O encontro de uma coluna com uma linha, como B3 (Secção 1)",
+      "answer": "Célula",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Células seguidas, escritas com dois pontos, como C2:C6 (Secção 1)",
+      "answer": "Intervalo",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Em Portugal, separa as casas decimais (Secção 1)",
+      "answer": "Vírgula",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Muda o aspeto do número, mas não o valor guardado (Secção 1)",
+      "answer": "Formato",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Formato que mostra 0,23 como 23 % (Secção 1)",
+      "answer": "Percentagem",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Formato que mostra o símbolo do euro (Secção 1)",
+      "answer": "Moeda",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Arrastar o quadradinho azul faz o … automático (Secção 1)",
+      "answer": "Preenchimento",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Ver › ____ › 1 linha (Secção 1)",
+      "answer": "Fixar",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "No Excel, aparecem quando a coluna é estreita demais (####) (Secção 1)",
+      "answer": "Cardinais",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Começa sempre com o sinal de igual (Secção 2)",
+      "answer": "Fórmula",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O operador da multiplicação (Secção 2)",
+      "answer": "Asterisco",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Mudam a ordem das contas (Secção 2)",
+      "answer": "Parênteses",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "B2 numa fórmula, em vez de escrever o número (Secção 2)",
+      "answer": "Referência",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Referência que se ajusta sozinha ao copiar (Secção 2)",
+      "answer": "Relativa",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Referência presa, que não muda ao copiar (Secção 2)",
+      "answer": "Absoluta",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O símbolo que prende a coluna ou a linha: $ (Secção 2)",
+      "answer": "Cifrão",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Função que adiciona os valores de um intervalo (Secção 2)",
+      "answer": "Soma",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Função que calcula o valor médio (Secção 2)",
+      "answer": "Média",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Função que devolve o maior valor (Secção 2)",
+      "answer": "Máximo",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Função que devolve o menor valor (Secção 2)",
+      "answer": "Mínimo",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Função que conta as células com números (Secção 2)",
+      "answer": "Contar",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Maior, menor, igual ou diferente (Secção 3)",
+      "answer": "Comparador",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O resultado de =6<12 (Secção 3)",
+      "answer": "Verdadeiro",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O resultado de =12<6 (Secção 3)",
+      "answer": "Falso",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Envolvem o texto dentro de uma fórmula (Secção 3)",
+      "answer": "Aspas",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O que a função SE escreve quando o stock é menor do que o mínimo (Secção 3)",
+      "answer": "Encomendar",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Dados › ________ intervalo (Secção 3)",
+      "answer": "Ordenar",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "A linha dos títulos, que não deve ir parar ao meio da lista (Secção 3)",
+      "answer": "Cabeçalho",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Mostra só as linhas que interessam, sem apagar nada (Secção 3)",
+      "answer": "Filtro",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O filtro não apaga, só … (Secção 3)",
+      "answer": "Esconde",
+      "maxWrong": 7,
+      "time": 120
+    }
+  ]
+}

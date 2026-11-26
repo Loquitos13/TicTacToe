@@ -19,7 +19,8 @@
 //  spot — encontrar na imagem: toca no sítio certo da imagem; o formador marca a zona no editor (nunca vai para o telemóvel)
 //  potato — batata quente (jogo em grupo): em cada ronda há um tema; o representante do grupo que tem a batata
 //           escreve uma palavra do tema; se for aceite a batata passa ao grupo seguinte; quando rebenta, o grupo perde pontos
-const TYPES = ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot', 'potato'];
+//  hangman — jogo da forca: adivinhar a palavra letra a letra; a cada letra errada o boneco perde uma peça
+const TYPES = ['mc', 'tf', 'fill', 'open', 'scale', 'cloud', 'rank', 'scramble', 'cross', 'guess', 'number', 'match', 'spot', 'potato', 'hangman'];
 const { buildCrossword, cwNorm } = require('./public/crossword.js');
 const LETTERS = 'ABCDEF';
 const norm = t => String(t ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -157,6 +158,11 @@ function cleanQuestion(x, uid, savePhoto) {
     base.fuseMin = cl(x.fuseMin, 5, 300, 25); base.fuseMax = Math.max(base.fuseMin, cl(x.fuseMax, 5, 600, 50));
     base.pts = cl(x.pts, 1, 1000, 100); base.penalty = cl(x.penalty, 0, 1000, 50);
     if (!base.rounds.length) return null;
+  } else if (type === 'hangman') {
+    base.answer = String(x.answer || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+    base.maxWrong = Math.max(4, Math.min(10, parseInt(x.maxWrong, 10) || 7));
+    const n = cwNorm(base.answer).length;
+    if (n < 2 || n > 24) return null;
   } else if (type === 'guess') {
     base.answer = String(x.answer || '').trim().slice(0, 20);
     base.maxTries = Math.max(3, Math.min(8, parseInt(x.maxTries, 10) || 6));
@@ -221,7 +227,7 @@ function grade(q, raw) {
     const ok = cwNorm(value) === cwNorm(q.answer);
     return { entry: { value, correct: ok, frac: ok ? 1 : 0 } };
   }
-  if (t === 'guess') return { error: 'Usa o teclado do jogo para adivinhar a palavra.' };
+  if (t === 'guess' || t === 'hangman') return { error: 'Usa o teclado do jogo para adivinhar a palavra.' };
   if (t === 'potato') return { error: 'Na batata quente, escreve na caixa do jogo quando for a tua vez.' };
   if (t === 'number') {
     const v = Number(raw);
@@ -273,6 +279,7 @@ function grade(q, raw) {
 function answerText(q, a) {
   if (!a) return '';
   const t = typeOf(q);
+  if (t === 'hangman') return `${a.correct ? 'Acertou' : 'Não acertou'} · ${a.wrong || 0} erro(s) · letras: ${(a.value || []).join(' ')}`;
   if (t === 'potato') return `${(a.value || []).length ? (a.value || []).join(', ') + ' · ' : ''}${a.points || 0} pts${a.booms ? ` · ${a.booms} explos${a.booms > 1 ? 'ões' : 'ão'}` : ''}`;
   if (t === 'number') return String(a.value);
   if (t === 'match') return q.pairs.map((p, i) => `${p.left} → ${(q.pairs[(a.value || [])[i]] || {}).right || '—'}`).join(' | ');
@@ -287,6 +294,7 @@ function answerText(q, a) {
 }
 function answerShort(q, a) {
   const t = typeOf(q);
+  if (t === 'hangman') return a.correct ? `✓ ${a.wrong || 0} erros` : '✗';
   if (t === 'potato') return `🥔 ${a.points || 0}`;
   if (t === 'number') return String(a.value);
   if (t === 'match') return `${a.right ?? 0}/${q.pairs.length}`;
@@ -304,6 +312,7 @@ function answerShort(q, a) {
 }
 function correctText(q) {
   const t = typeOf(q);
+  if (t === 'hangman') return String(q.answer).toUpperCase();
   if (t === 'potato') return '(batata quente: palavras aceites por tema)';
   if (t === 'number') return String(q.answer);
   if (t === 'match') return q.pairs.map(p => `${p.left} → ${p.right}`).join(' | ');
@@ -320,6 +329,7 @@ function correctText(q) {
 }
 function correctShort(q) {
   const t = typeOf(q);
+  if (t === 'hangman') return String(q.answer).toUpperCase().slice(0, 14);
   if (t === 'potato') return 'batata';
   if (t === 'number') return String(q.answer);
   if (t === 'match') return q.pairs.length + ' pares';
@@ -341,6 +351,7 @@ function publicQuestion(q, hide) {
   // na imagem do "encontrar na imagem" é a própria pergunta: vai sempre (a zona certa nunca vai)
   const p = { type: t, time: q.time, text: hide ? '' : displayText(q), image: hide && t !== 'spot' ? null : (q.image || null), hidden: !!hide };
   if (t === 'number') Object.assign(p, { min: q.min, max: q.max, step: q.step });
+  if (t === 'hangman') { p.shape = hangShape(q); p.maxWrong = q.maxWrong || 7; }   // só o tamanho das palavras, nunca as letras
   if (t === 'potato') p.rounds = q.rounds.length;   // os temas e as palavras aceites nunca vão para o telemóvel
   if (t === 'spot') p.spots = spotCount(q);      // quantos sítios há para encontrar (não onde)
   if (t === 'mc' && q.poll) p.poll = true;
@@ -366,6 +377,7 @@ function solutionOf(q) {
 }
 function solutionBase(q) {
   const t = typeOf(q);
+  if (t === 'hangman') return { answer: q.answer };
   if (t === 'potato') return { rounds: q.rounds.map(r => ({ theme: r.theme })) };
   if (t === 'number') return { answer: q.answer };
   if (t === 'match') return { pairs: q.pairs };
@@ -383,6 +395,7 @@ function solutionBase(q) {
 const fillSentence = (q, words) => { let k = 0; return String(q.text).replace(BLANK_RE, () => { const w = words[k++]; return w ? w : '_____'; }); };
 function plainCorrect(q) {
   const t = typeOf(q);
+  if (t === 'hangman') return String(q.answer).toUpperCase();
   if (t === 'potato') return q.rounds.map(r => `${r.theme}: ${(r.questions || []).length ? r.questions.length + ' perguntas' : r.words.join(', ')}`).join(' | ');
   if (t === 'number') return String(q.answer);
   if (t === 'match') return q.pairs.map(p => `${p.left} → ${p.right}`).join('; ');
@@ -399,6 +412,7 @@ function plainCorrect(q) {
 function plainAnswer(q, a) {
   if (!a) return '';
   const t = typeOf(q);
+  if (t === 'hangman') return `${a.correct ? 'Acertou' : 'Não acertou'} com ${a.wrong || 0} erro(s) · letras: ${(a.value || []).join(' ') || '—'}`;
   if (t === 'potato') return `Palavras: ${(a.value || []).join(', ') || '—'} · ${a.points || 0} pontos${a.booms ? ` · rebentou ${a.booms}×` : ''}`;
   if (t === 'number') return String(a.value) + (a.correct ? '' : ` (a resposta era ${q.answer})`);
   if (t === 'match') return q.pairs.map((p, i) => `${p.left} → ${(q.pairs[(a.value || [])[i]] || {}).right || '—'}${(a.value || [])[i] === i ? ' ✓' : ' ✗'}`).join('; ');
@@ -470,4 +484,11 @@ function finalGrade(questions, answers, asked, sid, scale = 20) {
   const sum = idx.reduce((s, i) => { const a = (answers[i] || {})[sid]; if (!a) return s; return s + (a.correct === true ? 1 : typeof a.frac === 'number' ? Math.max(0, Math.min(1, a.frac)) : 0); }, 0);
   return scale === 100 ? Math.round(sum / idx.length * 100) : Math.round(sum / idx.length * 200) / 10;
 }
-module.exports = { potatoAnswer, qualOf, finalGrade, potatoCheck, zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };
+// forca: tamanho de cada palavra, letras já descobertas ("_" nas outras) e pontuação (menos erros, mais pontos)
+const hangShape = q => String(q.answer).trim().split(/\s+/).map(w => cwNorm(w).length).filter(Boolean);
+function hangMask(q, letters) {
+  const set = new Set(letters);
+  return String(q.answer).trim().split(/\s+/).map(w => [...cwNorm(w)].map(c => set.has(c) ? c : '_').join('')).filter(Boolean).join(' ');
+}
+const hangFrac = (q, wrong) => Math.max(0.3, 1 - 0.6 * wrong / (q.maxWrong || 7));
+module.exports = { hangShape, hangMask, hangFrac, potatoAnswer, qualOf, finalGrade, potatoCheck, zonesOf, spotCount, matchOrder, forPhone, guessColors, guessFrac, cwNorm, scrambleTiles, scrambleShape, rankOrder, cloudWords, plainCorrect, plainAnswer,  TYPES, typeOf, isGraded, blanksOf, displayText, wordBank, cleanQuestion, grade, answerText, answerShort, correctText, correctShort, publicQuestion, solutionOf, norm };

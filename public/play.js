@@ -176,6 +176,12 @@ function renderGameInner() {
   if (ph === 'question') {
     const q = state.question;
     if (q.type === 'potato') return renderPotato(s);
+    if (state.answered && q.type === 'hangman') {
+      const h = state.hang || { wrong: 0, mask: '' };
+      return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="hm-wrap">${hangmanSvg(h.wrong, q.maxWrong, h.solved)}</div>
+        <h1>${h.solved ? `Acertaste${h.wrong ? ` com ${h.wrong} erro${h.wrong > 1 ? 's' : ''}` : ' sem erros'}! 🎉` : 'Não foi desta…'}</h1>${hangWordHtml(h.mask)}
+        <p>${h.solved ? 'Boa! Aguarda pelos outros' : 'Olha para o ecrã: a palavra vai ser revelada'}<span class="dots"></span></p></div>`);
+    }
     if (state.answered && (q.type === 'guess')) {
       const g = state.guess || { tries: [] };
       return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">${g.solved ? '🎉' : '😵'}</div>
@@ -191,7 +197,7 @@ function renderGameInner() {
     }
     const w = answerWidget(q, null, false), t = q.type || 'mc';
     const hint = { mc: '👆 Escolhe a tua resposta', tf: '👆 Verdadeiro ou falso?', scale: '👆 Escolhe de 1 a 5', fill: '✏️ Completa os espaços', open: '✍️ Escreve a tua resposta',
-      cloud: `☁️ Escreve até ${q.words || 3} palavra${(q.words || 3) > 1 ? 's' : ''}`, rank: '🔢 Toca nas opções pela ordem: 1º, 2º, 3º…', scramble: '🔤 Toca nas letras pela ordem para formar a palavra', guess: `🟩 Adivinha a palavra de ${q.len} letras`, cross: '✏️ Toca numa pista (ou numa casa) e escreve a palavra', number: '🔢 Escolhe o número', match: '🔗 Para cada item, toca na letra certa', spot: (q.spots || 1) > 1 ? `🎯 Encontra os ${q.spots} sítios na imagem` : '🎯 Toca no sítio certo da imagem' }[t];
+      cloud: `☁️ Escreve até ${q.words || 3} palavra${(q.words || 3) > 1 ? 's' : ''}`, rank: '🔢 Toca nas opções pela ordem: 1º, 2º, 3º…', scramble: '🔤 Toca nas letras pela ordem para formar a palavra', guess: `🟩 Adivinha a palavra de ${q.len} letras`, hangman: '🪢 Escolhe letras — cada erro e o boneco perde uma peça!', cross: '✏️ Toca numa pista (ou numa casa) e escreve a palavra', number: '🔢 Escolhe o número', match: '🔗 Para cada item, toca na letra certa', spot: (q.spots || 1) > 1 ? `🎯 Encontra os ${q.spots} sítios na imagem` : '🎯 Toca no sítio certo da imagem' }[t];
     set('q' + s.qIndex, header() + qmeta() + `${q.hidden ? onScreenNote : t === 'fill' && q.parts ? '' : `<div class="qtext slide-up">${esc(q.text)}</div>`}${q.image && t !== 'spot' ? `<img class="qimg" src="${esc(q.image)}">` : ''}
       ${timedMode ? '<div class="timebar"><div id="tb"></div></div>' : `<p class="center" style="margin:10px 0;opacity:.85">${hint}</p>`}
       ${w.html}`, () => {
@@ -260,6 +266,7 @@ function renderGameInner() {
       : t === 'number' ? `A resposta era:<br><b style="font-size:1.6em">${esc(String(sol.answer))}</b>${state.answered ? `<br><small>Escolheste ${esc(String(state.myValue))}</small>` : ''}`
       : t === 'match' ? `Ligações certas:<br>${(sol.pairs || []).map(p => `${esc(p.left)} → <b>${esc(p.right)}</b>`).join('<br>')}`
       : t === 'spot' ? `${(sol.zones || []).length > 1 ? 'Os sítios certos estão marcados' : 'A zona certa está marcada'} a verde:${spotHtml(q, state.myValue, sol.zones)}`
+      : t === 'hangman' ? `A palavra era:<br><b style="font-size:1.4em;letter-spacing:.08em">${esc(String(sol.answer || '').toUpperCase())}</b>`
       : t === 'guess' ? `A palavra era:<br><b style="font-size:1.4em;letter-spacing:.08em">${esc(String(sol.answer || '').toUpperCase())}</b>`
       : t === 'scramble' ? `A palavra era:<br><b style="font-size:1.4em;letter-spacing:.08em">${esc(String(sol.answer || '').toUpperCase())}</b>`
       : t === 'cross' ? `Solução:<br>${(sol.words || []).map((w, k) => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.display.toUpperCase())} ${(state.myValue || [])[k] === w.word ? '✓' : '✗'}`).join('<br>')}`
@@ -291,7 +298,7 @@ function renderGameInner() {
       ${(state.board || []).length && m.position != null ? `<h2 style="margin:10px 0 0">🏆 Classificação final</h2>${boardHtml(false)}` : ''}
       ${state.review ? `<h2 style="margin:10px 0 0">As respostas corretas</h2><div class="review">${state.review.map((r, i) => `
         <div class="rv-item ${r.mine == null ? 'none' : r.ok === true ? 'ok' : r.ok === false ? 'bad' : 'none'}"><div class="rv-q">${r.text ? `${i + 1}. ${esc(r.text)}` : `Pergunta ${i + 1}`}</div>
-          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'cloud' ? '☁️ Nuvem de palavras' : r.type === 'number' ? '✅ ' + esc(String(r.solution.answer)) : r.type === 'match' ? '✅ ' + (r.solution.pairs || []).map(p => `${esc(p.left)} → ${esc(p.right)}`).join(' · ') : r.type === 'spot' ? '🎯 ' + ((r.solution.zones || []).length > 1 ? `${r.solution.zones.length} zonas marcadas na imagem` : 'Zona marcada na imagem') : r.type === 'scramble' || r.type === 'guess' ? '✅ ' + esc(String(r.solution.answer || '').toUpperCase()) : r.type === 'cross' ? '✅ ' + (r.solution.words || []).map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.display.toUpperCase())}`).join(' · ') : r.type === 'rank' ? ((r.solution.order || []).length ? '✅ ' + r.solution.order.map((o, k) => `${k + 1}. ${esc(o)}`).join(' · ') : '🔢 Ranking de opinião') : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
+          <div class="rv-a">${r.type === 'scale' ? '⭐ Escala de opinião' : r.type === 'cloud' ? '☁️ Nuvem de palavras' : r.type === 'number' ? '✅ ' + esc(String(r.solution.answer)) : r.type === 'match' ? '✅ ' + (r.solution.pairs || []).map(p => `${esc(p.left)} → ${esc(p.right)}`).join(' · ') : r.type === 'spot' ? '🎯 ' + ((r.solution.zones || []).length > 1 ? `${r.solution.zones.length} zonas marcadas na imagem` : 'Zona marcada na imagem') : r.type === 'scramble' || r.type === 'guess' || r.type === 'hangman' ? '✅ ' + esc(String(r.solution.answer || '').toUpperCase()) : r.type === 'cross' ? '✅ ' + (r.solution.words || []).map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${esc(w.display.toUpperCase())}`).join(' · ') : r.type === 'rank' ? ((r.solution.order || []).length ? '✅ ' + r.solution.order.map((o, k) => `${k + 1}. ${esc(o)}`).join(' · ') : '🔢 Ranking de opinião') : r.type === 'fill' ? '✅ ' + (r.solution.blanks || []).map(esc).join(' · ') : r.type === 'open' ? '📝 Validada pelo formador' + ((r.solution.accepted || []).length ? ' · modelo: ' + r.solution.accepted.map(esc).join(' · ') : '') : '✅ ' + r.correct.map(k => optLabel(r.options, k)).join(' | ')}</div>
           <div class="rv-m">${r.mine == null ? 'Não respondeste' : `A tua: ${r.type === 'mc' || r.type === 'tf' || !r.type ? optLabel(r.options, r.mine) : esc(r.mineText || '')} ${r.ok === true ? '✓' : r.ok === false ? '✗' : ''}`}</div></div>`).join('')}</div>` : ''}
       ${(!state.review || !state.review.some(r => r.graded || r.ok != null)) && m.score == null ? `<div class="result none" style="margin-top:6px"><div class="big-emoji">📨</div><h2>Respostas enviadas!</h2>
         <p>Respondeste a ${state.answeredCount ?? 0} de ${s.total} perguntas. As tuas respostas foram registadas.</p></div>` : ''}
@@ -584,6 +591,46 @@ function answerWidget(q, cur, exam) {
       },
     };
   }
+  if (t === 'hangman') {
+    // forca: cada letra vai ao servidor (a palavra não está no telemóvel); a cada erro o boneco perde uma peça
+    const h0 = exam ? ((state.exam.hang || {})[exIdx] || null) : state.hang;
+    const at = exam ? exIdx : null, max = q.maxWrong || 7;
+    let letters = h0 ? h0.letters.slice() : [], wrong = h0 ? h0.wrong : 0, mask = h0 ? h0.mask : (q.shape || []).map(n => '_'.repeat(n)).join(' ');
+    let done = !!(h0 && h0.done), solved = !!(h0 && h0.solved), busy = false, fresh = null, reveal = '';
+    const msg = () => done ? (solved ? `🎉 Acertaste${wrong ? ` com ${wrong} erro${wrong > 1 ? 's' : ''}` : ' sem erros'}!` : `😵 Era «${reveal || '…'}»`) : `Erros: ${wrong} de ${max}`;
+    const kb = () => ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'].map(row => `<div class="kb-row">${[...row].map(k => {
+      const used = letters.includes(k), hit = used && mask.includes(k);
+      return `<button class="kb-k ${used ? (hit ? 'g' : 'r') : ''}" data-k="${k}" ${used || done ? 'disabled' : ''}>${k}</button>`; }).join('')}</div>`).join('');
+    const box = () => `<div class="hm-wrap">${hangmanSvg(wrong, max, solved, fresh)}</div>${hangWordHtml(mask)}<p class="gw-msg">${msg()}</p><div class="kb" id="hmKb">${kb()}</div>`;
+    return {
+      html: `<div id="hmBox">${box()}</div>`,
+      bind: () => {
+        const paint = () => { const b = $('#hmBox'); if (!b) return; b.innerHTML = box(); fresh = null; bindKeys(); };
+        const press = k => {
+          if (done || busy || letters.includes(k)) return;
+          busy = true;
+          send('player:hangman', { q: at, letter: k }, res => {
+            busy = false;
+            if (!res || res.error) return toast((res && res.error) || 'Erro', 3000);
+            letters = res.letters; mask = res.mask; done = res.done; solved = res.solved; if (!res.hit) fresh = res.wrong; wrong = res.wrong; reveal = res.answer ? res.answer.toUpperCase() : reveal;
+            Sound.play(res.solved ? 'correct' : res.done ? 'wrong' : res.hit ? 'pop' : 'softEnd'); navigator.vibrate && navigator.vibrate(res.hit ? 25 : [60, 40, 60]);
+            if (res.solved) Confetti.burst(80);
+            paint();
+            if (!done) return;
+            if (exam) {
+              state.exam.mine[at] = letters; (state.exam.hang ||= {})[at] = { letters, wrong, mask, done, solved };
+              setTimeout(() => { if (exIdx !== at) return; const nf = state.exam.questions.findIndex((_, i) => i > at && state.exam.mine[i] == null); if (nf >= 0) exIdx = nf; render(); }, 1800);
+            } else { state.hang = { letters, wrong, mask, done, solved }; setTimeout(() => { state.answered = true; render(); }, 1800); }
+          });
+        };
+        const bindKeys = () => $$('#hmKb .kb-k').forEach(b => b.onclick = () => press(b.dataset.k));
+        bindKeys();
+        if (window._hmKey) document.removeEventListener('keydown', window._hmKey);
+        window._hmKey = e => { if (!$('#hmBox') || e.ctrlKey || e.metaKey || e.altKey) return; const k = cwNorm(e.key); if (k.length === 1 && /[A-Z]/.test(k)) { e.preventDefault(); press(k); } };
+        document.addEventListener('keydown', window._hmKey);
+      },
+    };
+  }
   if (t === 'scramble') {
     // toca nas letras pela ordem; tocar numa casa preenchida devolve a letra
     const tiles = q.tiles || [], shape = q.shape || [tiles.length], total = shape.reduce((a, b) => a + b, 0);
@@ -873,6 +920,8 @@ function renderPotato(s) {
     potRaf = requestAnimationFrame(tick);
   }
 }
+// forca: a palavra com as letras descobertas (as outras em branco)
+const hangWordHtml = mask => `<div class="hm-word">${String(mask || '').split(' ').map(w => `<span class="hm-w">${[...w].map(c => `<b class="${c === '_' ? '' : 'on'}">${c === '_' ? '' : esc(c)}</b>`).join('')}</span>`).join('')}</div>`;
 // resumo da resposta dada, para mostrar depois de enviar
 function answerSummary(q, v) {
   const t = q.type || 'mc';
@@ -883,6 +932,7 @@ function answerSummary(q, v) {
   if (t === 'cloud') return '☁️ ' + (v || []).map(esc).join(' · ');
   if (t === 'scramble') return `<b style="font-size:1.4em;letter-spacing:.08em">${esc(String(v).toUpperCase())}</b>`;
   if (t === 'guess') return (v || []).map(esc).join(' → ');
+  if (t === 'hangman') return 'Letras: ' + (v || []).map(esc).join(' ');
   if (t === 'number') return `<b style="font-size:1.6em">${esc(Number(v).toLocaleString('pt-PT'))}</b>`;
   if (t === 'match') return `<div style="text-align:left">${(q.lefts || []).map((l, i) => { const r = (q.rights || [])[(v || [])[i]]; return `${esc(l)} → ${r ? `<b>${r.letter}</b> ${esc(r.text)}` : '—'}`; }).join('<br>')}</div>`;
   if (t === 'spot') return `🎯 ${(q.spots || 1) > 1 ? `Marcaste ${(v || []).length / 2} de ${q.spots} sítios` : 'Tocaste na imagem'}${spotHtml(q, v, null)}`;

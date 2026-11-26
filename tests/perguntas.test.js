@@ -103,3 +103,15 @@ test('batata quente, escala 1-10 e nota final', () => {
   const ans = { 0: { u: { correct: true, frac: 1 } }, 1: { u: { correct: false, frac: 0.5 } }, 2: { u: { value: 3, correct: null } }, 3: { u: { points: 90, correct: true } } };
   assert.equal(Q.finalGrade(qs, ans, [0, 1, 2, 3], 'u'), 15, 'nota: (1 + 0,5) / 2 × 20; escala e batata não contam');
 });
+
+test('forca e batata com perguntas', () => {
+  const h = make({ type: 'hangman', text: 'pista', answer: 'Cifrão', maxWrong: 7 });
+  assert.ok(!JSON.stringify(Q.publicQuestion(h, false)).includes('CIFR'), 'a palavra não vai para o telemóvel');
+  assert.deepEqual(Q.publicQuestion(h, false).shape, [6]);
+  assert.equal(Q.hangMask(h, ['C', 'A']), 'C___A_');
+  assert.ok(Q.hangFrac(h, 0) > Q.hangFrac(h, 5), 'menos erros, mais pontos');
+  const p = make({ type: 'potato', text: 'x', rounds: [{ theme: 'S1', questions: [{ q: 'Separador decimal em PT?', keys: ['62,5', 'vírgula'], a: 'vírgula' }] }] });
+  assert.equal(Q.potatoCheck(p, 0, '62,5', [0]).ok, true);
+  assert.equal(Q.potatoCheck(p, 0, '62.5', [0]).ok, false, 'com números tem de ser igual');
+  assert.equal(Q.potatoCheck(p, 0, 'é a vírgula', [0]).ok, true, 'com palavras basta contê-las');
+});

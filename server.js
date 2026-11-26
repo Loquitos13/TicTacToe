@@ -142,6 +142,7 @@ function persistSession() {
     anonymous: !!session.settings.anonymous,
     submitted: session.submitted || null,
     guesses: session.guesses || null,
+    hangs: session.hangs || null,
     answers: session.answers,
     asked: session.asked,
   };
@@ -311,6 +312,12 @@ function hostView() {
   // letras baralhadas: tentativas agrupadas (certas e erradas)
   if (qt === 'scramble') { const m = new Map(); Object.values(ans).forEach(a => { const k = Q.norm(a.value); const e = m.get(k) || { text: String(a.value).toUpperCase(), count: 0, correct: a.correct }; e.count++; m.set(k, e); }); extra.attempts = [...m.values()].sort((a, b) => (b.correct === true) - (a.correct === true) || b.count - a.count).slice(0, 30); }
   // adivinha a palavra: só as cores de cada um (sem letras: não estraga o jogo a ninguém)
+  if (qt === 'hangman') {
+    const h = (session.hangs || {})[session.qIndex] || {}, total = Q.cwNorm(q.answer).length;
+    extra.hangBoards = Object.values(session.players).map(pl => { const st = h[pl.studentId] || { letters: [], wrong: 0 }, a = ans[pl.studentId];
+      return { studentId: pl.studentId, name: pl.short || pl.name, wrong: st.wrong, solved: !!(a && a.correct), done: !!a, found: [...Q.cwNorm(q.answer)].filter(c => st.letters.includes(c)).length, total }; });
+    extra.hangSolved = Object.values(ans).filter(a => a.correct).length;
+  }
   if (qt === 'guess') {
     const g = (session.guesses || {})[session.qIndex] || {};
     extra.guessBoards = Object.entries(g).map(([sid, tries]) => ({ studentId: sid, colors: tries.map(t => t.colors), solved: !!(ans[sid] && ans[sid].correct), done: !!ans[sid] }));
@@ -411,10 +418,14 @@ function playerView(p) {
   const myGuess = i => { const tries = ((session.guesses || {})[i] || {})[p.studentId] || [], a = (session.answers[i] || {})[p.studentId];
     return { tries: tries.map(t => ({ word: t.word, colors: t.colors })), done: !!a, solved: !!(a && a.correct) }; };
   if (q && Q.typeOf(q) === 'guess') v.guess = myGuess(session.qIndex);
+  const myHang = i => { const qq = session.questions[i], st = ((session.hangs || {})[i] || {})[p.studentId] || { letters: [], wrong: 0 }, a = (session.answers[i] || {})[p.studentId];
+    return { letters: st.letters, wrong: st.wrong, mask: Q.hangMask(qq, st.letters), done: !!a, solved: !!(a && a.correct) }; };
+  if (q && Q.typeOf(q) === 'hangman') v.hang = myHang(session.qIndex);
   if (q && Q.typeOf(q) === 'potato') v.potato = potatoView(false, p);
   if (session.phase === 'exam') {
     v.exam = {
       guess: Object.fromEntries(session.questions.map((qq, i) => Q.typeOf(qq) === 'guess' ? [i, myGuess(i)] : null).filter(Boolean)),
+      hang: Object.fromEntries(session.questions.map((qq, i) => Q.typeOf(qq) === 'hangman' ? [i, myHang(i)] : null).filter(Boolean)),
       questions: session.questions.map(qq => Q.publicQuestion(qq, false)),
       mine: Object.fromEntries(session.questions.map((qq, i) => { const a = (session.answers[i] || {})[p.studentId]; return [i, a ? (a.option ?? Q.forPhone(qq, a.value)) : null]; }).filter(([, o]) => o != null)),
       remainingMs: Math.max(0, session.deadline - Date.now()),
@@ -541,7 +552,14 @@ function scheduleAuto() {
 
 // adivinha a palavra: quem ainda estava a tentar quando a pergunta fechou fica com a resposta "não acertou"
 function finalizeGuesses(i) {
-  const q = session.questions[i]; if (!q || Q.typeOf(q) !== 'guess') return;
+  const q = session.questions[i];
+  if (q && Q.typeOf(q) === 'hangman') {
+    const ans = answersFor(i), h = (session.hangs || {})[i] || {};
+    for (const [sid, st] of Object.entries(h)) if (!ans[sid] && st.letters.length)
+      ans[sid] = { value: st.letters, wrong: st.wrong, correct: false, frac: 0, points: 0, timeMs: st.ms || 0, at: Date.now() };
+    return;
+  }
+  if (!q || Q.typeOf(q) !== 'guess') return;
   const ans = answersFor(i), g = (session.guesses || {})[i] || {};
   for (const [sid, tries] of Object.entries(g)) if (!ans[sid] && tries.length)
     ans[sid] = { value: tries.map(t => t.word), colors: tries.map(t => t.colors), tries: tries.length, correct: false, frac: 0, points: 0, timeMs: tries[tries.length - 1].ms || 0, at: Date.now() };
@@ -965,7 +983,7 @@ app.get('/api/results/:id/csv', auth, (req, res) => {
     rows = [['Curso', 'Questionário', 'Nº', 'Pergunta', 'Opções', 'Resposta correta', 'Aluno', 'Resposta dada', 'Correta?', 'Tempo (s)', 'Pontos']];
     r.questions.forEach((q, i) => {
       const t = Q.typeOf(q);
-      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'cloud' ? 'Nuvem de palavras' : t === 'number' ? `Número de ${q.min} a ${q.max}` : t === 'match' ? 'Ligar: ' + q.pairs.map(p => p.left).join(' | ') : t === 'spot' ? 'Encontrar na imagem' : t === 'scramble' ? 'Letras baralhadas' : t === 'guess' ? `Adivinha a palavra (${q.maxTries || 6} tentativas)` : t === 'cross' ? 'Palavras cruzadas: ' + q.cross.words.map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${w.clue}`).join(' | ') : t === 'rank' ? 'Ordenar: ' + q.options.join(' | ') : t === 'scale' ? `Escala 1–${q.scaleTo === 10 ? 10 : 5}` : 'Resposta livre';
+      const opts = t === 'mc' || t === 'tf' ? q.options.map((o, k) => L(k) + ') ' + o).join(' | ') : t === 'fill' ? 'Palavras: ' + Q.wordBank(q).join(', ') : t === 'cloud' ? 'Nuvem de palavras' : t === 'number' ? `Número de ${q.min} a ${q.max}` : t === 'match' ? 'Ligar: ' + q.pairs.map(p => p.left).join(' | ') : t === 'spot' ? 'Encontrar na imagem' : t === 'scramble' ? 'Letras baralhadas' : t === 'guess' ? `Adivinha a palavra (${q.maxTries || 6} tentativas)` : t === 'hangman' ? `Jogo da forca (${q.maxWrong || 7} erros)` : t === 'cross' ? 'Palavras cruzadas: ' + q.cross.words.map(w => `${w.n}${w.dir === 'a' ? '→' : '↓'} ${w.clue}`).join(' | ') : t === 'rank' ? 'Ordenar: ' + q.options.join(' | ') : t === 'scale' ? `Escala 1–${q.scaleTo === 10 ? 10 : 5}` : 'Resposta livre';
       for (const p of people) {
         const a = (r.answers[i] || {})[p.id];
         let given, ok = '';
@@ -1459,6 +1477,35 @@ io.on('connection', socket => {
     }
     persistSession();
     cb({ ok: true, colors, solved, done: !!ans[me.studentId] });
+    if (!exam && timedMode() && allAnswered()) closeQuestion(); else notifyAnswer(me);
+  });
+
+  socket.on('player:hangman', (data, cb) => {
+    if (typeof cb !== 'function') cb = () => {};
+    if (!session || !me || me.socketId !== socket.id || session.players[me.studentId] !== me) return cb({ error: 'Não identificado' });
+    const exam = session.phase === 'exam';
+    const i = exam ? parseInt(data && data.q, 10) : session.qIndex, q = session.questions[i];
+    if (!q || Q.typeOf(q) !== 'hangman') return cb({ error: 'Pedido inválido.' });
+    if (exam ? (Date.now() > session.deadline || (session.submitted || {})[me.studentId]) : session.phase !== 'question') return cb({ error: 'Tempo esgotado' });
+    const ans = answersFor(i);
+    if (ans[me.studentId]) return cb({ error: 'Já terminaste esta palavra.' });
+    const L = Q.cwNorm(data && data.letter);
+    if (L.length !== 1) return cb({ error: 'Escolhe uma letra.' });
+    const st = ((session.hangs ||= {})[i] ||= {})[me.studentId] ||= { letters: [], wrong: 0 };
+    if (st.letters.includes(L)) return cb({ error: 'Já escolheste essa letra.' });
+    const secret = Q.cwNorm(q.answer), hit = secret.includes(L);
+    st.letters.push(L); if (!hit) st.wrong++;
+    st.ms = exam ? Date.now() - session.examStart : Date.now() - session.questionStartedAt;
+    const mask = Q.hangMask(q, st.letters), solved = !mask.includes('_'), lost = st.wrong >= (q.maxWrong || 7);
+    let points = 0;
+    if (solved || lost) {
+      const entry = { value: st.letters.slice(), wrong: st.wrong, correct: solved, frac: solved ? Q.hangFrac(q, st.wrong) : 0 };
+      points = pointsFor(q, entry, exam ? 0 : st.ms, exam ? false : session.settings.speedPoints);
+      ans[me.studentId] = { ...entry, timeMs: st.ms, points, at: Date.now() };
+      if (exam) examRecompute(me); else me.score += points;
+    }
+    persistSession();
+    cb({ ok: true, hit, mask, wrong: st.wrong, letters: st.letters, solved, done: solved || lost, answer: lost ? String(q.answer) : undefined });
     if (!exam && timedMode() && allAnswered()) closeQuestion(); else notifyAnswer(me);
   });
 

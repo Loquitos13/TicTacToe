@@ -1,6 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap');
 /* o atributo hidden esconde sempre, mesmo em elementos com display próprio */
 [hidden] { display: none !important; }
+/* jogo da forca */
+.hm { width: 100%; height: auto; overflow: visible; }
+.hm-g { stroke: #c08a4d; stroke-width: 5; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.hm-rope { fill: none; stroke: #e8d3a6; stroke-width: 2; }
+.hm-l { stroke: #fff; stroke-width: 4; fill: none; stroke-linecap: round; }
+.hm-head { fill: #ffd93d; stroke: #fff; stroke-width: 3; } .hm-f { fill: #1f1147; }
+.hm g .hm-l[fill="none"], .hm .hm-head ~ .hm-l { stroke: #1f1147; stroke-width: 2.5; }
+.hm-hat { stroke: #1f1147; stroke-width: 3; fill: #7c3aed; } .hm-star { fill: #ffd93d; font-size: 12px; }
+.hm-fall { animation: hmFall .7s cubic-bezier(.3,1.6,.6,1) both; transform-box: fill-box; transform-origin: center; }
+@keyframes hmFall { 0% { transform: translateY(-60px) rotate(-40deg); opacity: .4 } 100% { transform: none; opacity: 1 } }
+.hm-jump { animation: hmJump .6s ease-in-out infinite alternate; } @keyframes hmJump { to { transform: translateY(-8px); } }
 :root {
   --bg1: #2b1055; --bg2: #7597de; --ink: #1d1433; --card: #ffffff; --muted: #6b6280;
   --a: #ff5d73; --b: #14b8a6; --c: #f59e0b; --d: #8b5cf6; --e: #3b82f6; --f: #ec4899;
