@@ -185,7 +185,7 @@ function renderGameInner() {
     if (state.answered && (q.type === 'guess')) {
       const g = state.guess || { tries: [] };
       return set('sent' + s.qIndex, header() + qmeta() + `<div class="middle"><div class="big-emoji pop-in">${g.solved ? '🎉' : '😵'}</div>
-        <h1>${g.solved ? `Acertaste à ${g.tries.length}ª!` : 'Não foi desta…'}</h1>${guessBoardHtml(q, g.tries, '', false)}
+        <h1>${g.solved ? `Acertaste à ${g.tries.length}ª!` : 'Não foi desta…'}</h1>${guessBoardHtml(q, g.tries, '', false, g.tries.length - 1)}
         <p>${g.solved ? 'Boa! Aguarda pelos outros' : 'Olha para o ecrã: a palavra vai ser revelada'}<span class="dots"></span></p></div>`);
     }
     if (state.answered) {
@@ -563,14 +563,15 @@ function answerWidget(q, cur, exam) {
     return {
       html: `<div id="gw">${guessBoardHtml(q, tries, typed, !done)}</div><p class="gw-msg" id="gwMsg">${msg()}</p><div class="kb" id="kb">${kb()}</div>`,
       bind: () => {
-        const paint = () => { const b = $('#gw'); if (!b) return; b.innerHTML = guessBoardHtml(q, tries, typed, !done); $('#kb').innerHTML = kb(); $('#gwMsg').textContent = msg(); bindKeys(); };
+        let flipRow = -1;   // linha a animar (só a que acabou de ser enviada, uma vez)
+        const paint = () => { const b = $('#gw'); if (!b) return; b.innerHTML = guessBoardHtml(q, tries, typed, !done, flipRow); flipRow = -1; $('#kb').innerHTML = kb(); $('#gwMsg').textContent = msg(); bindKeys(); };
         const tryWord = () => {
           if (typed.length < L) { const row = $('#gw .gw-row.cur'); if (row) { row.classList.remove('shake'); void row.offsetWidth; row.classList.add('shake'); } return toast(`A palavra tem ${L} letras`); }
           busy = true;
           send('player:guess', { q: at, word: typed }, res => {
             busy = false;
             if (!res || res.error) return toast((res && res.error) || 'Erro', 3500);
-            tries.push({ word: typed, colors: res.colors }); typed = ''; done = res.done; solved = res.solved;
+            tries.push({ word: typed, colors: res.colors }); typed = ''; done = res.done; solved = res.solved; flipRow = tries.length - 1;
             Sound.play(res.solved ? 'correct' : res.done ? 'wrong' : 'pop'); navigator.vibrate && navigator.vibrate(res.solved ? [40, 60, 40] : 30);
             if (res.solved) Confetti.burst(80);
             paint();
@@ -851,14 +852,15 @@ function answerWidget(q, cur, exam) {
   };
 }
 // quadro do "adivinha a palavra": linhas já tentadas (com cores), a linha a escrever e as vazias
-function guessBoardHtml(q, tries, typed, live) {
+function guessBoardHtml(q, tries, typed, live, flipRow = -1) {
   const L = q.len, rows = [];
   for (let r = 0; r < q.maxTries; r++) {
     const tr = tries[r], cur = live && r === tries.length;
     if (!live && !tr) continue;
     rows.push(`<div class="gw-row ${cur ? 'cur' : ''}">${Array.from({ length: L }, (_, i) => {
       const ch = tr ? tr.word[i] : cur ? (typed[i] || '') : '';
-      return `<span class="gw-c ${tr ? tr.colors[i] + ' flip' : ch ? 'typed' : ''}" style="${tr ? `animation-delay:${i * 90}ms` : ''}">${esc(ch)}</span>`; }).join('')}</div>`);
+      const flip = tr && r === flipRow;
+      return `<span class="gw-c ${tr ? tr.colors[i] + (flip ? ' flip' : '') : ch ? 'typed' : ''}" style="${flip ? `animation-delay:${i * 90}ms` : ''}">${esc(ch)}</span>`; }).join('')}</div>`);
   }
   return `<div class="gw" style="--len:${L}">${rows.join('')}</div>`;
 }
