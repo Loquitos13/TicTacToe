@@ -1,0 +1,1096 @@
+{
+  "title": "Excel S9 · Jogos",
+  "questions": [
+    {
+      "type": "potato",
+      "text": "🥔 Batata quente · Excel: respondam à pergunta e passem a batata!",
+      "time": 30,
+      "fuseMin": 45,
+      "fuseMax": 75,
+      "pts": 100,
+      "penalty": 50,
+      "rounds": [
+        {
+          "theme": "Secção 1 · A folha por dentro",
+          "questions": [
+            {
+              "q": "Como se chama o ficheiro de folha de cálculo, que pode ter várias folhas?",
+              "keys": [
+                "livro"
+              ],
+              "a": "Livro. As folhas aparecem em separadores no fundo do ecrã."
+            },
+            {
+              "q": "Qual é o endereço da célula da coluna C com a linha 4?",
+              "keys": [
+                "C4"
+              ],
+              "a": "C4: primeiro a letra, depois o número."
+            },
+            {
+              "q": "Como se escreve o intervalo que vai de A2 até A10?",
+              "keys": [
+                "A2:A10"
+              ],
+              "a": "A2:A10, com dois pontos."
+            },
+            {
+              "q": "Por defeito, para que lado encosta o texto? E os números e as datas?",
+              "keys": [
+                "esquerda direita"
+              ],
+              "a": "O texto encosta à esquerda. Os números e as datas encostam à direita."
+            },
+            {
+              "q": "Escreveu um número e ele ficou encostado à esquerda. Que sinal é esse?",
+              "keys": [
+                "texto"
+              ],
+              "a": "A folha leu-o como texto, e ele não vai entrar nas contas."
+            },
+            {
+              "q": "Alguém escreveu «40 un.» numa célula. A soma da coluna conta este valor?",
+              "keys": [
+                "não",
+                "texto"
+              ],
+              "a": "Não, porque passou a texto. Na célula vai só o número, e a unidade vai para o título da coluna."
+            },
+            {
+              "q": "Em Portugal, como se escreve sessenta e dois e meio numa célula?",
+              "keys": [
+                "62,5"
+              ],
+              "a": "62,5, com vírgula. Com ponto, pode ficar texto ou até virar data."
+            },
+            {
+              "q": "A célula guarda 62,5, mas sem casas decimais mostra 63. Que valor entra nas contas?",
+              "keys": [
+                "62,5"
+              ],
+              "a": "62,5. O formato muda o aspeto, não o valor."
+            },
+            {
+              "q": "Onde se escolhe o formato Moeda ou Percentagem no Google Sheets?",
+              "keys": [
+                "formatar número"
+              ],
+              "a": "Formatar › Número."
+            },
+            {
+              "q": "Escreve «janeiro» e arrasta o quadradinho azul para baixo. O que acontece?",
+              "keys": [
+                "fevereiro",
+                "série",
+                "continua"
+              ],
+              "a": "A série continua: fevereiro, março, abril…"
+            },
+            {
+              "q": "Como se faz a série 1, 2, 3, 4…?",
+              "keys": [
+                "duas células",
+                "arrastar",
+                "arrasta",
+                "1 e 2"
+              ],
+              "a": "Escreve-se 1 e 2 em duas células, selecionam-se as duas e arrasta-se o quadradinho azul."
+            },
+            {
+              "q": "Onde se fixa a primeira linha?",
+              "keys": [
+                "ver fixar",
+                "fixar painéis"
+              ],
+              "a": "No Google Sheets, em Ver › Fixar › 1 linha. No Excel, em Ver › Fixar Painéis."
+            },
+            {
+              "q": "No Excel, a célula mostra ####. Perdeu-se o número?",
+              "keys": [
+                "não",
+                "estreita",
+                "largura"
+              ],
+              "a": "Não, a coluna é estreita demais. Um duplo clique na divisória entre as letras das colunas ajusta a largura."
+            },
+            {
+              "q": "No Google Sheets, onde se confirma que a região é Portugal?",
+              "keys": [
+                "definições",
+                "local"
+              ],
+              "a": "Ficheiro › Definições › Local."
+            }
+          ]
+        },
+        {
+          "theme": "Secção 2 · Fórmulas",
+          "questions": [
+            {
+              "q": "Por que sinal começa sempre uma fórmula?",
+              "keys": [
+                "=",
+                "igual"
+              ],
+              "a": "Pelo sinal de igual (=)."
+            },
+            {
+              "q": "Quanto dá =5+2*3?",
+              "keys": [
+                "11",
+                "onze"
+              ],
+              "a": "11, porque a multiplicação faz-se antes da soma."
+            },
+            {
+              "q": "Com 5, 2 e 3, como se escreve a fórmula para dar 21?",
+              "keys": [
+                "=(5+2)*3",
+                "(5+2)*3"
+              ],
+              "a": "=(5+2)*3"
+            },
+            {
+              "q": "Que símbolo se usa para multiplicar? E para dividir?",
+              "keys": [
+                "asterisco barra",
+                "* /",
+                "*/",
+                "* e /"
+              ],
+              "a": "O asterisco (*) e a barra (/)."
+            },
+            {
+              "q": "Porque é melhor =B2*C2 do que =40*62,5?",
+              "keys": [
+                "atualiza",
+                "atualizam",
+                "muda",
+                "mudam"
+              ],
+              "a": "Só a primeira se atualiza quando os valores mudam."
+            },
+            {
+              "q": "Mudou o preço em C2. Tem de reescrever a fórmula do total?",
+              "keys": [
+                "não",
+                "sozinho"
+              ],
+              "a": "Não, o total atualiza-se sozinho."
+            },
+            {
+              "q": "Copia =B2*C2 de D2 para D3. Que fórmula fica em D3?",
+              "keys": [
+                "=B3*C3",
+                "B3*C3"
+              ],
+              "a": "=B3*C3. É a referência relativa."
+            },
+            {
+              "q": "Qual é a fórmula que soma as células de D2 a D6?",
+              "keys": [
+                "=SOMA(D2:D6)",
+                "SOMA(D2:D6)"
+              ],
+              "a": "=SOMA(D2:D6)"
+            },
+            {
+              "q": "Diga três funções da família da SOMA.",
+              "keys": [
+                "média máximo",
+                "média mínimo",
+                "média contar",
+                "máximo mínimo",
+                "máximo contar",
+                "mínimo contar"
+              ],
+              "a": "MÉDIA, MÁXIMO, MÍNIMO e CONTAR."
+            },
+            {
+              "q": "Em português, que sinal separa os argumentos de uma função?",
+              "keys": [
+                "ponto e vírgula",
+                ";"
+              ],
+              "a": "O ponto e vírgula (;)."
+            },
+            {
+              "q": "A taxa de IVA está em H1. Copiou =D2*(1+H1) para baixo e o IVA desapareceu. Porquê?",
+              "keys": [
+                "$H$1",
+                "absoluta",
+                "vazia",
+                "H2"
+              ],
+              "a": "A fórmula passou a apontar para H2, que está vazia. Era preciso escrever $H$1."
+            },
+            {
+              "q": "O que faz o cifrão em $H$1?",
+              "keys": [
+                "prende",
+                "fixa",
+                "absoluta",
+                "bloqueia"
+              ],
+              "a": "Prende a referência, que passa a ser absoluta."
+            },
+            {
+              "q": "Que tecla põe os cifrões?",
+              "keys": [
+                "F4",
+                "tecla F4"
+              ],
+              "a": "F4, com o cursor em cima da referência."
+            },
+            {
+              "q": "Dê um exemplo de célula que deve ter referência absoluta.",
+              "keys": [
+                "taxa",
+                "objetivo",
+                "preço",
+                "IVA"
+              ],
+              "a": "Uma taxa, um objetivo ou um preço fixo."
+            }
+          ]
+        },
+        {
+          "theme": "Secção 3 · Decidir, ordenar e filtrar",
+          "questions": [
+            {
+              "q": "Diga os seis comparadores.",
+              "keys": [
+                "> < >= <= = <>",
+                "><>=<==<>",
+                "maior menor igual diferente"
+              ],
+              "a": "> < >= <= = <>"
+            },
+            {
+              "q": "Como se escreve «diferente»?",
+              "keys": [
+                "<>"
+              ],
+              "a": "<>"
+            },
+            {
+              "q": "O stock é 6 e o mínimo é 12. O que dá =6<12?",
+              "keys": [
+                "verdadeiro",
+                "true"
+              ],
+              "a": "Verdadeiro. No Google Sheets aparece TRUE."
+            },
+            {
+              "q": "Quantas partes tem a função SE e o que as separa?",
+              "keys": [
+                "três",
+                "3",
+                "ponto e vírgula"
+              ],
+              "a": "Três (o teste, o resultado se for verdadeiro e o resultado se for falso), separadas por ponto e vírgula."
+            },
+            {
+              "q": "Complete: =SE(C2<D2;\"Encomendar\";___)",
+              "keys": [
+                "\"OK\"",
+                "ok"
+              ],
+              "a": "\"OK\""
+            },
+            {
+              "q": "Porque é que «Encomendar» vai entre aspas?",
+              "keys": [
+                "texto"
+              ],
+              "a": "Porque é texto."
+            },
+            {
+              "q": "O stock de um artigo muda amanhã. É preciso voltar a comparar à mão?",
+              "keys": [
+                "não",
+                "sozinha"
+              ],
+              "a": "Não, a palavra muda sozinha."
+            },
+            {
+              "q": "O que quer dizer #DIV/0!?",
+              "keys": [
+                "divisão por zero",
+                "zero",
+                "vazia"
+              ],
+              "a": "Divisão por zero ou por uma célula vazia."
+            },
+            {
+              "q": "Escreveu =SOMAR(D2:D6) e apareceu #NAME? (#NOME? no Excel). Porquê?",
+              "keys": [
+                "mal escrito",
+                "nome errado",
+                "soma",
+                "aspas"
+              ],
+              "a": "O nome da função está mal escrito: é SOMA. Este erro também aparece quando falta pôr aspas num texto."
+            },
+            {
+              "q": "O que quer dizer #VALUE! (#VALOR! no Excel)?",
+              "keys": [
+                "texto"
+              ],
+              "a": "A conta tem texto pelo meio."
+            },
+            {
+              "q": "O que quer dizer #REF!?",
+              "keys": [
+                "apagada",
+                "apagou",
+                "apagaram",
+                "eliminada"
+              ],
+              "a": "A fórmula apontava para uma célula que foi apagada."
+            },
+            {
+              "q": "Selecionou só a coluna do stock e ordenou. O que correu mal?",
+              "keys": [
+                "nomes",
+                "errada",
+                "desalinhada",
+                "baralhou"
+              ],
+              "a": "Os números mudaram de lugar e os nomes não, por isso a lista ficou errada."
+            },
+            {
+              "q": "Para ordenar bem, o que se seleciona e que opção se marca?",
+              "keys": [
+                "tabela toda",
+                "cabeçalho"
+              ],
+              "a": "Seleciona-se a tabela toda e marca-se «Dados com linha de cabeçalho»."
+            },
+            {
+              "q": "Onde se cria um filtro?",
+              "keys": [
+                "dados criar filtro",
+                "dados"
+              ],
+              "a": "Dados › Criar um filtro."
+            },
+            {
+              "q": "O filtro apaga linhas? Como se percebe?",
+              "keys": [
+                "não",
+                "esconde",
+                "saltam"
+              ],
+              "a": "Não, só as esconde. Percebe-se porque os números das linhas saltam."
+            },
+            {
+              "q": "O que fazer ao filtro antes de partilhar o ficheiro?",
+              "keys": [
+                "remover",
+                "remove",
+                "tirar",
+                "retirar"
+              ],
+              "a": "Removê-lo, em Dados › Remover filtro."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "cross",
+      "text": "Palavras cruzadas · A folha por dentro",
+      "entries": [
+        {
+          "word": "Ordenar",
+          "clue": "Dados › ________ intervalo"
+        },
+        {
+          "word": "Celula",
+          "clue": "Encontro de uma coluna com uma linha, como B3"
+        },
+        {
+          "word": "Virgula",
+          "clue": "Em Portugal, separa as casas decimais"
+        },
+        {
+          "word": "Formato",
+          "clue": "Muda o aspeto do número, mas não o valor guardado"
+        },
+        {
+          "word": "Fixar",
+          "clue": "Ver › ____ › 1 linha"
+        },
+        {
+          "word": "Livro",
+          "clue": "O ficheiro da folha de cálculo, com várias folhas"
+        },
+        {
+          "word": "Intervalo",
+          "clue": "Conjunto de células seguidas, como C2:C6"
+        }
+      ],
+      "time": 240
+    },
+    {
+      "type": "cross",
+      "text": "Palavras cruzadas · Fórmulas e filtros",
+      "entries": [
+        {
+          "word": "Cabecalho",
+          "clue": "A linha dos títulos, que não deve ir para o meio ao ordenar"
+        },
+        {
+          "word": "Media",
+          "clue": "Função que calcula o valor médio"
+        },
+        {
+          "word": "Soma",
+          "clue": "Função que adiciona os valores de um intervalo"
+        },
+        {
+          "word": "Formula",
+          "clue": "Começa sempre com o sinal de igual"
+        },
+        {
+          "word": "Cifrao",
+          "clue": "Prende a coluna ou a linha numa referência"
+        },
+        {
+          "word": "Filtro",
+          "clue": "Mostra só as linhas que interessam, sem apagar nada"
+        },
+        {
+          "word": "Asterisco",
+          "clue": "Operador da multiplicação"
+        },
+        {
+          "word": "Aspas",
+          "clue": "Envolvem o texto dentro de uma fórmula"
+        }
+      ],
+      "time": 240
+    },
+    {
+      "type": "guess",
+      "text": "O ficheiro da folha de cálculo, com várias folhas (Secção 1)",
+      "answer": "Livro",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "O encontro de uma coluna com uma linha, como B3 (Secção 1)",
+      "answer": "Célula",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Células seguidas, escritas com dois pontos, como C2:C6 (Secção 1)",
+      "answer": "Intervalo",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Em Portugal, separa as casas decimais (Secção 1)",
+      "answer": "Vírgula",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Muda o aspeto do número, mas não o valor guardado (Secção 1)",
+      "answer": "Formato",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Formato que mostra 0,23 como 23 % (Secção 1)",
+      "answer": "Percentagem",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Formato que mostra o símbolo do euro (Secção 1)",
+      "answer": "Moeda",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Arrastar o quadradinho azul faz o … automático (Secção 1)",
+      "answer": "Preenchimento",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Ver › ____ › 1 linha (Secção 1)",
+      "answer": "Fixar",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "No Excel, aparecem quando a coluna é estreita demais (####) (Secção 1)",
+      "answer": "Cardinais",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Começa sempre com o sinal de igual (Secção 2)",
+      "answer": "Fórmula",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "O operador da multiplicação (Secção 2)",
+      "answer": "Asterisco",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Mudam a ordem das contas (Secção 2)",
+      "answer": "Parênteses",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "B2 numa fórmula, em vez de escrever o número (Secção 2)",
+      "answer": "Referência",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Referência que se ajusta sozinha ao copiar (Secção 2)",
+      "answer": "Relativa",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Referência presa, que não muda ao copiar (Secção 2)",
+      "answer": "Absoluta",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "O símbolo que prende a coluna ou a linha: $ (Secção 2)",
+      "answer": "Cifrão",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Função que adiciona os valores de um intervalo (Secção 2)",
+      "answer": "Soma",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Função que calcula o valor médio (Secção 2)",
+      "answer": "Média",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Função que devolve o maior valor (Secção 2)",
+      "answer": "Máximo",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Função que devolve o menor valor (Secção 2)",
+      "answer": "Mínimo",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Função que conta as células com números (Secção 2)",
+      "answer": "Contar",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Maior, menor, igual ou diferente (Secção 3)",
+      "answer": "Comparador",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "O resultado de =6<12 (Secção 3)",
+      "answer": "Verdadeiro",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "O resultado de =12<6 (Secção 3)",
+      "answer": "Falso",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Envolvem o texto dentro de uma fórmula (Secção 3)",
+      "answer": "Aspas",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "O que a função SE escreve quando o stock é menor do que o mínimo (Secção 3)",
+      "answer": "Encomendar",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Dados › ________ intervalo (Secção 3)",
+      "answer": "Ordenar",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "A linha dos títulos, que não deve ir parar ao meio da lista (Secção 3)",
+      "answer": "Cabeçalho",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "Mostra só as linhas que interessam, sem apagar nada (Secção 3)",
+      "answer": "Filtro",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "guess",
+      "text": "O filtro não apaga, só … (Secção 3)",
+      "answer": "Esconde",
+      "maxTries": 6,
+      "time": 120
+    },
+    {
+      "type": "scramble",
+      "text": "Ficheiro com várias folhas",
+      "answer": "Livro",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Coluna com linha, como B3",
+      "answer": "Célula",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Escreve-se com dois pontos",
+      "answer": "Intervalo",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Separa as casas decimais",
+      "answer": "Vírgula",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Muda o aspeto, não o valor",
+      "answer": "Formato",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "0,23 aparece como 23 %",
+      "answer": "Percentagem",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Formato com o símbolo do euro",
+      "answer": "Moeda",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O quadradinho azul continua a série",
+      "answer": "Preenchimento",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Ver › ____ › 1 linha",
+      "answer": "Fixar",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "#### no Excel",
+      "answer": "Cardinais",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Começa com =",
+      "answer": "Fórmula",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Multiplicar",
+      "answer": "Asterisco",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Mudam a ordem das contas",
+      "answer": "Parênteses",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "B2 em vez do número",
+      "answer": "Referência",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Ajusta-se ao copiar",
+      "answer": "Relativa",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Não muda ao copiar",
+      "answer": "Absoluta",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "$",
+      "answer": "Cifrão",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Adiciona um intervalo",
+      "answer": "Soma",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O valor médio",
+      "answer": "Média",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O maior valor",
+      "answer": "Máximo",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O menor valor",
+      "answer": "Mínimo",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Conta as células com números",
+      "answer": "Contar",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "> < = <>",
+      "answer": "Comparador",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "=6<12",
+      "answer": "Verdadeiro",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "=12<6",
+      "answer": "Falso",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Envolvem o texto",
+      "answer": "Aspas",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O que o SE escreve quando falta stock",
+      "answer": "Encomendar",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Dados › ________ intervalo",
+      "answer": "Ordenar",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "A linha dos títulos",
+      "answer": "Cabeçalho",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "Mostra só o que interessa",
+      "answer": "Filtro",
+      "time": 40
+    },
+    {
+      "type": "scramble",
+      "text": "O filtro não apaga, só…",
+      "answer": "Esconde",
+      "time": 40
+    },
+    {
+      "type": "hangman",
+      "text": "O ficheiro da folha de cálculo, com várias folhas (Secção 1)",
+      "answer": "Livro",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O encontro de uma coluna com uma linha, como B3 (Secção 1)",
+      "answer": "Célula",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Células seguidas, escritas com dois pontos, como C2:C6 (Secção 1)",
+      "answer": "Intervalo",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Em Portugal, separa as casas decimais (Secção 1)",
+      "answer": "Vírgula",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Muda o aspeto do número, mas não o valor guardado (Secção 1)",
+      "answer": "Formato",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Formato que mostra 0,23 como 23 % (Secção 1)",
+      "answer": "Percentagem",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Formato que mostra o símbolo do euro (Secção 1)",
+      "answer": "Moeda",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Arrastar o quadradinho azul faz o … automático (Secção 1)",
+      "answer": "Preenchimento",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Ver › ____ › 1 linha (Secção 1)",
+      "answer": "Fixar",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "No Excel, aparecem quando a coluna é estreita demais (####) (Secção 1)",
+      "answer": "Cardinais",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Começa sempre com o sinal de igual (Secção 2)",
+      "answer": "Fórmula",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O operador da multiplicação (Secção 2)",
+      "answer": "Asterisco",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Mudam a ordem das contas (Secção 2)",
+      "answer": "Parênteses",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "B2 numa fórmula, em vez de escrever o número (Secção 2)",
+      "answer": "Referência",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Referência que se ajusta sozinha ao copiar (Secção 2)",
+      "answer": "Relativa",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Referência presa, que não muda ao copiar (Secção 2)",
+      "answer": "Absoluta",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O símbolo que prende a coluna ou a linha: $ (Secção 2)",
+      "answer": "Cifrão",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Função que adiciona os valores de um intervalo (Secção 2)",
+      "answer": "Soma",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Função que calcula o valor médio (Secção 2)",
+      "answer": "Média",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Função que devolve o maior valor (Secção 2)",
+      "answer": "Máximo",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Função que devolve o menor valor (Secção 2)",
+      "answer": "Mínimo",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Função que conta as células com números (Secção 2)",
+      "answer": "Contar",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Maior, menor, igual ou diferente (Secção 3)",
+      "answer": "Comparador",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O resultado de =6<12 (Secção 3)",
+      "answer": "Verdadeiro",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O resultado de =12<6 (Secção 3)",
+      "answer": "Falso",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Envolvem o texto dentro de uma fórmula (Secção 3)",
+      "answer": "Aspas",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O que a função SE escreve quando o stock é menor do que o mínimo (Secção 3)",
+      "answer": "Encomendar",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Dados › ________ intervalo (Secção 3)",
+      "answer": "Ordenar",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "A linha dos títulos, que não deve ir parar ao meio da lista (Secção 3)",
+      "answer": "Cabeçalho",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "Mostra só as linhas que interessam, sem apagar nada (Secção 3)",
+      "answer": "Filtro",
+      "maxWrong": 7,
+      "time": 120
+    },
+    {
+      "type": "hangman",
+      "text": "O filtro não apaga, só … (Secção 3)",
+      "answer": "Esconde",
+      "maxWrong": 7,
+      "time": 120
+    }
+  ]
+}

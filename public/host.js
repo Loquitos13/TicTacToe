@@ -1082,7 +1082,7 @@ function renderQuizzes() {
     ${courses.map(c => { const qs = quizzes.filter(q => q.courseId === c.id); return `<div class="card slide-up" style="margin-top:16px">
       <div class="row"><h3 class="grow" style="margin:0;font-size:1.3em">🎓 ${esc(c.name)} <small class="muted" style="font-weight:400">· ${qs.length} questionário${qs.length === 1 ? '' : 's'}</small></h3>
         <button class="btn small primary" data-newq="${c.id}">+ Questionário</button>
-        <label class="btn small">Importar JSON<input type="file" accept=".json" data-imp="${c.id}" hidden></label>
+        <label class="btn small" title="Pode escolher vários ficheiros de uma vez">Importar JSON<input type="file" accept=".json" multiple data-imp="${c.id}" hidden></label>
         <button class="btn small" data-ren="${c.id}">✏️ Renomear</button><button class="btn small danger" data-cdel="${c.id}" title="Apagar curso">✕</button></div>
       <div class="list" style="margin-top:12px">${qs.map(q => `<div class="item"><div class="grow"><b>${esc(q.title)}</b>${q.anonymous ? ' <span class="tag none">🕶️ anónimo</span>' : ''}<br><small class="muted">${q.questions.length} perguntas</small></div>
         <button class="btn small" data-edit="${q.id}">Editar</button><button class="btn small" data-dup="${q.id}">Duplicar</button>
@@ -1097,12 +1097,26 @@ function renderQuizzes() {
   $$('[data-del]').forEach(b => b.onclick = async () => { if (!confirm('Apagar este questionário?')) return; await api('DELETE', '/api/quizzes/' + b.dataset.del); after(); });
   $$('[data-key]').forEach(b => b.onclick = () => showAnswerKey(quizzes.find(q => q.id === b.dataset.key)));
   $$('[data-exp]').forEach(b => b.onclick = () => { const q = quizzes.find(q => q.id === b.dataset.exp); download(q.title + '.json', JSON.stringify(q, null, 2), 'application/json'); });
-  $$('[data-imp]').forEach(inp => inp.onchange = async e => { try { const q = JSON.parse(await e.target.files[0].text()); delete q.id; q.courseId = inp.dataset.imp; const sent = (q.questions || []).length, saved = await api('POST', '/api/quizzes', q);
+  // importar um ou vários ficheiros; com vários, pergunta se ficam num só questionário (com as perguntas todas, por ordem)
+  $$('[data-imp]').forEach(inp => inp.onchange = async e => {
+    const files = [...e.target.files]; e.target.value = '';
+    let list;
+    try { list = await Promise.all(files.map(async f => { const q = JSON.parse(await f.text()); if (!Array.isArray(q.questions)) throw 0; return q; })); }
+    catch { return toast('Ficheiro inválido'); }
+    if (list.length > 1 && confirm(`Juntar os ${list.length} ficheiros num só questionário?\n\nOK = um questionário com as ${list.reduce((n, q) => n + q.questions.length, 0)} perguntas todas\nCancelar = um questionário por ficheiro`)) {
+      const name = prompt('Nome do questionário:', list[0].title.replace(/\s*·.*$/, '') + ' · Jogos');
+      if (name === null) return;
+      list = [{ title: name.trim() || list[0].title, questions: list.flatMap(q => q.questions) }];
+    }
+    let sent = 0, kept = 0;
+    try {
+      for (const q of list) { delete q.id; q.courseId = inp.dataset.imp; sent += q.questions.length; kept += (await api('POST', '/api/quizzes', q)).questions.length; }
+    } catch (err) { return toast('Não foi importado: ' + err.message, 6000); }
     // avisa se alguma pergunta não entrou (incompleta, ou de um tipo que esta versão não conhece)
-    const lost = sent - saved.questions.length;
-    if (lost > 0) toast(`Importado, mas ${lost} de ${sent} perguntas não entraram (incompletas ou de um tipo que esta versão não conhece). Atualiza a app (git pull) e importa de novo.`, 9000);
-    else toast(`Importado: ${saved.questions.length} perguntas`);
-    after(); } catch (err) { toast('Ficheiro inválido'); } });
+    if (kept < sent) toast(`Importado, mas ${sent - kept} de ${sent} perguntas não entraram (incompletas ou de um tipo que esta versão não conhece). Atualiza a app (git pull) e importa de novo.`, 9000);
+    else toast(list.length > 1 ? `Importados ${list.length} questionários (${kept} perguntas)` : `Importado: ${kept} perguntas`);
+    after();
+  });
 }
 // Lista de soluções: todas as perguntas com a resposta correta destacada (imprimir / PDF / Word)
 function answerKeyItemHtml(q, i) {

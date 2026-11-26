@@ -96,6 +96,9 @@ if (require.main === module) {
   out('excel-s9-adivinha.json', { title: 'Excel S9 · Adivinha a palavra', questions: PALAVRAS.flatMap((ws, k) => ws.map(([answer, hint]) => ({ type: 'guess', text: `${hint} (Secção ${k + 1})`, answer, maxTries: 6, time: 120 }))) });
   out('excel-s9-letras.json', { title: 'Excel S9 · Letras baralhadas', questions: LETRAS.map(([answer, hint]) => ({ type: 'scramble', text: hint, answer, time: 40 })) });
   out('excel-s9-cruzadas.json', { title: 'Excel S9 · Palavras cruzadas', questions: CRUZADAS.map(([text, ws]) => ({ type: 'cross', text, entries: ws.map(([word, clue]) => ({ word, clue })), time: 240 })) });
+  // tudo num só questionário (para o PowerPoint: cada diapositivo escolhe a pergunta que quiser)
+  const all = ['batata-quente', 'cruzadas', 'adivinha', 'letras', 'forca'].map(f => JSON.parse(fs.readFileSync(path.join(__dirname, `excel-s9-${f}.json`), 'utf8')));
+  if (process.argv.includes('--forca') || fs.existsSync(path.join(__dirname, 'excel-s9-forca.json'))) out('excel-s9-tudo.json', { title: 'Excel S9 · Jogos', questions: all.flatMap(q => q.questions) });
   if (process.argv.includes('--forca')) out('excel-s9-forca.json', { title: 'Excel S9 · Jogo da forca', questions: PALAVRAS.flatMap((ws, k) => ws.map(([answer, hint]) => ({ type: 'hangman', text: `${hint} (Secção ${k + 1})`, answer, maxWrong: 7, time: 120 }))) });
   console.log('ok');
 }
