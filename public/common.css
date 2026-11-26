@@ -15,6 +15,7 @@ button, .kb-k, .ans, .scr-t, .scr-slot, .wchip, .slot, .match-b, .rank-item { to
 .hm-fall { animation: hmFall .7s cubic-bezier(.3,1.6,.6,1) both; transform-box: fill-box; transform-origin: center; }
 @keyframes hmFall { 0% { transform: translateY(-60px) rotate(-40deg); opacity: .4 } 100% { transform: none; opacity: 1 } }
 .hm-jump { animation: hmJump .6s ease-in-out infinite alternate; } @keyframes hmJump { to { transform: translateY(-8px); } }
+.hm-spark { font-size: 15px; animation: hmTw .8s ease-in-out infinite alternate; } .hm-spark2 { animation-delay: .4s; } @keyframes hmTw { from { opacity: .25; } to { opacity: 1; } }
 :root {
   --bg1: #2b1055; --bg2: #7597de; --ink: #1d1433; --card: #ffffff; --muted: #6b6280;
   --a: #ff5d73; --b: #14b8a6; --c: #f59e0b; --d: #8b5cf6; --e: #3b82f6; --f: #ec4899;

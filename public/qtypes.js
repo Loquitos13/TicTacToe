@@ -121,7 +121,7 @@ const crossCellsOf = (w) => Array.from({ length: w.len }, (_, i) => (w.r + (w.di
 function hangmanSvg(wrong, max, solved, fresh) {
   max = max || 7;
   const stage = Math.min(7, Math.round(wrong * 7 / max));                 // 0..7 peças perdidas (proporcional aos erros permitidos)
-  const lost = stage >= 7 && !solved, k = i => !solved && stage >= i;      // a peça i já caiu? (quem acerta recupera tudo)
+  const lost = stage >= 7 && !solved, k = i => stage >= i;      // a peça i já caiu? (quem acerta fica como estava: feliz, a saltar, mas sem as peças que perdeu)
   const fall = i => fresh != null && Math.min(7, Math.round(fresh * 7 / max)) === i ? ' hm-fall' : '';
   const mood = solved ? 'M73 51 Q80 59 87 51' : stage <= 1 ? 'M74 52 Q80 57 86 52' : stage <= 3 ? 'M74 54 L86 54' : 'M74 56 Q80 51 86 56';
   const eyes = lost ? '<path d="M73 43 l5 5 m0 -5 l-5 5 M82 43 l5 5 m0 -5 l-5 5" class="hm-l"/>' : '<circle cx="76" cy="46" r="1.8" class="hm-f"/><circle cx="84" cy="46" r="1.8" class="hm-f"/>';
@@ -148,5 +148,5 @@ function hangmanSvg(wrong, max, solved, fresh) {
   ].filter(Boolean).join('');
   return `<svg class="hm ${solved ? 'hm-win' : ''} ${lost ? 'hm-lost' : ''}" viewBox="0 0 130 140" role="img" aria-label="Forca: ${wrong} de ${max} erros">
     <path d="M8 134 H122" class="hm-g"/><path d="M24 134 V10 H80 V28 M24 26 L40 10" class="hm-g"/><circle cx="80" cy="31" r="3" class="hm-rope"/>
-    <g class="${solved ? 'hm-jump' : ''}">${parts}</g>${floor}</svg>`;
+    <g class="${solved ? 'hm-jump' : ''}">${parts}${solved ? '<text x="56" y="42" class="hm-star hm-spark">✦</text><text x="97" y="36" class="hm-star hm-spark hm-spark2">✧</text>' : ''}</g>${floor}</svg>`;
 }
