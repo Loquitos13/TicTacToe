@@ -96,6 +96,12 @@ if (require.main === module) {
   out('excel-s9-adivinha.json', { title: 'Excel S9 · Adivinha a palavra', questions: PALAVRAS.flatMap((ws, k) => ws.map(([answer, hint]) => ({ type: 'guess', text: `${hint} (Secção ${k + 1})`, answer, maxTries: 6, time: 120 }))) });
   out('excel-s9-letras.json', { title: 'Excel S9 · Letras baralhadas', questions: LETRAS.map(([answer, hint]) => ({ type: 'scramble', text: hint, answer, time: 40 })) });
   out('excel-s9-cruzadas.json', { title: 'Excel S9 · Palavras cruzadas', questions: CRUZADAS.map(([text, ws]) => ({ type: 'cross', text, entries: ws.map(([word, clue]) => ({ word, clue })), time: 240 })) });
+  // versão para a sessão (curta): uma batata de 7 perguntas por secção + as duas cruzadas, pela ordem da aula
+  const PICK = [[0, 1, 2, 3, 6, 7, 12], [0, 1, 3, 6, 7, 9, 12], [1, 2, 4, 7, 8, 12, 14]];
+  const batata = k => ({ type: 'potato', text: `🥔 Batata quente · Secção ${k + 1}: ${SEC[k]}`, time: 30, fuseMin: 45, fuseMax: 75, pts: 100, penalty: 50,
+    rounds: [{ theme: `Secção ${k + 1} · ${SEC[k]}`, questions: PICK[k].map(i => BATATA[k][i]).map(([q, keys, a]) => ({ q, keys, a })) }] });
+  const cruz = k => ({ type: 'cross', text: CRUZADAS[k][0], entries: CRUZADAS[k][1].map(([word, clue]) => ({ word, clue })), time: 240 });
+  out('excel-s9-sessao.json', { title: 'Excel S9 · Sessão', questions: [batata(0), cruz(0), batata(1), batata(2), cruz(1)] });
   // tudo num só questionário (para o PowerPoint: cada diapositivo escolhe a pergunta que quiser)
   const all = ['batata-quente', 'cruzadas', 'adivinha', 'letras', 'forca'].map(f => JSON.parse(fs.readFileSync(path.join(__dirname, `excel-s9-${f}.json`), 'utf8')));
   if (process.argv.includes('--forca') || fs.existsSync(path.join(__dirname, 'excel-s9-forca.json'))) out('excel-s9-tudo.json', { title: 'Excel S9 · Jogos', questions: all.flatMap(q => q.questions) });

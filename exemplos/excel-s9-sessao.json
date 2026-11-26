@@ -1,0 +1,295 @@
+{
+  "title": "Excel S9 · Sessão",
+  "questions": [
+    {
+      "type": "potato",
+      "text": "🥔 Batata quente · Secção 1: A folha por dentro",
+      "time": 30,
+      "fuseMin": 45,
+      "fuseMax": 75,
+      "pts": 100,
+      "penalty": 50,
+      "rounds": [
+        {
+          "theme": "Secção 1 · A folha por dentro",
+          "questions": [
+            {
+              "q": "Como se chama o ficheiro de folha de cálculo, que pode ter várias folhas?",
+              "keys": [
+                "livro"
+              ],
+              "a": "Livro. As folhas aparecem em separadores no fundo do ecrã."
+            },
+            {
+              "q": "Qual é o endereço da célula da coluna C com a linha 4?",
+              "keys": [
+                "C4"
+              ],
+              "a": "C4: primeiro a letra, depois o número."
+            },
+            {
+              "q": "Como se escreve o intervalo que vai de A2 até A10?",
+              "keys": [
+                "A2:A10"
+              ],
+              "a": "A2:A10, com dois pontos."
+            },
+            {
+              "q": "Por defeito, para que lado encosta o texto? E os números e as datas?",
+              "keys": [
+                "esquerda direita"
+              ],
+              "a": "O texto encosta à esquerda. Os números e as datas encostam à direita."
+            },
+            {
+              "q": "Em Portugal, como se escreve sessenta e dois e meio numa célula?",
+              "keys": [
+                "62,5"
+              ],
+              "a": "62,5, com vírgula. Com ponto, pode ficar texto ou até virar data."
+            },
+            {
+              "q": "A célula guarda 62,5, mas sem casas decimais mostra 63. Que valor entra nas contas?",
+              "keys": [
+                "62,5"
+              ],
+              "a": "62,5. O formato muda o aspeto, não o valor."
+            },
+            {
+              "q": "No Excel, a célula mostra ####. Perdeu-se o número?",
+              "keys": [
+                "não",
+                "estreita",
+                "largura"
+              ],
+              "a": "Não, a coluna é estreita demais. Um duplo clique na divisória entre as letras das colunas ajusta a largura."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "cross",
+      "text": "Palavras cruzadas · A folha por dentro",
+      "entries": [
+        {
+          "word": "Ordenar",
+          "clue": "Dados › ________ intervalo"
+        },
+        {
+          "word": "Celula",
+          "clue": "Encontro de uma coluna com uma linha, como B3"
+        },
+        {
+          "word": "Virgula",
+          "clue": "Em Portugal, separa as casas decimais"
+        },
+        {
+          "word": "Formato",
+          "clue": "Muda o aspeto do número, mas não o valor guardado"
+        },
+        {
+          "word": "Fixar",
+          "clue": "Ver › ____ › 1 linha"
+        },
+        {
+          "word": "Livro",
+          "clue": "O ficheiro da folha de cálculo, com várias folhas"
+        },
+        {
+          "word": "Intervalo",
+          "clue": "Conjunto de células seguidas, como C2:C6"
+        }
+      ],
+      "time": 240
+    },
+    {
+      "type": "potato",
+      "text": "🥔 Batata quente · Secção 2: Fórmulas",
+      "time": 30,
+      "fuseMin": 45,
+      "fuseMax": 75,
+      "pts": 100,
+      "penalty": 50,
+      "rounds": [
+        {
+          "theme": "Secção 2 · Fórmulas",
+          "questions": [
+            {
+              "q": "Por que sinal começa sempre uma fórmula?",
+              "keys": [
+                "=",
+                "igual"
+              ],
+              "a": "Pelo sinal de igual (=)."
+            },
+            {
+              "q": "Quanto dá =5+2*3?",
+              "keys": [
+                "11",
+                "onze"
+              ],
+              "a": "11, porque a multiplicação faz-se antes da soma."
+            },
+            {
+              "q": "Que símbolo se usa para multiplicar? E para dividir?",
+              "keys": [
+                "asterisco barra",
+                "* /",
+                "*/",
+                "* e /"
+              ],
+              "a": "O asterisco (*) e a barra (/)."
+            },
+            {
+              "q": "Copia =B2*C2 de D2 para D3. Que fórmula fica em D3?",
+              "keys": [
+                "=B3*C3",
+                "B3*C3"
+              ],
+              "a": "=B3*C3. É a referência relativa."
+            },
+            {
+              "q": "Qual é a fórmula que soma as células de D2 a D6?",
+              "keys": [
+                "=SOMA(D2:D6)",
+                "SOMA(D2:D6)"
+              ],
+              "a": "=SOMA(D2:D6)"
+            },
+            {
+              "q": "Em português, que sinal separa os argumentos de uma função?",
+              "keys": [
+                "ponto e vírgula",
+                ";"
+              ],
+              "a": "O ponto e vírgula (;)."
+            },
+            {
+              "q": "Que tecla põe os cifrões?",
+              "keys": [
+                "F4",
+                "tecla F4"
+              ],
+              "a": "F4, com o cursor em cima da referência."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "potato",
+      "text": "🥔 Batata quente · Secção 3: Decidir, ordenar e filtrar",
+      "time": 30,
+      "fuseMin": 45,
+      "fuseMax": 75,
+      "pts": 100,
+      "penalty": 50,
+      "rounds": [
+        {
+          "theme": "Secção 3 · Decidir, ordenar e filtrar",
+          "questions": [
+            {
+              "q": "Como se escreve «diferente»?",
+              "keys": [
+                "<>"
+              ],
+              "a": "<>"
+            },
+            {
+              "q": "O stock é 6 e o mínimo é 12. O que dá =6<12?",
+              "keys": [
+                "verdadeiro",
+                "true"
+              ],
+              "a": "Verdadeiro. No Google Sheets aparece TRUE."
+            },
+            {
+              "q": "Complete: =SE(C2<D2;\"Encomendar\";___)",
+              "keys": [
+                "\"OK\"",
+                "ok"
+              ],
+              "a": "\"OK\""
+            },
+            {
+              "q": "O que quer dizer #DIV/0!?",
+              "keys": [
+                "divisão por zero",
+                "zero",
+                "vazia"
+              ],
+              "a": "Divisão por zero ou por uma célula vazia."
+            },
+            {
+              "q": "Escreveu =SOMAR(D2:D6) e apareceu #NAME? (#NOME? no Excel). Porquê?",
+              "keys": [
+                "mal escrito",
+                "nome errado",
+                "soma",
+                "aspas"
+              ],
+              "a": "O nome da função está mal escrito: é SOMA. Este erro também aparece quando falta pôr aspas num texto."
+            },
+            {
+              "q": "Para ordenar bem, o que se seleciona e que opção se marca?",
+              "keys": [
+                "tabela toda",
+                "cabeçalho"
+              ],
+              "a": "Seleciona-se a tabela toda e marca-se «Dados com linha de cabeçalho»."
+            },
+            {
+              "q": "O filtro apaga linhas? Como se percebe?",
+              "keys": [
+                "não",
+                "esconde",
+                "saltam"
+              ],
+              "a": "Não, só as esconde. Percebe-se porque os números das linhas saltam."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "cross",
+      "text": "Palavras cruzadas · Fórmulas e filtros",
+      "entries": [
+        {
+          "word": "Cabecalho",
+          "clue": "A linha dos títulos, que não deve ir para o meio ao ordenar"
+        },
+        {
+          "word": "Media",
+          "clue": "Função que calcula o valor médio"
+        },
+        {
+          "word": "Soma",
+          "clue": "Função que adiciona os valores de um intervalo"
+        },
+        {
+          "word": "Formula",
+          "clue": "Começa sempre com o sinal de igual"
+        },
+        {
+          "word": "Cifrao",
+          "clue": "Prende a coluna ou a linha numa referência"
+        },
+        {
+          "word": "Filtro",
+          "clue": "Mostra só as linhas que interessam, sem apagar nada"
+        },
+        {
+          "word": "Asterisco",
+          "clue": "Operador da multiplicação"
+        },
+        {
+          "word": "Aspas",
+          "clue": "Envolvem o texto dentro de uma fórmula"
+        }
+      ],
+      "time": 240
+    }
+  ]
+}
